@@ -36,6 +36,8 @@ val drawerItems = listOf(
     DrawerItem(Icons.Default.Favorite, "Favorites", "favorites_route"),
     DrawerItem(Icons.Default.Person, "Profile", "profile_route"),
     DrawerItem(Icons.Default.Help, "Help & Support", "help_route"),
+    DrawerItem(Icons.Default.Add, "Ajouter Réclamation", "create_reclamation"),
+    DrawerItem(Icons.Default.List, "Mes Réclamations", "list_reclamation_route"),
 )
 
 // 🔑 NEW: Define the Professional Signup Item

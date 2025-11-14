@@ -2,17 +2,71 @@ package com.example.damprojectfinal.core.utils
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.example.damprojectfinal.core.api.AuthApiService
+import com.example.damprojectfinal.feature_auth.repository.AuthRepository
+import com.example.damprojectfinal.feature_auth.viewmodels.ForgotPasswordViewModel
+import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
+import com.example.damprojectfinal.feature_auth.viewmodels.ResetPasswordViewModel
+import com.example.damprojectfinal.feature_auth.viewmodels.VerifyOtpViewModel
 
-/**
- * A generic ViewModel factory used to instantiate ViewModels that require custom constructor arguments,
- * such as API services or NavControllers, which cannot be provided by the default factory.
- */
-class ViewModelFactory<T : ViewModel>(val creator: () -> T) : ViewModelProvider.Factory {
-
-    // We suppress the unchecked cast warning because the creator function guarantees the type T.
-    @Suppress("UNCHECKED_CAST")
+// ========== LoginViewModelFactory ==========
+class LoginViewModelFactory(
+    private val authApiService: AuthApiService
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        // We run the provided lambda to create the ViewModel instance.
-        return creator() as T
+        if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return LoginViewModel(authApiService) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+// ========== ForgotPasswordViewModelFactory ==========
+class ForgotPasswordViewModelFactory(
+    private val repository: AuthRepository
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(ForgotPasswordViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return ForgotPasswordViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+// ========== VerifyOtpViewModelFactory ==========
+class VerifyOtpViewModelFactory(
+    private val repository: AuthRepository
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(VerifyOtpViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return VerifyOtpViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+// ========== ResetPasswordViewModelFactory ==========
+class ResetPasswordViewModelFactory(
+    private val repository: AuthRepository
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(ResetPasswordViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return ResetPasswordViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+// ========== Generic ViewModelFactory (pour usage simple) ==========
+class ViewModelFactory<T : ViewModel>(
+    private val creator: () -> T
+) : ViewModelProvider.Factory {
+    override fun <VM : ViewModel> create(modelClass: Class<VM>): VM {
+        @Suppress("UNCHECKED_CAST")
+        return creator() as VM
     }
 }

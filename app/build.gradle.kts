@@ -86,6 +86,7 @@ dependencies {
     // Font Awesome icons (Your Existing)
     implementation("br.com.devsrsouza.compose.icons:font-awesome:1.1.0")
 
+
     // Testing (Your Existing)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

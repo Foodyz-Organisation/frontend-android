@@ -9,7 +9,10 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
-
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_auth")
 
@@ -38,6 +41,11 @@ class TokenManager(private val context: Context) {
     fun getRefreshToken(): String? = runBlocking {
         context.dataStore.data.map { it[REFRESH_TOKEN_KEY] }.first()
     }
+    fun getUserId(): String? = runBlocking {
+        context.dataStore.data.map { it[USER_ID_KEY] }.first()
+    }
+
+    fun getUserIdFlow(): Flow<String?> = context.dataStore.data.map { it[USER_ID_KEY] }
 
     // Returning a Flow is the standard, non-blocking way to get DataStore values.
     fun getUserRole() = context.dataStore.data.map { it[USER_ROLE_KEY] }
