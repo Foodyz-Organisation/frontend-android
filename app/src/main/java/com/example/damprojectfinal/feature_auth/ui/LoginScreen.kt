@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.damprojectfinal.core.api.AuthApiService
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.utils.LoginViewModelFactory
 import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
 import com.example.damprojectfinal.R
@@ -43,13 +45,15 @@ import kotlinx.coroutines.launch
 fun LoginScreen(
     navController: NavController,
     authApiService: AuthApiService,
+    tokenManager: TokenManager,  // ✅ Reçoit TokenManager depuis AppNavigation
     onNavigateToForgetPassword: () -> Unit = {},
     onGoogleSignIn: () -> Unit = {},
     onFacebookSignIn: () -> Unit = {},
     onNavigateToSignup: () -> Unit = {}
 ) {
+    // ✅ Utilise le tokenManager passé en paramètre
     val viewModel: LoginViewModel = viewModel(
-        factory = LoginViewModelFactory(authApiService)
+        factory = LoginViewModelFactory(authApiService, tokenManager)
     )
 
     val uiState = viewModel.uiState

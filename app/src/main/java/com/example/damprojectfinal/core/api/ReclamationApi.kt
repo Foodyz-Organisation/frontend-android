@@ -6,6 +6,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import okhttp3.Interceptor
 import java.util.concurrent.TimeUnit
 
 interface ReclamationApi {
@@ -18,32 +19,34 @@ interface ReclamationApi {
 
 object ReclamationRetrofitClient {
     private const val TAG = "ReclamationClient"
-    private const val BASE_URL_EMULATOR = "http://10.0.2.2:3000"
-    private const val BASE_URL_PHYSICAL = "http://10.0.2.2:3000"
-    private const val USE_EMULATOR = true
-    private val BASE_URL = if (USE_EMULATOR) BASE_URL_EMULATOR else BASE_URL_PHYSICAL
+    private const val BASE_URL = "http://10.0.2.2:3000/"
 
+    // ✅ Fonction pour créer le client avec token
+    fun createClient(token: String): ReclamationApi {
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
 
+        // ✅ Intercepteur pour ajouter le token JWT
+        val authInterceptor = Interceptor { chain ->
+            val originalRequest = chain.request()
+            val authenticatedRequest = originalRequest.newBuilder()
+                .header("Authorization", "Bearer $token")
+                .build()
 
+            Log.d(TAG, "Requête avec token: Bearer ${token.take(20)}...")
+            chain.proceed(authenticatedRequest)
+        }
 
+        val client = OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
+            .addInterceptor(authInterceptor)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
 
-    private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
-    }
-
-    private val client = OkHttpClient.Builder()
-        .addInterceptor(loggingInterceptor)
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
-
-    // Changed from 'api' to 'reclamationApi' to match your navigation usage
-    val reclamationApi: ReclamationApi by lazy {
-        try {
-            Log.d(TAG, "Initialisation de Retrofit sur $BASE_URL")
-        } catch (_: Exception) {}
-        Retrofit.Builder()
+        return Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())

@@ -71,11 +71,15 @@ fun AppNavigation(
             )
         }
 
-        // 2️⃣ Login
+        // 2️⃣ Login - ✅ FIXED: Added TokenManager
         composable(AuthRoutes.LOGIN) {
+            val context = LocalContext.current
+            val tokenManager = TokenManager(context)
+
             LoginScreen(
                 navController = navController,
                 authApiService = authApiService,
+                tokenManager = tokenManager,
                 onNavigateToSignup = { navController.navigate(AuthRoutes.SIGNUP) },
                 onNavigateToForgetPassword = { navController.navigate(AuthRoutes.FORGOT_PASSWORD) }
             )
@@ -102,7 +106,6 @@ fun AppNavigation(
         }
 
         // 5️⃣ Verify OTP
-        // 5️⃣ Verify OTP
         composable(
             route = "${AuthRoutes.VERIFY_OTP}/{email}",
             arguments = listOf(navArgument("email") { type = NavType.StringType })
@@ -120,7 +123,7 @@ fun AppNavigation(
             )
         }
 
-        // 6️⃣ Reset Password (✅ SANS Deep Link)
+        // 6️⃣ Reset Password
         composable(
             route = "${AuthRoutes.RESET_PASSWORD}/{email}/{resetToken}",
             arguments = listOf(
@@ -169,21 +172,27 @@ fun AppNavigation(
             val context = LocalContext.current
             val tokenManager = TokenManager(context)
             val userApiService = UserApiService(tokenManager)
-            val repository = ReclamationRepository(ReclamationRetrofitClient.reclamationApi)
 
             val vm: ReclamationViewModel = viewModel(
-                factory = ReclamationViewModelFactory(userApiService, tokenManager, repository)
+                factory = ReclamationViewModelFactory(userApiService, tokenManager)
             )
 
             val reclamations by vm.reclamations.collectAsState()
             val error by vm.errorMessage.collectAsState()
 
-            LaunchedEffect(Unit) { vm.loadReclamations() }
+            LaunchedEffect(Unit) {
+                vm.loadReclamations()
+            }
 
             ReclamationListScreen(
                 reclamations = reclamations,
-                onReclamationClick = {},
-                onBackClick = { navController.popBackStack() }
+                onReclamationClick = { reclamation ->
+                    // TODO: Naviguer vers les détails
+                    Log.d("ReclamationList", "Clicked: ${reclamation.id}")
+                },
+                onBackClick = {
+                    navController.popBackStack()
+                }
             )
 
             error?.let {
@@ -196,31 +205,62 @@ fun AppNavigation(
             val context = LocalContext.current
             val tokenManager = TokenManager(context)
             val userApiService = UserApiService(tokenManager)
-            val repository = ReclamationRepository(ReclamationRetrofitClient.reclamationApi)
 
             val vm: ReclamationViewModel = viewModel(
-                factory = ReclamationViewModelFactory(userApiService, tokenManager, repository)
+                factory = ReclamationViewModelFactory(userApiService, tokenManager)
+            )
+
+            val orders = listOf(
+                "Commande #12345",
+                "Commande #12346",
+                "Commande #12347",
+                "Commande #12348"
+            )
+
+            val complaintTypes = listOf(
+                "Livraison en retard",
+                "Article manquant",
+                "Problème de qualité",
+                "Autre"
             )
 
             ReclamationTemplateScreen(
-                restaurantNames = listOf("Jean Dupont", "Marie Martin", "Pierre Dubois"),
-                complaintTypes = listOf("Late delivery", "Missing item", "Quality issue", "Other"),
-                commandeconcernees = listOf("Commande #12345", "Commande #12346", "Commande #12347"),
-                onSubmit = { nomClient, commandeConcernee, complaintType, desc, photos ->
+                complaintTypes = complaintTypes,
+                commandeconcernees = orders,
+                onSubmit = { commandeConcernee, complaintType, description, photos ->
+                    Log.d("AppNavigation", "========== SUBMIT RECLAMATION ==========")
+                    Log.d("AppNavigation", "Commande: $commandeConcernee")
+                    Log.d("AppNavigation", "Type: $complaintType")
+                    Log.d("AppNavigation", "Description: $description")
+                    Log.d("AppNavigation", "Photos: ${photos.size}")
+
                     val request = CreateReclamationRequest(
-                        nomClient = nomClient,
                         commandeConcernee = commandeConcernee,
                         complaintType = complaintType,
-                        description = desc,
+                        description = description,
                         photos = photos.map { it.toString() }
                     )
 
-                    vm.createReclamation(request) {
-                        Toast.makeText(context, "Réclamation créée !", Toast.LENGTH_LONG).show()
+                    vm.createReclamation(request) { reclamation ->
+                        Log.d("AppNavigation", "✅ Reclamation créée avec succès: ${reclamation.id}")
+                        Toast.makeText(
+                            context,
+                            "Réclamation créée avec succès !",
+                            Toast.LENGTH_LONG
+                        ).show()
                         navController.popBackStack()
                     }
                 }
             )
+
+            // ✅ Afficher les erreurs
+            val errorMessage by vm.errorMessage.collectAsState()
+            LaunchedEffect(errorMessage) {
+                errorMessage?.let { error ->
+                    Log.e("AppNavigation", "Erreur: $error")
+                    Toast.makeText(context, "Erreur: $error", Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 }

@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,7 +35,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-//import com.example.foodyz_dam.ui.theme.screens.reclamation.BrandColors
 
 // ------------------ Brand palette
 private object BrandColors {
@@ -51,18 +49,16 @@ private object BrandColors {
     val Dashed = Color(0xFFD7D3CB)
 }
 
-// ------------------ Écran principal
+// ✅ SIGNATURE CORRIGÉE : Plus de restaurantNames, onSubmit avec 4 paramètres
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReclamationTemplateScreen(
-    restaurantNames: List<String>, // Liste des noms de clients
     complaintTypes: List<String>,
     commandeconcernees: List<String>,
-    onSubmit: (nomClient: String, commandeConcernee: String, complaintType: String, description: String, photos: List<Uri>) -> Unit = { _, _, _, _, _ -> }
+    onSubmit: (commandeConcernee: String, complaintType: String, description: String, photos: List<Uri>) -> Unit
 ) {
     val context = LocalContext.current
 
-    var nomClient by remember { mutableStateOf("") }
     var complaintType by remember { mutableStateOf("") }
     var commandeconcernee by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -79,8 +75,7 @@ fun ReclamationTemplateScreen(
 
     val isValid by remember {
         derivedStateOf {
-            //nomClient.isNotBlank() &&
-                    complaintType.isNotBlank() &&
+            complaintType.isNotBlank() &&
                     description.isNotBlank() &&
                     commandeconcernee.isNotBlank() &&
                     agree
@@ -118,8 +113,6 @@ fun ReclamationTemplateScreen(
         ) {
             Spacer(Modifier.height(6.dp))
 
-
-
             // Commande concernée
             FieldLabel("Commande Concernée")
             ExposedDropdown(
@@ -127,7 +120,13 @@ fun ReclamationTemplateScreen(
                 placeholder = "Sélectionner la commande",
                 options = commandeconcernees,
                 onSelected = { commandeconcernee = it },
-                leading = { Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = BrandColors.TextSecondary) }
+                leading = {
+                    Icon(
+                        Icons.Default.ShoppingCart,
+                        contentDescription = null,
+                        tint = BrandColors.TextSecondary
+                    )
+                }
             )
 
             // Type de réclamation
@@ -137,7 +136,13 @@ fun ReclamationTemplateScreen(
                 placeholder = "Sélectionner le type",
                 options = complaintTypes,
                 onSelected = { complaintType = it },
-                leading = { Icon(Icons.Default.Clear, contentDescription = null, tint = BrandColors.TextSecondary) }
+                leading = {
+                    Icon(
+                        Icons.Default.Clear,
+                        contentDescription = null,
+                        tint = BrandColors.TextSecondary
+                    )
+                }
             )
 
             // Description
@@ -149,7 +154,9 @@ fun ReclamationTemplateScreen(
                     .fillMaxWidth()
                     .shadow(2.dp, RoundedCornerShape(16.dp))
                     .heightIn(min = 140.dp),
-                placeholder = { Text("Décrivez votre problème...", color = BrandColors.TextSecondary) },
+                placeholder = {
+                    Text("Décrivez votre problème...", color = BrandColors.TextSecondary)
+                },
                 maxLines = 6,
                 shape = RoundedCornerShape(16.dp),
                 colors = TextFieldDefaults.colors(
@@ -204,13 +211,13 @@ fun ReclamationTemplateScreen(
                     .clickable(enabled = isValid) {
                         if (isValid) {
                             android.util.Log.d("ReclamationForm", "=== Submit Form ===")
-                            android.util.Log.d("ReclamationForm", "Nom Client: '$nomClient'")
                             android.util.Log.d("ReclamationForm", "Commande: '$commandeconcernee'")
                             android.util.Log.d("ReclamationForm", "Type: '$complaintType'")
                             android.util.Log.d("ReclamationForm", "Description: '$description'")
                             android.util.Log.d("ReclamationForm", "Photos: ${photos.size}")
 
-                            onSubmit(nomClient, commandeconcernee, complaintType, description.trim(), photos)
+                            // ✅ Appel avec 4 paramètres
+                            onSubmit(commandeconcernee, complaintType, description.trim(), photos)
                             Toast.makeText(context, "Réclamation envoyée", Toast.LENGTH_SHORT).show()
                         }
                     },
@@ -376,16 +383,5 @@ fun PhotosSection(
                 }
             }
         }
-    }
-}
-
-// ------------------ Preview
-@Composable
-fun ReclamationTemplatePreview() {
-    val clientNames = listOf("Jean Dupont", "Marie Martin", "Pierre Dubois")
-    val types = listOf("Late delivery", "Missing item", "Quality issue", "Other")
-    val commandes = listOf("Commande #12345", "Commande #12346", "Commande #12347")
-    MaterialTheme {
-        ReclamationTemplateScreen(clientNames, types, commandeconcernees = commandes)
     }
 }

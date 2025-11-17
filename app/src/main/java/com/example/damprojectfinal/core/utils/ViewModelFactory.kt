@@ -3,6 +3,7 @@ package com.example.damprojectfinal.core.utils
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.damprojectfinal.core.api.AuthApiService
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.feature_auth.repository.AuthRepository
 import com.example.damprojectfinal.feature_auth.viewmodels.ForgotPasswordViewModel
 import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
@@ -10,17 +11,8 @@ import com.example.damprojectfinal.feature_auth.viewmodels.ResetPasswordViewMode
 import com.example.damprojectfinal.feature_auth.viewmodels.VerifyOtpViewModel
 
 // ========== LoginViewModelFactory ==========
-class LoginViewModelFactory(
-    private val authApiService: AuthApiService
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return LoginViewModel(authApiService) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-    }
-}
+// ✅ KEEP THIS - New version with tokenManager
+
 
 // ========== ForgotPasswordViewModelFactory ==========
 class ForgotPasswordViewModelFactory(

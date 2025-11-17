@@ -6,11 +6,13 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.damprojectfinal.core.api.AuthApiService
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.auth.LoginRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import android.util.Log
 import java.io.IOException
 
 // --- UI State for Login Screen ---
@@ -28,8 +30,11 @@ data class LoginUiState(
 typealias OnLoginSuccess = (userId: String, role: String) -> Unit
 
 class LoginViewModel(
-    private val authApiService: AuthApiService
+    private val authApiService: AuthApiService,
+    private val tokenManager: TokenManager
 ) : ViewModel() {
+
+    private val TAG = "LoginViewModel"
 
     var uiState by mutableStateOf(LoginUiState())
         private set
@@ -59,7 +64,36 @@ class LoginViewModel(
                     password = uiState.password,
                 )
 
+                Log.d(TAG, "Attempting login for: ${uiState.email}")
                 val response = authApiService.login(request)
+                Log.d(TAG, "Login successful - UserId: ${response.id}, Role: ${response.role}")
+
+                // --- Use snake_case property names from response ---
+                val accessToken = response.access_token
+                val refreshToken = response.refresh_token
+
+                if (accessToken.isNotEmpty() && refreshToken.isNotEmpty()) {
+                    // --- Save tokens using TokenManager ---
+                    tokenManager.saveTokens(
+                        accessToken = accessToken,
+                        refreshToken = refreshToken,
+                        userId = response.id,
+                        role = response.role
+                    )
+                    Log.d(TAG, "Tokens saved successfully")
+
+                    // --- Verify tokens were saved ---
+                    tokenManager.debugPrintAll()
+                } else {
+                    Log.w(TAG, "⚠️ Tokens are empty in login response")
+                    // Still save user info without tokens
+                    tokenManager.saveTokens(
+                        accessToken = "",
+                        refreshToken = "",
+                        userId = response.id,
+                        role = response.role
+                    )
+                }
 
                 // --- Save role for LaunchedEffect to observe ---
                 _userRole.value = response.role
@@ -74,6 +108,7 @@ class LoginViewModel(
                 )
 
             } catch (e: Exception) {
+                Log.e(TAG, "Login failed", e)
                 val errorMessage = when (e) {
                     is IOException -> "Network error. Server may be down or URL incorrect."
                     is io.ktor.client.plugins.ClientRequestException -> "Invalid credentials. Please check your email and password."

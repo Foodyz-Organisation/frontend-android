@@ -74,7 +74,6 @@ class ReclamationViewModel(
         }
     }
 
-
     fun updateSelectedOrder(order: String) {
         uiState = uiState.copy(selectedOrder = order)
     }
@@ -102,13 +101,12 @@ class ReclamationViewModel(
         uiState = uiState.copy(agreeToTerms = !uiState.agreeToTerms)
     }
 
+    // ✅ GARDEZ SEULEMENT CETTE VERSION (simplifiée)
     fun isFormValid(): Boolean {
-        val userName = uiState.userInfo?.name
         return uiState.selectedOrder.isNotBlank() &&
                 uiState.complaintType.isNotBlank() &&
                 uiState.description.isNotBlank() &&
-                uiState.agreeToTerms &&
-                !userName.isNullOrBlank()
+                uiState.agreeToTerms
     }
 
     fun loadReclamations() {
@@ -134,14 +132,6 @@ class ReclamationViewModel(
     }
 
     fun submitReclamation(onSuccess: () -> Unit = {}) {
-        val userName = uiState.userInfo?.name?.trim()
-        if (userName.isNullOrBlank()) {
-            uiState = uiState.copy(
-                error = "Nom d'utilisateur manquant. Veuillez vous reconnecter."
-            )
-            return
-        }
-
         if (!isFormValid()) {
             uiState = uiState.copy(
                 error = "Veuillez remplir tous les champs requis"
@@ -150,20 +140,23 @@ class ReclamationViewModel(
         }
 
         val request = CreateReclamationRequest(
-            nomClient = userName,
             commandeConcernee = uiState.selectedOrder.trim(),
             complaintType = uiState.complaintType,
             description = uiState.description.trim(),
             photos = uiState.photos.map { it.toString() }
         )
 
+        // ✅ AJOUTEZ CE LOG
+        Log.d("ReclamationVM", "========== ENVOI RECLAMATION ==========")
+        Log.d("ReclamationVM", "Request: $request")
+        Log.d("ReclamationVM", "Token présent: ${tokenManager.getAccessToken() != null}")
+        Log.d("ReclamationVM", "=========================================")
+
         createReclamation(request) {
             uiState = uiState.copy(submitSuccess = true)
             onSuccess()
         }
     }
-
-
     fun resetState() {
         uiState = ReclamationUiState()
         loadUserData()
@@ -172,12 +165,12 @@ class ReclamationViewModel(
 
 class ReclamationViewModelFactory(
     private val userApiService: UserApiService,
-    private val tokenManager: TokenManager,
-    private val repository: ReclamationRepository
+    private val tokenManager: TokenManager
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ReclamationViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
+            val repository = ReclamationRepository(tokenManager)
             return ReclamationViewModel(userApiService, tokenManager, repository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
