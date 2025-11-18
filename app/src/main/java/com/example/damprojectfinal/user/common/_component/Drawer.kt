@@ -29,6 +29,11 @@ data class DrawerItem(
     val label: String,
     val route: String
 )
+val eventsDrawerItem = DrawerItem(
+    Icons.Default.Event, // Icône calendrier
+    "Événements",
+    "event_list" // Nouvelle route que l’on va créer dans NavHost
+)
 
 val drawerItems = listOf(
     DrawerItem(Icons.Default.Home, "Home", "home_route"),
@@ -38,6 +43,8 @@ val drawerItems = listOf(
     DrawerItem(Icons.Default.Help, "Help & Support", "help_route"),
     DrawerItem(Icons.Default.Add, "Ajouter Réclamation", "create_reclamation"),
     DrawerItem(Icons.Default.List, "Mes Réclamations", "list_reclamation_route"),
+    eventsDrawerItem,
+
 )
 
 // 🔑 NEW: Define the Professional Signup Item

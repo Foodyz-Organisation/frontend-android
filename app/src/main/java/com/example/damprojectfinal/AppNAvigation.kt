@@ -2,6 +2,8 @@ package com.example.damprojectfinal
 
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.LaunchedEffect
@@ -25,9 +27,12 @@ import com.example.damprojectfinal.core.api.TokenManager
 // User + Pro
 import com.example.damprojectfinal.user.common.HomeScreen
 import com.example.damprojectfinal.professional.common.HomeScreenPro
+import com.example.damprojectfinal.professional.feature_event.EventDetailScreen
 
 // Réclamation
 import com.example.foodyz_dam.ui.screens.reclamation.ReclamationTemplateScreen
+import com.example.foodyz_dam.ui.theme.screens.events.EventListScreen
+import com.example.foodyz_dam.ui.theme.screens.events.EventViewModel
 import com.example.foodyz_dam.ui.theme.screens.reclamation.*
 
 object AuthRoutes {
@@ -186,17 +191,50 @@ fun AppNavigation(
 
             ReclamationListUserScreen(
                 reclamations = reclamations,
-                onReclamationClick = { reclamation ->
-                    // TODO: Naviguer vers les détails
-                    Log.d("ReclamationList", "Clicked: ${reclamation.id}")
+                onReclamationClick = fun(reclamation) {
+                    val reclamationId = reclamation.id ?: return
+                    Log.d("ReclamationList", "Clicked: $reclamationId")
+                    navController.navigate("reclamation_detail/$reclamationId")
                 },
                 onBackClick = {
                     navController.popBackStack()
                 }
             )
 
+
             error?.let {
                 Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            }
+        }
+///
+        composable(
+            route = "reclamation_detail/{reclamationId}",
+            arguments = listOf(navArgument("reclamationId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val reclamationId = backStackEntry.arguments?.getString("reclamationId") ?: return@composable
+            val context = LocalContext.current
+            val tokenManager = TokenManager(context)
+            val userApiService = UserApiService(tokenManager)
+
+            val vm: ReclamationViewModel = viewModel(
+                factory = ReclamationViewModelFactory(userApiService, tokenManager)
+            )
+
+            // Charger la réclamation sélectionnée
+            LaunchedEffect(reclamationId) {
+                vm.loadReclamationById(reclamationId)
+            }
+
+            val selectedReclamation by vm.selectedReclamation.collectAsState()
+
+            if (selectedReclamation != null) {
+                ReclamationDetailScreen(
+                    reclamation = selectedReclamation!!,
+                    onBackClick = { navController.popBackStack() }
+                )
+            } else {
+                // Placeholder vide pendant le chargement
+                Box(modifier = Modifier.fillMaxSize())
             }
         }
 
@@ -262,5 +300,76 @@ fun AppNavigation(
                 }
             }
         }
+
+/////
+        composable("event_list") {
+            val eventViewModel: EventViewModel = viewModel()
+            val events by eventViewModel.events.collectAsState()
+            val isLoading by eventViewModel.isLoading.collectAsState()
+            val error by eventViewModel.error.collectAsState()
+
+            LaunchedEffect(Unit) {
+                eventViewModel.loadEvents()
+            }
+
+            val context = LocalContext.current
+
+            EventListScreen(
+                events = events,
+                onEventClick = { event ->
+                    Log.d("AppNavigationEvents", "Événement cliqué: ${event.nom}")
+                    navController.navigate("event_detail/${event._id}")
+                },
+                onAddEventClick = {
+                    Log.d("AppNavigationEvents", "Ajouter un événement")
+                    // navigation vers la page de création si nécessaire
+                },
+                onEditClick = { event ->
+                    Log.d("AppNavigationEvents", "Éditer événement: ${event.nom}")
+                    // navigation vers la page d'édition si nécessaire
+                },
+                onDeleteClick = { eventId ->
+                    eventViewModel.deleteEvent(eventId)
+                    Toast.makeText(context, "Événement supprimé", Toast.LENGTH_SHORT).show()
+                },
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+
+            if (error != null) {
+                LaunchedEffect(error) {
+                    Toast.makeText(context, "Erreur: $error", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            if (isLoading) {
+                // Tu peux ajouter un loader ici
+                Box(modifier = Modifier.fillMaxSize())
+            }
+        }
+        composable(
+            route = "event_detail/{eventId}",
+            arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
+            val eventViewModel: EventViewModel = viewModel()
+            val events by eventViewModel.events.collectAsState()
+
+            val selectedEvent = events.find { it._id == eventId }
+            if (selectedEvent != null) {
+                EventDetailScreen(
+                    event = selectedEvent,
+                    onBackClick = { navController.popBackStack() }
+                )
+            } else {
+                // Placeholder vide pendant le chargement ou événement introuvable
+                Box(modifier = Modifier.fillMaxSize())
+            }
+        }
+
+
+
+
     }
 }

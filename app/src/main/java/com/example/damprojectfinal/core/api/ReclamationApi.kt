@@ -16,6 +16,9 @@ interface ReclamationApi {
     suspend fun getMyReclamations(): List<Reclamation>
     @POST("reclamation")
     suspend fun createReclamation(@Body request: CreateReclamationRequest): Reclamation
+    @GET("reclamations/{id}")
+    suspend fun getReclamationById(@Path("id") id: String): Reclamation
+
 }
 
 object ReclamationRetrofitClient {

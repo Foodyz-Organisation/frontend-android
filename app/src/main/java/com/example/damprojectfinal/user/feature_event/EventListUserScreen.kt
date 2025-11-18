@@ -50,15 +50,7 @@ fun EventListScreen(
                         )
                     }
                 },
-                actions = {
-                    IconButton(onClick = onAddEventClick) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add Event",
-                            tint = BrandColors.TextPrimary
-                        )
-                    }
-                },
+
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.White
                 ),
@@ -155,48 +147,10 @@ fun EventCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Edit button
-                    IconButton(
-                        onClick = {
-                            onEditClick(event)
-                            android.util.Log.d("EventCard", "Edit clicked for: ${event.nom}")
-                        },
 
-
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                color = Color.White.copy(alpha = 0.9f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Modifier",
-                            tint = BrandColors.Yellow,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
 
                     // Delete button
-                    IconButton(
-                        onClick = {
-                            showDeleteDialog = true
-                            android.util.Log.d("EventCard", "Delete clicked for: ${event.nom} - ID: ${event._id}")
-                        },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                color = Color.White.copy(alpha = 0.9f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Supprimer",
-                            tint = BrandColors.Red,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+
                 }
             }
 

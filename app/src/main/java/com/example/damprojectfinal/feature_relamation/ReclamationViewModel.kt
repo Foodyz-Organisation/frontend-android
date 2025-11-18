@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 data class ReclamationUiState(
     val isLoading: Boolean = false,
@@ -45,6 +47,10 @@ class ReclamationViewModel(
     val errorMessage: kotlinx.coroutines.flow.StateFlow<String?> get() = _errorMessage
     private val _isLoading = kotlinx.coroutines.flow.MutableStateFlow(false)
     val isLoading: kotlinx.coroutines.flow.StateFlow<Boolean> get() = _isLoading
+    // 👉 À mettre tout en haut, avec les autres StateFlow
+    private val _selectedReclamation = MutableStateFlow<Reclamation?>(null)
+    val selectedReclamation = _selectedReclamation.asStateFlow()
+
 
     init {
         loadUserData()
@@ -150,6 +156,43 @@ class ReclamationViewModel(
             }
         }
     }
+    fun loadReclamationById(id: String) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                Log.d("ReclamationViewModel", "📍 Chargement réclamation ID: $id")
+
+                val token = tokenManager.getAccessToken()
+
+                if (token.isNullOrEmpty()) {
+                    _errorMessage.value = "Token manquant"
+                    Log.e("ReclamationViewModel", "❌ Token manquant")
+                    return@launch
+                }
+
+                Log.d("ReclamationViewModel", "🌐 Appel API getReclamationById($id)...")
+                val api = ReclamationRetrofitClient.createClient(token)
+                val reclamation = api.getReclamationById(id)
+
+                _selectedReclamation.value = reclamation
+                Log.d("ReclamationViewModel", "✅ Réclamation chargée: ${reclamation.orderNumber}")
+                Log.d("ReclamationViewModel", "   - Type: ${reclamation.complaintType}")
+                Log.d("ReclamationViewModel", "   - Description: ${reclamation.description?.take(50)}")
+                Log.d("ReclamationViewModel", "   - Status: ${reclamation.status}")
+
+            } catch (e: retrofit2.HttpException) {
+                val errorBody = e.response()?.errorBody()?.string()
+                Log.e("ReclamationViewModel", "❌ Erreur HTTP ${e.code()}: $errorBody", e)
+                _errorMessage.value = "Erreur serveur (${e.code()})"
+            } catch (e: Exception) {
+                Log.e("ReclamationViewModel", "❌ Erreur: ${e.message}", e)
+                _errorMessage.value = "Erreur: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
 
     fun createReclamation(request: CreateReclamationRequest, onSuccess: (Reclamation) -> Unit) {
         viewModelScope.launch {
