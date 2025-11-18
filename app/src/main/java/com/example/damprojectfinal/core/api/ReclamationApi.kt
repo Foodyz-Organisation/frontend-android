@@ -12,7 +12,8 @@ import java.util.concurrent.TimeUnit
 interface ReclamationApi {
     @GET("reclamation")
     suspend fun getAllReclamations(): List<Reclamation>
-
+    @GET("reclamation/my-reclamations")
+    suspend fun getMyReclamations(): List<Reclamation>
     @POST("reclamation")
     suspend fun createReclamation(@Body request: CreateReclamationRequest): Reclamation
 }

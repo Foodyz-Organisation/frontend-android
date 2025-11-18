@@ -43,6 +43,8 @@ class ReclamationViewModel(
 
     private val _errorMessage = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     val errorMessage: kotlinx.coroutines.flow.StateFlow<String?> get() = _errorMessage
+    private val _isLoading = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val isLoading: kotlinx.coroutines.flow.StateFlow<Boolean> get() = _isLoading
 
     init {
         loadUserData()
@@ -112,9 +114,39 @@ class ReclamationViewModel(
     fun loadReclamations() {
         viewModelScope.launch {
             try {
-                _reclamations.value = repository.getAllReclamations()
+                _isLoading.value = true
+                _errorMessage.value = null // Reset l'erreur
+
+                val token = tokenManager.getAccessToken()
+                Log.d("ReclamationViewModel", "📍 Token récupéré: ${token?.take(20)}...")
+
+                if (token.isNullOrEmpty()) {
+                    _errorMessage.value = "Token manquant - veuillez vous reconnecter"
+                    Log.e("ReclamationViewModel", "❌ Token manquant")
+                    return@launch
+                }
+
+                Log.d("ReclamationViewModel", "🌐 Appel API my-reclamations...")
+                val api = ReclamationRetrofitClient.createClient(token)
+                val result = api.getMyReclamations()
+
+                _reclamations.value = result
+                Log.d("ReclamationViewModel", "✅ ${result.size} réclamations chargées pour cet utilisateur")
+
+                // Log détaillé pour debug
+                result.forEachIndexed { index, rec ->
+                    Log.d("ReclamationViewModel", "  [$index] ${rec.orderNumber} - ${rec.complaintType}")
+                }
+
+            } catch (e: retrofit2.HttpException) {
+                val errorBody = e.response()?.errorBody()?.string()
+                Log.e("ReclamationViewModel", "❌ Erreur HTTP ${e.code()}: $errorBody", e)
+                _errorMessage.value = "Erreur serveur (${e.code()}): ${e.message()}"
             } catch (e: Exception) {
-                _errorMessage.value = e.message
+                Log.e("ReclamationViewModel", "❌ Erreur: ${e.message}", e)
+                _errorMessage.value = "Erreur: ${e.message}"
+            } finally {
+                _isLoading.value = false
             }
         }
     }

@@ -168,7 +168,7 @@ fun AppNavigation(
         }
 
         // 🔟 Liste réclamations
-        composable("reclamation_list") {
+        composable("list_reclamation_route") {
             val context = LocalContext.current
             val tokenManager = TokenManager(context)
             val userApiService = UserApiService(tokenManager)
@@ -184,7 +184,7 @@ fun AppNavigation(
                 vm.loadReclamations()
             }
 
-            ReclamationListScreen(
+            ReclamationListUserScreen(
                 reclamations = reclamations,
                 onReclamationClick = { reclamation ->
                     // TODO: Naviguer vers les détails
