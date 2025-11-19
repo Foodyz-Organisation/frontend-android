@@ -31,7 +31,9 @@ import com.example.damprojectfinal.professional.feature_event.EventDetailScreen
 
 // Réclamation
 import com.example.foodyz_dam.ui.screens.reclamation.ReclamationTemplateScreen
+import com.example.foodyz_dam.ui.theme.screens.events.CreateEventScreen
 import com.example.foodyz_dam.ui.theme.screens.events.EventListScreen
+import com.example.foodyz_dam.ui.theme.screens.events.EventStatus
 import com.example.foodyz_dam.ui.theme.screens.events.EventViewModel
 import com.example.foodyz_dam.ui.theme.screens.reclamation.*
 
@@ -367,9 +369,75 @@ fun AppNavigation(
                 Box(modifier = Modifier.fillMaxSize())
             }
         }
+        // 🔥 AJOUTEZ CETTE ROUTE DANS VOTRE NavHost, après la route "event_list"
+
+        composable("create_event") {
+            val context = LocalContext.current
+            val eventViewModel: EventViewModel = viewModel()
+
+            CreateEventScreen(
+                navController = navController,
+                onSubmit = { nom, description, dateDebut, dateFin, image, lieu, categorie, statut ->
+                    Log.d("AppNavigationEvents", "========== CRÉER ÉVÉNEMENT ==========")
+                    Log.d("AppNavigationEvents", "Nom: $nom")
+                    Log.d("AppNavigationEvents", "Description: $description")
+                    Log.d("AppNavigationEvents", "Date début: $dateDebut")
+                    Log.d("AppNavigationEvents", "Date fin: $dateFin")
+                    Log.d("AppNavigationEvents", "Lieu: $lieu")
+                    Log.d("AppNavigationEvents", "Catégorie: $categorie")
+                    Log.d("AppNavigationEvents", "Statut: $statut")
+
+                    // Créer l'événement via le ViewModel
+                    eventViewModel.createEvent(
+                        nom = nom,
+                        description = description,
+                        dateDebut = dateDebut,
+                        dateFin = dateFin,
+                        image = image,
+                        lieu = lieu,
+                        categorie = categorie,
+                        statut = statut
+                    )
+
+                    Toast.makeText(
+                        context,
+                        "Événement créé avec succès!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+
+                    // Retourner à la liste des événements
+                    navController.navigate("event_list") {
+                        popUpTo("create_event") { inclusive = true }
+                    }
+                },
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+
+            // Observer les erreurs
+            val error by eventViewModel.error.collectAsState()
+            LaunchedEffect(error) {
+                error?.let {
+                    Toast.makeText(context, "Erreur: $it", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
 
 
 
 
     }
+}
+
+private fun EventViewModel.createEvent(
+    nom: String,
+    description: String,
+    dateDebut: String,
+    dateFin: String,
+    image: String?,
+    lieu: String,
+    categorie: String,
+    statut: EventStatus
+) {
 }

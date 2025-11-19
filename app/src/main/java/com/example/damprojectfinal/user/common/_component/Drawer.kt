@@ -29,10 +29,18 @@ data class DrawerItem(
     val label: String,
     val route: String
 )
+
+// 🔥 NOUVEAU : Item pour créer un événement
+val createEventDrawerItem = DrawerItem(
+    Icons.Default.AddCircle, // Icône ajouter
+    "Créer un Événement",
+    "create_event" // Nouvelle route
+)
+
 val eventsDrawerItem = DrawerItem(
     Icons.Default.Event, // Icône calendrier
     "Événements",
-    "event_list" // Nouvelle route que l’on va créer dans NavHost
+    "event_list"
 )
 
 val drawerItems = listOf(
@@ -44,21 +52,21 @@ val drawerItems = listOf(
     DrawerItem(Icons.Default.Add, "Ajouter Réclamation", "create_reclamation"),
     DrawerItem(Icons.Default.List, "Mes Réclamations", "list_reclamation_route"),
     eventsDrawerItem,
-
+    createEventDrawerItem, // 🔥 AJOUTÉ ICI
 )
 
-// 🔑 NEW: Define the Professional Signup Item
+// 🔑 Professional Signup Item
 val proSignupItem = DrawerItem(
-    Icons.Default.Fastfood, // Use a relevant icon for restaurant/food
+    Icons.Default.Fastfood,
     "Signup as Professional",
-    "pro_signup_route" // Use the route defined in your NavHost
+    "pro_signup_route"
 )
 
 @Composable
 fun AppDrawer(
     onCloseDrawer: () -> Unit,
     navigateTo: (String) -> Unit,
-    currentRoute: String // Used to highlight the current screen
+    currentRoute: String
 ) {
     ModalDrawerSheet(
         drawerContainerColor = Color(0xFFFFFFFF),
@@ -67,7 +75,7 @@ fun AppDrawer(
         // --- 1. Drawer Header (Profile and App Info) ---
         DrawerHeader(
             onProfileClick = {
-                navigateTo("user_profile_route") // Use defined route
+                navigateTo("user_profile_route")
                 onCloseDrawer()
             }
         )
@@ -87,7 +95,6 @@ fun AppDrawer(
 
         // --- 🔑 3. Pro Application Button ---
         Spacer(Modifier.height(16.dp))
-        // Highlighting the Pro application option with a distinct section
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             Divider(color = Color.LightGray, thickness = 0.5.dp)
             Spacer(Modifier.height(8.dp))
@@ -102,7 +109,7 @@ fun AppDrawer(
         }
 
         // --- 4. Footer (Logout/Divider) ---
-        Spacer(Modifier.weight(1f)) // Pushes the footer to the bottom
+        Spacer(Modifier.weight(1f))
         Divider(color = Color.LightGray, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
         DrawerFooter(onClickLogout = {
             // TODO: Handle logout logic
@@ -110,34 +117,34 @@ fun AppDrawer(
         })
     }
 }
+
 @Composable
 fun DrawerHeader(onProfileClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFFF0F0F0)) // Very light gray background
+            .background(Color(0xFFF0F0F0))
             .padding(24.dp)
             .clickable(onClick = onProfileClick)
     ) {
-        // Profile Image (using a placeholder for now)
         Image(
-            painter = painterResource(id = R.drawable.profile), // Use your actual profile image resource
+            painter = painterResource(id = R.drawable.profile),
             contentDescription = "User Profile",
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .size(72.dp)
                 .clip(CircleShape)
-                .border(2.dp, Color(0xFFFFCC00), CircleShape) // Yellow border accent
+                .border(2.dp, Color(0xFFFFCC00), CircleShape)
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "John Doe", // Placeholder Name
+            text = "John Doe",
             fontWeight = FontWeight.Bold,
             fontSize = 18.sp,
             color = Color(0xFF1F2A37)
         )
         Text(
-            text = "john.doe@example.com", // Placeholder Email
+            text = "john.doe@example.com",
             fontSize = 14.sp,
             color = Color(0xFF6B7280)
         )

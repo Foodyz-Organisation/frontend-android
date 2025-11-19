@@ -85,6 +85,9 @@ dependencies {
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     // Font Awesome icons (Your Existing)
     implementation("br.com.devsrsouza.compose.icons:font-awesome:1.1.0")
+/////
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 
 
     // Testing (Your Existing)
