@@ -37,59 +37,64 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.damprojectfinal.core.api.TokenManager
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 
 /**
- * Splash screen with sequential progress dots animation.
+ * Splash screen that checks authentication and reports the user's role.
  */
 @Composable
 fun SplashScreen(
     modifier: Modifier = Modifier,
+    tokenManager: TokenManager,
+    // Callback to inform the navigator about the authentication result.
+    onAuthCheckComplete: (userId: String?, userRole: String?) -> Unit,
     title: String = "Foodies",
     subtitle: String = "Discover & Order",
     logoBackgroundColor: Color = Color.White,
     logoTint: Color = Color(0xFFF59E0B),
     durationMs: Int = 1600,
-    onFinished: (() -> Unit)? = null
 ) {
     val gradient = Brush.linearGradient(
         colors = listOf(
-            Color(0xFFFFF176), // light yellow
-            Color(0xFFFFD60A)  // deep yellow
+            Color(0xFFFFF176),
+            Color(0xFFFFD60A)
         )
     )
 
-    var animateDots by remember { mutableStateOf(false) }
-    var currentActiveDotIndex by remember { mutableStateOf(0) } // State for cycling dot
-
+    var currentActiveDotIndex by remember { mutableStateOf(0) }
     val dotScale by animateFloatAsState(
-        targetValue = if (animateDots) 1f else 0.85f,
+        targetValue = 1f, // Simplified animation trigger
         animationSpec = tween(durationMillis = 600, easing = LinearEasing),
         label = "dotScale"
     )
 
     LaunchedEffect(Unit) {
-        animateDots = true
+        // Animation logic
+        val cycleDuration = 600L
+        val totalCycles = (durationMs.toDouble() / cycleDuration).toInt()
 
-        // Duration for a single dot cycle animation
-        val cycleDurationMs = 600L
-        val totalCycles = (durationMs.toDouble() / cycleDurationMs).toInt()
-
-        // Cycle the active dot index concurrently with the overall duration
         repeat(totalCycles) {
+            delay(cycleDuration)
             currentActiveDotIndex = (currentActiveDotIndex + 1) % 3
-            delay(cycleDurationMs)
         }
 
-        // Execute the onFinished callback after the total duration
-        if (onFinished != null) {
-            // Delay remaining time to ensure total duration is met
-            val remainingDelay = durationMs.toLong() - (totalCycles * cycleDurationMs)
-            if (remainingDelay > 0) delay(remainingDelay)
-            onFinished()
+        // Authentication check
+        val accessToken = tokenManager.getAccessToken().first()
+
+        if (!accessToken.isNullOrEmpty()) {
+            // User is logged in: fetch details and pass them to the navigator.
+            val userId = tokenManager.getUserId().first()
+            val userRole = tokenManager.getUserRole().first()
+            onAuthCheckComplete(userId, userRole)
+        } else {
+            // User is logged out: pass nulls.
+            onAuthCheckComplete(null, null)
         }
     }
 
+    // --- UI remains the same ---
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -111,7 +116,7 @@ fun SplashScreen(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Filled.Restaurant,
-                        contentDescription = null,
+                        contentDescription = "App Logo",
                         tint = logoTint,
                         modifier = Modifier.size(72.dp)
                     )
@@ -138,13 +143,13 @@ fun SplashScreen(
 
             Spacer(Modifier.height(28.dp))
 
-            // --- Animated Dots Row ---
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 repeat(3) { index ->
                     val isActive = index == currentActiveDotIndex
                     val color = if (isActive) Color(0xFFFFF1B0) else Color(0xFFFFF1B0).copy(alpha = 0.6f)
-
-                    // Apply dotScale animation to all dots, but size the active dot slightly larger
                     val size = if (isActive) 14.dp * dotScale else 12.dp
 
                     Box(

@@ -1,7 +1,5 @@
 package com.example.damprojectfinal.feature_auth.ui
 
-// --- CRITICAL NOTE: ENSURE THIS IS THE ONLY DEFINITION OF LoginScreen IN YOUR PROJECT ---
-
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+// ❌ REMOVED: Unnecessary LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -33,87 +32,113 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.damprojectfinal.core.api.AuthApiService
-import com.example.damprojectfinal.core.utils.ViewModelFactory
-import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
 import com.example.damprojectfinal.R
 import com.example.damprojectfinal.UserRoutes
-import com.example.damprojectfinal.AuthRoutes // <-- New Import for Login Route
+import com.example.damprojectfinal.AuthRoutes
+import com.example.damprojectfinal.core.api.AuthApiService
+import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.utils.ViewModelFactory
+import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
 import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
     navController: NavController,
     authApiService: AuthApiService,
+    tokenManager: TokenManager,
     onNavigateToForgetPassword: () -> Unit = {},
     onGoogleSignIn: () -> Unit = {},
     onFacebookSignIn: () -> Unit = {},
     onNavigateToSignup: () -> Unit = {}
 ) {
+    // ✅ FIX — TokenManager is passed in, so we don't need LocalContext here.
+
+    // ✅ FIX — Inject TokenManager into ViewModel
     val viewModel: LoginViewModel = viewModel(
-        factory = ViewModelFactory { LoginViewModel(authApiService) }
+        factory = ViewModelFactory { // Assuming ViewModelFactory is your generic factory
+            LoginViewModel(authApiService, tokenManager)
+        }
     )
 
+    // ✅ FIX — We ONLY observe uiState. All data is in here.
     val uiState = viewModel.uiState
-    val userRole by viewModel.userRole.collectAsState(initial = null)
+    // ❌ BUGGY LINE REMOVED: val userRole by viewModel.userRole.collectAsState(initial = null)
+
     var showPassword by remember { mutableStateOf(false) }
     var rememberMeChecked by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     // --- Handle Login Navigation & Feedback ---
-    LaunchedEffect(uiState.loginSuccess, uiState.error, userRole) {
-        val role = userRole // Capture the current role value
+    // ✅ FIX — Updated LaunchedEffect to read from uiState
+    LaunchedEffect(uiState.loginSuccess, uiState.error) {
 
-        if (uiState.loginSuccess && !uiState.userId.isNullOrEmpty()) {
+        if (uiState.loginSuccess) {
+            // ✅ Read role and ID *directly from the uiState*
+            val role = uiState.role
+            val userId = uiState.userId
 
-            // --- Navigation Logic Using UserRoutes Constants ---
-            val destinationRoute: String? = when (role) {
-                "professional" -> "${UserRoutes.HOME_SCREEN_PRO}/${uiState.userId}"
-                "user" -> UserRoutes.HOME_SCREEN
-                else -> null
-            }
-
-            if (destinationRoute == null) {
-                // Handle unknown role: show error message and prevent navigation
+            // Safety check for user ID
+            if (userId.isNullOrEmpty()) {
                 scope.launch {
                     snackbarHostState.showSnackbar(
-                        message = "Login failed: User role '$role' is unsupported for navigation.",
+                        message = "Login failed: User ID not found.",
+                        duration = SnackbarDuration.Long
+                    )
+                }
+                viewModel.resetState() // Reset to allow another attempt
+                return@LaunchedEffect
+            }
+
+            // Determine destination based on role
+            val destinationRoute: String? = when (role?.lowercase()) {
+                "professional" -> "${UserRoutes.HOME_SCREEN_PRO}/$userId"
+                "user" -> UserRoutes.HOME_SCREEN
+                else -> null // Handle unknown roles
+            }
+
+            // Handle unknown/unsupported roles
+            if (destinationRoute == null) {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = "Login failed: Unsupported role '$role'",
                         actionLabel = "Error",
                         duration = SnackbarDuration.Long
                     )
                 }
-                viewModel.resetState()
-                return@LaunchedEffect // Stop execution here
+                viewModel.resetState() // Reset
+                return@LaunchedEffect
             }
 
-            // Show success snackbar only if navigation proceeds
+            // --- SUCCESS ---
             scope.launch {
                 snackbarHostState.showSnackbar(
-                    message = "Login Successful! Welcome ${role?.replaceFirstChar { it.uppercase() } ?: "User"}",
-                    actionLabel = "Continue",
-                    duration = SnackbarDuration.Short
+                    message = "Login Successful! Welcome ${role?.replaceFirstChar { it.uppercase() }}",
+                    actionLabel = "Continue"
                 )
             }
 
-            if (destinationRoute != null) {
-                navController.navigate(destinationRoute) {
-                    popUpTo(AuthRoutes.LOGIN) { inclusive = true }
-                }
+            navController.navigate(destinationRoute) {
+                // Clear the auth stack
+                popUpTo(AuthRoutes.LOGIN) { inclusive = true }
+                // or popUpTo(0) to clear everything
             }
-            viewModel.resetState()
+
+            viewModel.resetState() // Reset state *after* navigation
 
         } else if (uiState.error != null) {
+            // --- ERROR ---
             scope.launch {
                 snackbarHostState.showSnackbar(
-                    message = uiState.error,
-                    actionLabel = "Dismiss",
-                    duration = SnackbarDuration.Long
+                    message = uiState.error ?: "Unknown error",
+                    actionLabel = "Dismiss"
                 )
             }
-            viewModel.resetState()
+            viewModel.resetState() // Reset error so snackbar doesn't re-show
         }
     }
+
+    // --- UI (No Changes Below) ---
 
     val gradient = Brush.verticalGradient(
         colors = listOf(Color(0xFFFFFBEA), Color(0xFFFFF8D6), Color(0xFFFFF6C1))
@@ -147,10 +172,10 @@ fun LoginScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = 48.dp, bottom = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // --- App Logo ---
+
+                // --- Logo ---
                 Box(
                     modifier = Modifier
                         .size(120.dp)
@@ -171,7 +196,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Text(
-                    text = "Welcome Back",
+                    "Welcome Back",
                     fontSize = 36.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFB87300),
@@ -182,7 +207,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Login to continue your food journey",
+                    "Login to continue your food journey",
                     color = Color(0xFF6B7280),
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center
@@ -190,12 +215,12 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // --- Email Field ---
+                // Email Field
                 OutlinedTextField(
                     value = uiState.email,
                     onValueChange = viewModel::updateEmail,
                     label = { Text("Email") },
-                    leadingIcon = { Icon(Icons.Filled.Email, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Filled.Email, null) },
                     placeholder = { Text("your.email@example.com") },
                     singleLine = true,
                     isError = uiState.error != null && uiState.email.isBlank(),
@@ -206,21 +231,20 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- Password Field ---
+                // Password Field
                 OutlinedTextField(
                     value = uiState.password,
                     onValueChange = viewModel::updatePassword,
                     label = { Text("Password") },
-                    leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Filled.Lock, null) },
                     trailingIcon = {
                         IconButton(onClick = { showPassword = !showPassword }) {
                             Icon(
-                                imageVector = if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                contentDescription = if (showPassword) "Hide password" else "Show password"
+                                if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                null
                             )
                         }
                     },
-                    placeholder = { Text("Enter your password") },
                     singleLine = true,
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     isError = uiState.error != null && uiState.password.isBlank(),
@@ -231,7 +255,7 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // --- Remember Me & Forgot Password ---
+                // Remember Me & Forgot Password Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -257,15 +281,13 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // --- Login Button ---
+                // Login Button
                 Button(
-                    // Call login without the onSuccess callback here, rely on LaunchedEffect
                     onClick = viewModel::login,
                     enabled = !uiState.isLoading,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
-                        .padding(horizontal = 0.dp),
+                        .height(56.dp),
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                     contentPadding = PaddingValues(0.dp)
@@ -285,7 +307,7 @@ fun LoginScreen(
                             CircularProgressIndicator(color = Color(0xFF111827))
                         } else {
                             Text(
-                                text = "Login",
+                                "Login",
                                 color = Color(0xFF111827),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
@@ -296,15 +318,17 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Social login and Signup link
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Divider(modifier = Modifier.weight(1f), color = Color(0xFFE5E7EB))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Divider(modifier = Modifier.weight(1f))
                     Text(
-                        text = "  Or continue with  ",
+                        "  Or continue with  ",
                         color = Color(0xFF6B7280),
                         style = MaterialTheme.typography.bodyLarge
                     )
-                    Divider(modifier = Modifier.weight(1f), color = Color(0xFFE5E7EB))
+                    Divider(modifier = Modifier.weight(1f))
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -315,14 +339,25 @@ fun LoginScreen(
                 ) {
                     SocialButton(
                         text = "Google",
-                        icon = { Icon(painter = painterResource(id = R.drawable.google), contentDescription = null, modifier = Modifier.size(24.dp)) },
+                        icon = {
+                            Icon(
+                                painterResource(id = R.drawable.google),
+                                null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        },
                         onClick = onGoogleSignIn,
                         modifier = Modifier.weight(1f)
                     )
-
                     SocialButton(
                         text = "Facebook",
-                        icon = { Icon(Icons.Filled.Facebook, contentDescription = null, modifier = Modifier.size(24.dp)) },
+                        icon = {
+                            Icon(
+                                Icons.Filled.Facebook,
+                                null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        },
                         onClick = onFacebookSignIn,
                         modifier = Modifier.weight(1f)
                     )
@@ -330,15 +365,18 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // 🔸 Signup link
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(text = "Don't have an account? ", color = Color(0xFF6B7280))
+                    Text("Don't have an account? ", color = Color(0xFF6B7280))
                     TextButton(onClick = onNavigateToSignup) {
-                        Text(text = "Register Now", color = Color(0xFFF59E0B), fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Register Now",
+                            color = Color(0xFFF59E0B),
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
             }
@@ -355,13 +393,15 @@ private fun SocialButton(
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier
-            .height(56.dp),
+        modifier = modifier.height(56.dp),
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
         border = BorderStroke(1.dp, Color(0xFFE5E7EB))
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
             icon()
             Spacer(modifier = Modifier.width(8.dp))
             Text(text, color = Color(0xFF374151))

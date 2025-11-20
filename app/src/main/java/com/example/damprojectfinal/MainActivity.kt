@@ -13,7 +13,7 @@ import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge() // Keep your edge-to-edge setup
         setContent {
             DamProjectFinalTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->

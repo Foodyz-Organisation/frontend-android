@@ -63,4 +63,13 @@ class AuthApiService {
         }
         return response.body()
     }
+
+    suspend fun logout(): SimpleMessageResponse {
+        val url = "$BASE_URL/auth/logout"
+        val response = client.post(url) {
+            contentType(ContentType.Application.Json)
+        }
+        return response.body()
+    }
+
 }

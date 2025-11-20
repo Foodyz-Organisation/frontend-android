@@ -1,17 +1,19 @@
 package com.example.damprojectfinal.feature_auth.viewmodels
 
+import android.util.Log // ⬅️ ADD THIS IMPORT for debugging
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.damprojectfinal.core.api.AuthApiService
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.auth.LoginRequest
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.IOException
+
+// Use a consistent tag for filtering logs
+private const val TAG = "LoginViewModel"
 
 // --- UI State for Login Screen ---
 data class LoginUiState(
@@ -24,68 +26,107 @@ data class LoginUiState(
     val error: String? = null
 )
 
-// Callback type for navigation (Typealias is kept but unused for now)
-typealias OnLoginSuccess = (userId: String, role: String) -> Unit
-
 class LoginViewModel(
-    private val authApiService: AuthApiService
+    private val authApiService: AuthApiService,
+    private val tokenManager: TokenManager
 ) : ViewModel() {
 
     var uiState by mutableStateOf(LoginUiState())
         private set
 
-    // --- Expose role for composable to observe ---
-    private val _userRole = MutableStateFlow<String?>(null)
-    val userRole: StateFlow<String?> = _userRole.asStateFlow()
+    fun updateEmail(input: String) {
+        uiState = uiState.copy(email = input, error = null)
+    }
 
-    // --- Update form fields ---
-    fun updateEmail(input: String) { uiState = uiState.copy(email = input, error = null) }
-    fun updatePassword(input: String) { uiState = uiState.copy(password = input, error = null) }
+    fun updatePassword(input: String) {
+        uiState = uiState.copy(password = input, error = null)
+    }
 
-    // --- Primary Login function that updates UI state (Signature: () -> Unit) ---
     fun login() {
         if (uiState.email.isBlank() || uiState.password.isBlank()) {
             uiState = uiState.copy(error = "Please enter both email and password.")
+            Log.w(TAG, "Login attempt blocked: Empty fields.") // ⬅️ DEBUG
             return
         }
 
-        uiState = uiState.copy(isLoading = true, error = null, loginSuccess = false)
-        _userRole.value = null
+        // Reset all relevant state for the new login attempt
+        uiState = uiState.copy(
+            isLoading = true,
+            error = null,
+            loginSuccess = false,
+            role = null,
+            userId = null
+        )
+        Log.d(TAG, "Starting login for: ${uiState.email}") // ⬅️ DEBUG
 
         viewModelScope.launch {
             try {
-                val request = LoginRequest(
-                    email = uiState.email,
-                    password = uiState.password,
-                )
-
+                val request = LoginRequest(uiState.email, uiState.password)
+                Log.d(TAG, "Sending API request...") // ⬅️ DEBUG
                 val response = authApiService.login(request)
 
-                // --- Save role for LaunchedEffect to observe ---
-                _userRole.value = response.role
+                Log.d(TAG, "API Success! Received Role: ${response.role}, ID: ${response.id}") // ⬅️ DEBUG
 
-                // --- Update UI state to trigger LaunchedEffect in Composable ---
+                // Your priority logic is good
+                val prioritizedRole =
+                    if (response.role.equals("PROFESSIONAL", ignoreCase = true))
+                        "PROFESSIONAL"
+                    else
+                        "USER"
+
+                Log.d(TAG, "Prioritized Role: $prioritizedRole. Saving tokens...") // ⬅️ DEBUG
+
+                // Save tokens + id + PRIORITIZED ROLE
+                tokenManager.saveTokens(
+                    accessToken = response.access_token,
+                    refreshToken = response.refresh_token,
+                    userId = response.id,
+                    role = prioritizedRole
+                )
+
+                Log.i(TAG, "Tokens and User ID saved. Login COMPLETE.") // ⬅️ DEBUG
+
+                // UPDATE UI STATE: This is the single source of truth
                 uiState = uiState.copy(
                     isLoading = false,
                     loginSuccess = true,
                     userId = response.id,
-                    role = response.role,
-                    error = null
+                    role = prioritizedRole
                 )
 
             } catch (e: Exception) {
                 val errorMessage = when (e) {
-                    is IOException -> "Network error. Server may be down or URL incorrect."
-                    is io.ktor.client.plugins.ClientRequestException -> "Invalid credentials. Please check your email and password."
-                    else -> "An unknown error occurred: ${e.message}"
+                    is IOException -> {
+                        Log.e(TAG, "Login FAILED: Network Error. ${e.message}") // ⬅️ DEBUG
+                        "Network error. Server may be down or URL incorrect."
+                    }
+                    is io.ktor.client.plugins.ClientRequestException -> {
+                        // This typically means 401 Unauthorized (Invalid credentials)
+                        Log.e(TAG, "Login FAILED: Invalid Credentials/Client Error (Status: ${e.response.status}).") // ⬅️ DEBUG
+                        "Invalid credentials. Please check your email and password."
+                    }
+                    else -> {
+                        Log.e(TAG, "Login FAILED: Unknown Error.", e) // ⬅️ DEBUG
+                        "An unknown error occurred: ${e.message}"
+                    }
                 }
+
                 uiState = uiState.copy(isLoading = false, error = errorMessage)
             }
         }
     }
 
+    /**
+     * Call this from your UI after navigation is complete
+     * to prevent re-triggering navigation on config change.
+     */
     fun resetState() {
-        uiState = uiState.copy(loginSuccess = false, error = null)
-        _userRole.value = null
+        uiState = uiState.copy(
+            loginSuccess = false,
+            error = null,
+            role = null,
+            userId = null
+        )
+        Log.d(TAG, "State reset completed.") // ⬅️ DEBUG
     }
 }
