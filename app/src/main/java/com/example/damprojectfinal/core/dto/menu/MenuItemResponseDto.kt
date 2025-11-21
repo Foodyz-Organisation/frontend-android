@@ -2,15 +2,24 @@ package com.example.damprojectfinal.core.dto.menu
 
 import com.google.gson.annotations.SerializedName
 
-// This DTO models the complete JSON object returned by the server on success
+// Assuming Category, IngredientDto, and OptionDto are defined and imported
 data class MenuItemResponseDto(
-    // Fields from your request payload
     @SerializedName("professionalId")
     val professionalId: String,
 
     @SerializedName("name")
     val name: String,
-    // ... include all other fields like description, price, category, etc.
+
+    // ⭐️ ADDED: These fields resolve the UI errors ⭐️
+    @SerializedName("description")
+    val description: String? = null, // Set to null default since it's optional on the server
+
+    @SerializedName("price")
+    val price: Double,
+
+    @SerializedName("category")
+    val category: Category,
+    // ----------------------------------------------------
 
     @SerializedName("ingredients")
     val ingredients: List<IngredientDto>,
@@ -18,9 +27,8 @@ data class MenuItemResponseDto(
     @SerializedName("options")
     val options: List<OptionDto>,
 
-    // Fields added by the server (NestJS/MongoDB)
     @SerializedName("image")
-    val image: String, // Now required, as the server adds the path
+    val image: String,
 
     @SerializedName("_id")
     val id: String,

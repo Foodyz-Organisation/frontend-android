@@ -1,140 +1,175 @@
 package com.example.damprojectfinal.professional.feature_menu.ui.components
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-
-// You may need more imports depending on how you implement the list views,
-// like LazyColumn, but these cover the structure provided.
-
-// --- Main Screen Composable ---
+import com.example.damprojectfinal.core.dto.menu.IngredientDto
+import com.example.damprojectfinal.core.dto.menu.OptionDto
+import com.example.damprojectfinal.core.dto.menu.UpdateMenuItemDto
+import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewModel
+import com.example.damprojectfinal.professional.feature_menu.viewmodel.ItemDetailsUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ItemDetailsScreen(
-    menuItemName: String,
-    // Inject your ViewModel here (e.g., viewModel: ItemDetailsViewModel = viewModel())
+    itemId: String,
+    professionalId: String,
+    viewModel: MenuViewModel,
     navController: NavController
 ) {
-    // 1. Manage the selected tab state
-    val tabs = listOf("Ingredients", "Options")
-    var selectedTabIndex by rememberSaveable { mutableStateOf(0) } // 0 for Ingredients, 1 for Options
+    // 1. Fetch Data on Launch
+    val dummyToken = "YOUR_AUTH_TOKEN" // Replace with actual token
+    LaunchedEffect(itemId) {
+        viewModel.fetchMenuItemDetails(itemId, dummyToken)
+    }
+
+    // 2. Observe State
+    // Using collectAsState() to avoid lifecycle crashes for now
+    val uiState by viewModel.itemDetailsUiState.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(menuItemName) },
+                title = { Text("Edit Item") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                },
-                actions = {
-                    Button(onClick = { /* Handle Save Action (e.g., viewModel.saveChanges()) */ }) {
-                        Text("Save")
-                    }
                 }
             )
         }
-    ) { paddingValues ->
-        Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) { // Added .fillMaxSize() here
-
-            // 2. Tab Row
-            TabRow(selectedTabIndex = selectedTabIndex) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTabIndex == index,
-                        onClick = { selectedTabIndex = index },
-                        text = { Text(title) }
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            when (uiState) {
+                is ItemDetailsUiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                is ItemDetailsUiState.Error -> Text("Error: ${(uiState as ItemDetailsUiState.Error).message}", Modifier.align(Alignment.Center))
+                is ItemDetailsUiState.Success -> {
+                    val item = (uiState as ItemDetailsUiState.Success).item
+                    // Show the Editable Form
+                    EditItemContent(
+                        initialName = item.name,
+                        initialDesc = item.description ?: "",
+                        initialPrice = item.price,
+                        initialIngredients = item.ingredients,
+                        initialOptions = item.options,
+                        onSave = { name, desc, price, ingredients, options ->
+                            val updateDto = UpdateMenuItemDto(
+                                name = name,
+                                description = desc,
+                                price = price,
+                                ingredients = ingredients,
+                                options = options
+                            )
+                            viewModel.updateMenuItem(itemId, professionalId, updateDto, dummyToken)
+                            navController.popBackStack()
+                        }
                     )
                 }
-            }
-
-            // 3. Content based on selected tab
-            when (selectedTabIndex) {
-                0 -> IngredientsTabContent()
-                1 -> OptionsTabContent()
+                else -> {}
             }
         }
     }
 }
 
-
-// --- Tab Content Composables ---
-
 @Composable
-fun IngredientsTabContent() {
-    Column(
-        // Use weight modifier to ensure this content fills the remaining space below the tabs
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp), // Add horizontal padding for content
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // Top button to add ingredients (always visible/sticky)
-        Button(
-            onClick = { /* Navigate to Add Ingredient */ },
-            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-        ) {
-            Text("+ Add Ingredient")
+fun EditItemContent(
+    initialName: String,
+    initialDesc: String,
+    initialPrice: Double,
+    initialIngredients: List<IngredientDto>,
+    initialOptions: List<OptionDto>,
+    onSave: (String, String, Double, List<IngredientDto>, List<OptionDto>) -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var description by remember { mutableStateOf(initialDesc) }
+    var priceStr by remember { mutableStateOf(initialPrice.toString()) }
+    val ingredientsList = remember { mutableStateListOf(*initialIngredients.toTypedArray()) }
+    val optionsList = remember { mutableStateListOf(*initialOptions.toTypedArray()) }
+
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Info", "Ingredients", "Options")
+
+    Column(Modifier.fillMaxSize()) {
+        // Save Button Row
+        Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.End) {
+            Button(onClick = {
+                onSave(name, description, priceStr.toDoubleOrNull() ?: 0.0, ingredientsList.toList(), optionsList.toList())
+            }) { Text("Confirm Changes") }
         }
 
-        // --- Ingredient List/Empty State Area ---
-        // This is where you would display your LazyColumn of ingredients,
-        // or the empty state from your screenshot, using a Modifier.fillMaxHeight()
-        // inside a Box or Column to center the empty state.
+        TabRow(selectedTabIndex = selectedTab) {
+            tabs.forEachIndexed { index, title ->
+                Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title) })
+            }
+        }
 
-        Text(
-            text = "Display Ingredient List or Empty State UI...",
-            modifier = Modifier.weight(1f) // Ensures text pushes button up slightly if needed
-        )
+        when(selectedTab) {
+            0 -> Column(Modifier.padding(16.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = priceStr, onValueChange = { priceStr = it }, label = { Text("Price") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+            }
+            1 -> IngredientsListEditor(ingredientsList)
+            2 -> OptionsListEditor(optionsList)
+        }
     }
 }
 
+@Composable
+fun IngredientsListEditor(list: androidx.compose.runtime.snapshots.SnapshotStateList<IngredientDto>) {
+    var newName by remember { mutableStateOf("") }
+    Column(Modifier.padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text("New Ingredient") }, modifier = Modifier.weight(1f))
+            IconButton(onClick = { if(newName.isNotBlank()) { list.add(IngredientDto(newName, true)); newName = "" } }) {
+                Icon(Icons.Default.Add, "Add")
+            }
+        }
+        LazyColumn {
+            items(list) { item ->
+                Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(item.name)
+                    IconButton(onClick = { list.remove(item) }) { Icon(Icons.Default.Delete, "Remove", tint = Color.Red) }
+                }
+            }
+        }
+    }
+}
 
 @Composable
-fun OptionsTabContent() {
-    Column(
-        // Use weight modifier to ensure this content fills the remaining space below the tabs
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp), // Add horizontal padding for content
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // Top button to add options (always visible/sticky)
-        Button(
-            onClick = { /* Navigate to Add Option Group */ },
-            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-        ) {
-            Text("+ Add New Option Group")
+fun OptionsListEditor(list: androidx.compose.runtime.snapshots.SnapshotStateList<OptionDto>) {
+    var newName by remember { mutableStateOf("") }
+    var newPrice by remember { mutableStateOf("") }
+    Column(Modifier.padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(value = newName, onValueChange = { newName = it }, label = { Text("Name") }, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(8.dp))
+            OutlinedTextField(value = newPrice, onValueChange = { newPrice = it }, label = { Text("Price") }, modifier = Modifier.weight(0.5f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+            IconButton(onClick = {
+                val p = newPrice.toDoubleOrNull()
+                if(newName.isNotBlank() && p != null) { list.add(OptionDto(newName, p)); newName = ""; newPrice = "" }
+            }) { Icon(Icons.Default.Add, "Add") }
         }
-
-        // --- Option Group List/Empty State Area ---
-        // This is where you would display your LazyColumn of option groups
-
-        Text(
-            text = "Display Option Group List or Empty State UI...",
-            modifier = Modifier.weight(1f) // Ensures text pushes button up slightly if needed
-        )
+        LazyColumn {
+            items(list) { item ->
+                Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("${item.name} (+$${item.price})")
+                    IconButton(onClick = { list.remove(item) }) { Icon(Icons.Default.Delete, "Remove", tint = Color.Red) }
+                }
+            }
+        }
     }
 }

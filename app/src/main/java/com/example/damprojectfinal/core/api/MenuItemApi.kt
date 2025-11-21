@@ -1,6 +1,8 @@
 package com.example.damprojectfinal.core.api
 
+import com.example.damprojectfinal.core.dto.menu.GroupedMenuResponse
 import com.example.damprojectfinal.core.dto.menu.MenuItemResponseDto
+import com.example.damprojectfinal.core.dto.menu.UpdateMenuItemDto
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -8,22 +10,41 @@ import retrofit2.http.*
 
 interface MenuItemApi {
 
+    // POST: Create
     @Multipart
     @POST("menu-items")
     suspend fun createMenuItem(
-        // 1. The JSON Payload Part (The DTO)
-        // Key MUST be "createMenuItemDto" to match NestJS @Body() body.createMenuItemDto
         @Part("createMenuItemDto") menuItemDto: RequestBody,
-
-        // 2. The File Part (The Image)
-        // Key MUST be "image" to match NestJS FileInterceptor('image')
         @Part image: MultipartBody.Part,
-
-        // Authorization header
         @Header("Authorization") token: String
-    ): Response<MenuItemResponseDto> // Use 'suspend' for Kotlin Coroutines
+    ): Response<MenuItemResponseDto>
 
+    // GET List: Grouped by Category
+    @GET("menu-items/by-professional/{professionalId}")
+    suspend fun getGroupedMenu(
+        @Path("professionalId") professionalId: String,
+        @Header("Authorization") token: String
+    ): Response<GroupedMenuResponse>
 
+    // ⭐️ NEW: GET Single Item Details (For Edit Screen)
+    @GET("menu-items/{id}")
+    suspend fun getMenuItemDetails(
+        @Path("id") id: String,
+        @Header("Authorization") token: String
+    ): Response<MenuItemResponseDto>
 
+    // PUT: Update
+    @PUT("menu-items/{id}")
+    suspend fun updateMenuItem(
+        @Path("id") id: String,
+        @Body updateDto: UpdateMenuItemDto,
+        @Header("Authorization") token: String
+    ): Response<MenuItemResponseDto>
 
+    // DELETE: Remove
+    @DELETE("menu-items/{id}")
+    suspend fun deleteMenuItem(
+        @Path("id") id: String,
+        @Header("Authorization") token: String
+    ): Response<MenuItemResponseDto>
 }

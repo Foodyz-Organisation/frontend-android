@@ -1,9 +1,12 @@
 package com.example.damprojectfinal
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -21,6 +24,7 @@ import com.example.damprojectfinal.feature_auth.viewmodels.LogoutViewModel
 import com.example.damprojectfinal.professional.common.HomeScreenPro
 import com.example.damprojectfinal.professional.feature_menu.ui.MenuItemManagementScreen
 import com.example.damprojectfinal.professional.feature_menu.ui.components.CreateMenuItemScreen
+import com.example.damprojectfinal.professional.feature_menu.ui.components.ItemDetailsScreen
 import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewModel
 import com.example.damprojectfinal.user.common.HomeScreen
 import com.google.gson.Gson
@@ -161,18 +165,23 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             val professionalId = backStackEntry.arguments?.getString("professionalId")
                 ?: throw IllegalStateException("professionalId must be provided.")
 
-            val gson = remember { Gson() } // Create Gson instance once per composition
-            val repository = remember { MenuItemRepository(RetrofitClient.menuItemApi, gson) }
+            val repository = remember { MenuItemRepository(RetrofitClient.menuItemApi, Gson()) }
 
             val menuItemViewModel: MenuViewModel = viewModel(
                 factory = MenuViewModel.Factory(repository)
             )
 
-            MenuItemManagementScreen(
-                navController = navController,
-                professionalId = professionalId,
-                viewModel = menuItemViewModel // ✅ Correct instance
-            )
+            val lifecycleOwner: LifecycleOwner = backStackEntry
+            CompositionLocalProvider(
+                LocalLifecycleOwner provides lifecycleOwner
+            ) {
+                MenuItemManagementScreen(
+                    navController = navController,
+                    professionalId = professionalId,
+                    viewModel = menuItemViewModel
+                )
+            }
+
         }
 
 // ---------- Create Menu Item ----------
@@ -197,6 +206,33 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 professionalId = professionalId,
                 viewModel = menuItemViewModel,
                 context = context
+            )
+        }
+
+        composable(
+            route = "edit_menu_item/{itemId}/{professionalId}",
+            arguments = listOf(
+                navArgument("itemId") { type = NavType.StringType },
+                navArgument("professionalId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+
+            val itemId = backStackEntry.arguments?.getString("itemId")
+                ?: throw IllegalStateException("itemId is required")
+            val professionalId = backStackEntry.arguments?.getString("professionalId")
+                ?: throw IllegalStateException("professionalId is required")
+
+            val repository = remember { MenuItemRepository(RetrofitClient.menuItemApi, Gson()) }
+
+            val menuItemViewModel: MenuViewModel = viewModel(
+                factory = MenuViewModel.Factory(repository)
+            )
+
+            ItemDetailsScreen(
+                itemId = itemId,
+                professionalId = professionalId,
+                viewModel = menuItemViewModel,
+                navController = navController
             )
         }
     }
