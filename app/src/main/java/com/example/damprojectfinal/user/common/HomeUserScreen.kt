@@ -25,13 +25,10 @@ import com.example.damprojectfinal.user.common._component.TopAppBar
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.api.TokenManager
-import com.example.damprojectfinal.core.utils.LogoutViewModelFactory
-import com.example.damprojectfinal.feature_auth.viewmodels.LogoutViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import com.example.damprojectfinal.UserRoutes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,13 +41,26 @@ fun HomeScreen(
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+
 
     var isSearchActive by remember { mutableStateOf(false) }
+
+    // ⭐ FIX: Using getStoredUserId() as the assumed method.
+    // If your TokenManager only has getToken(), you must create an extension/helper
+    // to decode the token to get the ID, or implement a separate storage for the ID.
+    // Ensure you replace getStoredUserId() with the actual method name available in your TokenManager.
+    val currentUserId: String by remember {
+        mutableStateOf(tokenManager.getUserIdBlocking() ?: "placeholder_user_id_123")
+    }
+
 
     // 🔥 Observe logout result ONLY once
     LaunchedEffect(logoutSuccess) {
         logoutSuccess.collect { success ->
             if (success) {
+                // Navigate to Login after successful logout
                 navController.navigate("login_route") {
                     popUpTo(0)
                 }
@@ -58,7 +68,7 @@ fun HomeScreen(
         }
     }
 
-// Navigation including logout
+    // Navigation including logout
     val navigateTo: (String) -> Unit = { route ->
         if (route == "logout_trigger") {
             onLogout()   // DO NOT collect flow here
@@ -102,7 +112,12 @@ fun HomeScreen(
                     currentRoute = currentRoute,
                     openDrawer = { scope.launch { drawerState.open() } },
                     onSearchClick = { isSearchActive = true },
-                    onProfileClick = { navController.navigate("user_profile_route") }
+                    // ✅ Passed the currentUserId
+                    currentUserId = currentUserId,
+                    // ✅ Correctly navigates using the dynamic route
+                    onProfileClick = { userId ->
+                        navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/$userId")
+                    }
                 )
 
                 HighlightCard()

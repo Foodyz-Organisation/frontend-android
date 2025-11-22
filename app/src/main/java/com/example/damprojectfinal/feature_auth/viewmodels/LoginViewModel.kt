@@ -65,7 +65,15 @@ class LoginViewModel(
                 Log.d(TAG, "Sending API request...") // ⬅️ DEBUG
                 val response = authApiService.login(request)
 
-                Log.d(TAG, "API Success! Received Role: ${response.role}, ID: ${response.id}") // ⬅️ DEBUG
+                // 🛑 FIX: Extract required non-null fields or throw if API contract is violated
+                val accessToken = response.access_token
+                    ?: throw IllegalStateException("Access token missing from successful response.")
+                val refreshToken = response.refresh_token
+                    ?: throw IllegalStateException("Refresh token missing from successful response.")
+                val userId = response.id
+                    ?: throw IllegalStateException("User ID missing from successful response.")
+
+                Log.d(TAG, "API Success! Received Role: ${response.role}, ID: $userId") // ⬅️ DEBUG
 
                 // Your priority logic is good
                 val prioritizedRole =
@@ -78,9 +86,9 @@ class LoginViewModel(
 
                 // Save tokens + id + PRIORITIZED ROLE
                 tokenManager.saveTokens(
-                    accessToken = response.access_token,
-                    refreshToken = response.refresh_token,
-                    userId = response.id,
+                    accessToken = accessToken, // Now guaranteed String
+                    refreshToken = refreshToken, // Now guaranteed String
+                    userId = userId, // Now guaranteed String
                     role = prioritizedRole
                 )
 
@@ -90,7 +98,7 @@ class LoginViewModel(
                 uiState = uiState.copy(
                     isLoading = false,
                     loginSuccess = true,
-                    userId = response.id,
+                    userId = userId,
                     role = prioritizedRole
                 )
 
@@ -104,6 +112,11 @@ class LoginViewModel(
                         // This typically means 401 Unauthorized (Invalid credentials)
                         Log.e(TAG, "Login FAILED: Invalid Credentials/Client Error (Status: ${e.response.status}).") // ⬅️ DEBUG
                         "Invalid credentials. Please check your email and password."
+                    }
+                    is IllegalStateException -> {
+                        // Catches the error if the API returned a null token/ID unexpectedly
+                        Log.e(TAG, "Login FAILED: Invalid API contract. ${e.message}") // ⬅️ DEBUG
+                        "Login failed due to missing server data. Please try again."
                     }
                     else -> {
                         Log.e(TAG, "Login FAILED: Unknown Error.", e) // ⬅️ DEBUG

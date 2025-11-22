@@ -34,7 +34,9 @@ class TokenManager(private val context: Context) {
         }
     }
 
+    // -------------------------------------------------------------------------
     // --- Non-Blocking Getters (Recommended for Compose/Async use) ---
+    // -------------------------------------------------------------------------
 
     /**
      * Returns the access token as a non-blocking Flow.
@@ -57,7 +59,9 @@ class TokenManager(private val context: Context) {
     fun getUserRole(): Flow<String?> = context.dataStore.data.map { it[USER_ROLE_KEY] }
 
 
-    // --- Blocking Getters (Less Recommended, kept for reference) ---
+    // -------------------------------------------------------------------------
+    // --- Blocking Getters (Used for synchronous access, like in remember {}) ---
+    // -------------------------------------------------------------------------
 
     // fun getAccessTokenBlocking(): String? = runBlocking {
     //     context.dataStore.data.map { it[ACCESS_TOKEN_KEY] }.first()
@@ -66,6 +70,14 @@ class TokenManager(private val context: Context) {
     // fun getRefreshTokenBlocking(): String? = runBlocking {
     //     context.dataStore.data.map { it[REFRESH_TOKEN_KEY] }.first()
     // }
+
+    /**
+     * Returns the User ID by blocking the current thread until the value is available.
+     * Use this cautiously and typically only outside of normal composable flows.
+     */
+    fun getUserIdBlocking(): String? = runBlocking {
+        context.dataStore.data.map { it[USER_ID_KEY] }.first()
+    }
 
 
     /**

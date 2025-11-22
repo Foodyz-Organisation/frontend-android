@@ -2,6 +2,8 @@ package com.example.damprojectfinal
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -16,7 +18,9 @@ import androidx.navigation.navArgument
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.api.DebugUserLogger
 import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.repository.MenuItemRepository
+import com.example.damprojectfinal.core.repository.UserRepository
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.utils.LogoutViewModelFactory
 import com.example.damprojectfinal.feature_auth.ui.*
@@ -27,8 +31,12 @@ import com.example.damprojectfinal.professional.feature_menu.ui.components.Creat
 import com.example.damprojectfinal.professional.feature_menu.ui.components.ItemDetailsScreen
 import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewModel
 import com.example.damprojectfinal.user.common.HomeScreen
+import com.example.damprojectfinal.user.feature_profile.ui.UpdateProfileScreen
+import com.example.damprojectfinal.user.feature_profile.ui.UserProfile
+import com.example.damprojectfinal.user.feature_profile.ui.UserProfileScreen
+import com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel
 import com.google.gson.Gson
-
+import androidx.compose.runtime.getValue // <-- Add this!
 object AuthRoutes {
     const val SPLASH = "splash_route"
     const val LOGIN = "login_route"
@@ -40,6 +48,9 @@ object AuthRoutes {
 object UserRoutes {
     const val HOME_SCREEN = "home_screen"
     const val HOME_SCREEN_PRO = "home_screen_pro"
+    // Base route for navigation must match the NavHost setup, including argument placeholders
+    const val PROFILE_VIEW = "profile_view/{userId}"
+    const val PROFILE_UPDATE = "profile_update/{userId}"
 }
 
 object ProRoutes {
@@ -52,7 +63,10 @@ fun AppNavigation(modifier: Modifier = Modifier) {
     val authApiService = AuthApiService()
 
     val context = LocalContext.current
-    val tokenManager = TokenManager(context)
+    val tokenManager = remember { TokenManager(context) }
+    // Initialize User API Service and Repository for ProfileViewModel
+    val userApiService = remember { UserApiService() }
+    val userRepository = remember { UserRepository(userApiService) }
 
     // Debugger runs at the highest level
     DebugUserLogger(tokenManager = tokenManager)
@@ -104,6 +118,8 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             )
         }
 
+
+
         // Signup
         composable(AuthRoutes.SIGNUP) {
             SignupScreen(
@@ -123,6 +139,77 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             )
         }
 
+        // In your AppNavigation.kt file
+
+        composable(
+            route = UserRoutes.PROFILE_VIEW,
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")
+                ?: throw IllegalStateException("userId is required for profile view.")
+
+            // --- Setup ViewModel ---
+            val profileViewModel: ProfileViewModel = viewModel(
+                factory = ProfileViewModel.Factory(userRepository)
+            )
+
+            val token = "YOUR_ACCESS_TOKEN"
+
+            // Fetch the user profile when the screen is composed
+            LaunchedEffect(userId, token) {
+                if (token.isNotBlank()) {
+                    profileViewModel.fetchUserProfile(userId, token)
+                }
+            }
+
+            // --- Corrected Composable Call ---
+            UserProfileScreen(
+                viewModel = profileViewModel,
+
+                // ⭐ FIX: Implement the onBackClick action to return to the previous screen
+                onBackClick = { navController.popBackStack() },
+
+                onEditProfileClick = {
+                    navController.navigate("profile_update/$userId")
+                }
+            )
+        }
+        // ----------------------------------------------------
+        // ⭐ PROFILE UPDATE SCREEN (USER) ⭐
+        // ----------------------------------------------------
+
+        composable(
+            route = UserRoutes.PROFILE_UPDATE,
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")
+                ?: throw IllegalStateException("userId is required for profile update.")
+
+            val profileViewModel: ProfileViewModel = viewModel(
+                factory = ProfileViewModel.Factory(userRepository)
+            )
+
+            // You MUST provide the access token here (e.g., from a token manager/session)
+            val token = "YOUR_ACCESS_TOKEN" // Replace with actual token retrieval logic
+
+            // ⭐ CRITICAL FIX: Fetch data when the screen is accessed ⭐
+            LaunchedEffect(userId, token) {
+                // Only fetch if the ViewModel doesn't already have the data
+                if (token.isNotBlank() && profileViewModel.userState.value == null) {
+                    profileViewModel.fetchUserProfile(userId, token)
+                }
+            }
+
+            // ... rest of the navigation logic (LaunchedEffect for updateSuccess) ...
+
+            UpdateProfileScreen(
+                viewModel = profileViewModel,
+                onBackClick = { navController.popBackStack() },
+                onUpdateSuccess = { /* ... */ }
+            )
+        }
+        // ----------------------------------------------------
+        // HomeScreen
         composable(UserRoutes.HOME_SCREEN) {
 
             val context = LocalContext.current
@@ -137,7 +224,17 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             HomeScreen(
                 navController = navController,
                 currentRoute = UserRoutes.HOME_SCREEN,
-                onLogout = { logoutViewModel.logout() },
+                onLogout = {
+                    // 1. Perform logout logic (clear tokens etc.)
+                    logoutViewModel.logout()
+
+                    // 2. Navigate to Login and clear the whole back stack
+                    navController.navigate(AuthRoutes.LOGIN) {
+                        // Pop everything in the current graph (root) off the back stack
+                        popUpTo(navController.graph.id) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
                 logoutSuccess = logoutViewModel.logoutSuccess
             )
         }

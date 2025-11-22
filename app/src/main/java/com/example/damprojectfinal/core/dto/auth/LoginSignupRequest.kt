@@ -12,9 +12,9 @@ data class LoginRequest(
 // Response for successful login
 @Serializable
 data class LoginResponse(
-    val access_token: String,
-    val refresh_token: String,
-    val role: String,
-    val email: String,
-    val id: String,
+    val access_token: String? = null,
+    val refresh_token: String? = null,
+    val role: String? = null,
+    val email: String? = null,
+    val id: String? = null
 )

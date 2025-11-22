@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.example.damprojectfinal.AuthRoutes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,8 +40,8 @@ fun HomeScreenPro(
                 actions = {
                     IconButton(
                         onClick = {
-                            navController.navigate("login") {
-                                popUpTo(0)   // Clears navigation history
+                            navController.navigate(AuthRoutes.LOGIN) {
+                                popUpTo(navController.graph.id) { inclusive = true } // Clears entire backstack
                             }
                         }
                     ) {
