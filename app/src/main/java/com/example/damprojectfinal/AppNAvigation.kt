@@ -5,15 +5,19 @@ import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -31,6 +35,7 @@ import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.feature_relamation.ReclamationsRestaurantViewModel
 import com.example.damprojectfinal.feature_relamation.ReclamationsRestaurantViewModelFactory
+import com.example.damprojectfinal.professional.feature_relamation.ReclamationDetailRestaurantScreen
 
 // User + Pro
 import com.example.damprojectfinal.user.common.HomeScreen
@@ -86,7 +91,7 @@ fun AppNavigation(
             )
         }
 
-        // 2️⃣ Login - ✅ FIXED: Added TokenManager
+        // 2️⃣ Login
         composable(AuthRoutes.LOGIN) {
             val context = LocalContext.current
             val tokenManager = TokenManager(context)
@@ -108,7 +113,7 @@ fun AppNavigation(
             )
         }
 
-        // 4️⃣ Forgot Password (Envoyer OTP)
+        // 4️⃣ Forgot Password
         composable(AuthRoutes.FORGOT_PASSWORD) {
             val vm: ForgotPasswordViewModel = viewModel(
                 factory = ForgotPasswordViewModelFactory(authRepository)
@@ -182,7 +187,7 @@ fun AppNavigation(
             HomeScreenPro(professionalId = proId, navController = navController)
         }
 
-        // 🔟 Liste réclamations
+        // 🔟 Liste réclamations (CLIENT)
         composable("list_reclamation_route") {
             val context = LocalContext.current
             val tokenManager = TokenManager(context)
@@ -211,12 +216,12 @@ fun AppNavigation(
                 }
             )
 
-
             error?.let {
                 Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
             }
         }
-///
+
+        // 1️⃣1️⃣ Détail réclamation (CLIENT)
         composable(
             route = "reclamation_detail/{reclamationId}",
             arguments = listOf(navArgument("reclamationId") { type = NavType.StringType })
@@ -230,7 +235,6 @@ fun AppNavigation(
                 factory = ReclamationViewModelFactory(userApiService, tokenManager)
             )
 
-            // Charger la réclamation sélectionnée
             LaunchedEffect(reclamationId) {
                 vm.loadReclamationById(reclamationId)
             }
@@ -243,12 +247,11 @@ fun AppNavigation(
                     onBackClick = { navController.popBackStack() }
                 )
             } else {
-                // Placeholder vide pendant le chargement
                 Box(modifier = Modifier.fillMaxSize())
             }
         }
 
-        // 1️⃣1️⃣ Créer réclamation
+        // 1️⃣2️⃣ Créer réclamation (CLIENT)
         composable("create_reclamation") {
             val context = LocalContext.current
             val tokenManager = TokenManager(context)
@@ -301,7 +304,6 @@ fun AppNavigation(
                 }
             )
 
-            // ✅ Afficher les erreurs
             val errorMessage by vm.errorMessage.collectAsState()
             LaunchedEffect(errorMessage) {
                 errorMessage?.let { error ->
@@ -311,7 +313,7 @@ fun AppNavigation(
             }
         }
 
-/////
+        // 1️⃣3️⃣ Liste événements
         composable("event_list") {
             val eventViewModel: EventViewModel = viewModel()
             val events by eventViewModel.events.collectAsState()
@@ -332,11 +334,9 @@ fun AppNavigation(
                 },
                 onAddEventClick = {
                     Log.d("AppNavigationEvents", "Ajouter un événement")
-                    // navigation vers la page de création si nécessaire
                 },
                 onEditClick = { event ->
                     Log.d("AppNavigationEvents", "Éditer événement: ${event.nom}")
-                    // navigation vers la page d'édition si nécessaire
                 },
                 onDeleteClick = { eventId ->
                     eventViewModel.deleteEvent(eventId)
@@ -354,10 +354,11 @@ fun AppNavigation(
             }
 
             if (isLoading) {
-                // Tu peux ajouter un loader ici
                 Box(modifier = Modifier.fillMaxSize())
             }
         }
+
+        // 1️⃣4️⃣ Détail événement
         composable(
             route = "event_detail/{eventId}",
             arguments = listOf(navArgument("eventId") { type = NavType.StringType })
@@ -373,12 +374,11 @@ fun AppNavigation(
                     onBackClick = { navController.popBackStack() }
                 )
             } else {
-                // Placeholder vide pendant le chargement ou événement introuvable
                 Box(modifier = Modifier.fillMaxSize())
             }
         }
-        // 🔥 AJOUTEZ CETTE ROUTE DANS VOTRE NavHost, après la route "event_list"
 
+        // 1️⃣5️⃣ Créer événement
         composable("create_event") {
             val context = LocalContext.current
             val eventViewModel: EventViewModel = viewModel()
@@ -395,7 +395,6 @@ fun AppNavigation(
                     Log.d("AppNavigationEvents", "Catégorie: $categorie")
                     Log.d("AppNavigationEvents", "Statut: $statut")
 
-                    // Créer l'événement via le ViewModel
                     eventViewModel.createEvent(
                         nom = nom,
                         description = description,
@@ -413,7 +412,6 @@ fun AppNavigation(
                         Toast.LENGTH_SHORT
                     ).show()
 
-                    // Retourner à la liste des événements
                     navController.navigate("event_list") {
                         popUpTo("create_event") { inclusive = true }
                     }
@@ -423,7 +421,6 @@ fun AppNavigation(
                 }
             )
 
-            // Observer les erreurs
             val error by eventViewModel.error.collectAsState()
             LaunchedEffect(error) {
                 error?.let {
@@ -431,12 +428,11 @@ fun AppNavigation(
                 }
             }
         }
-        // Dans votre composable("restaurant_reclamations")
-        // Dans votre composable("restaurant_reclamations")
+
+        // 1️⃣6️⃣ Liste réclamations (RESTAURANT)
         composable("restaurant_reclamations") {
             val context = LocalContext.current
             val tokenManager = TokenManager(context)
-
             val repository = ReclamationRepository(tokenManager)
 
             val vm: ReclamationsRestaurantViewModel = viewModel(
@@ -447,13 +443,12 @@ fun AppNavigation(
             val isLoading by vm.isLoading.collectAsState()
             val error by vm.error.collectAsState()
 
-            // ✅ Appelle la nouvelle méthode
             LaunchedEffect(Unit) {
                 Log.d("AppNavigation", "🔄 Chargement des réclamations du restaurant...")
                 vm.loadMyRestaurantReclamations()
             }
 
-            com.example.damprojectfinal.ReclamationListRestaurantScreen(
+            ReclamationListRestaurantScreen(
                 reclamations = reclamations,
                 isLoading = isLoading,
                 onReclamationClick = { rec ->
@@ -473,21 +468,88 @@ fun AppNavigation(
             }
         }
 
-// ❌ SUPPRIMER COMPLÈTEMENT CETTE DÉFINITION SI ELLE EXISTE EN BAS DU FICHIER
-// @Composable
-// fun ReclamationListRestaurantScreen(...) { ... }
+        // 1️⃣7️⃣ ✅ NOUVELLE ROUTE: Détail réclamation (RESTAURANT)
+        // 1️⃣7️⃣ ✅ CORRECTED: Détail réclamation (RESTAURANT)
+        composable(
+            route = "restaurant_reclamation_detail/{reclamationId}",
+            arguments = listOf(navArgument("reclamationId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val reclamationId = backStackEntry.arguments?.getString("reclamationId") ?: return@composable
+            val context = LocalContext.current
+            val tokenManager = TokenManager(context)
+            val repository = ReclamationRepository(tokenManager)
 
+            val vm: ReclamationsRestaurantViewModel = viewModel(
+                factory = ReclamationsRestaurantViewModelFactory(repository)
+            )
 
+            val reclamations by vm.reclamations.collectAsState()
+            val selectedReclamation by vm.selected.collectAsState()
 
+            // ✅ FIX: Charger les réclamations et sélectionner celle avec l'ID
+            LaunchedEffect(reclamationId) {
+                Log.d("AppNavigation", "🔍 Chargement réclamation ID: $reclamationId")
 
+                // Si la liste est vide, charger toutes les réclamations d'abord
+                if (reclamations.isEmpty()) {
+                    Log.d("AppNavigation", "📋 Liste vide, chargement des réclamations...")
+                    vm.loadMyRestaurantReclamations()
+                }
+            }
 
+            // ✅ FIX: Trouver et sélectionner la réclamation une fois la liste chargée
+            LaunchedEffect(reclamations) {
+                if (reclamations.isNotEmpty() && selectedReclamation == null) {
+                    val reclamation = reclamations.find { it.id == reclamationId }
+                    if (reclamation != null) {
+                        Log.d("AppNavigation", "✅ Réclamation trouvée: ${reclamation.id}")
+                        vm.selectReclamation(reclamation)
+                    } else {
+                        Log.e("AppNavigation", "❌ Réclamation non trouvée dans la liste")
+                    }
+                }
+            }
 
-
+            // ✅ Afficher l'écran de détail
+            if (selectedReclamation != null) {
+                ReclamationDetailRestaurantScreen(
+                    reclamation = selectedReclamation!!,
+                    onBackClick = {
+                        vm.clearSelected()
+                        navController.popBackStack()
+                    },
+                    onRespond = { responseMessage ->
+                        vm.respond(
+                            reclamationId = reclamationId,
+                            responseMessage = responseMessage,
+                            onSuccess = { updatedReclamation ->
+                                Toast.makeText(
+                                    context,
+                                    "Réponse envoyée avec succès!",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        )
+                    }
+                )
+            } else {
+                // ✅ Afficher un loader pendant le chargement
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Chargement...")
+                    }
+                }
+            }
+        }
     }
 }
 
-
-
+// ✅ Extension function pour EventViewModel
 private fun EventViewModel.createEvent(
     nom: String,
     description: String,
@@ -498,26 +560,5 @@ private fun EventViewModel.createEvent(
     categorie: String,
     statut: EventStatus
 ) {
-}
-// AppNavigation.kt (après la fin de AppNavigation)
-@Composable
-fun ReclamationListRestaurantScreen(
-    reclamations: List<Reclamation>,
-    onReclamationClick: (Reclamation) -> Unit,
-    onBackClick: () -> Unit
-) {
-    Column {
-        reclamations.forEach { rec ->
-            Text(
-                text = rec.description ?: "Pas de description",
-                modifier = Modifier
-                    .clickable { onReclamationClick(rec) }
-                    .padding(8.dp)
-            )
-        }
-
-        Button(onClick = onBackClick) {
-            Text("Retour")
-        }
-    }
+    // Implementation vide - la logique est dans EventViewModel
 }

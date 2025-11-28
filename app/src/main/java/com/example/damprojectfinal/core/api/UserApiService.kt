@@ -15,7 +15,7 @@ import kotlinx.serialization.json.Json
 
 class UserApiService(private val tokenManager: TokenManager) {
 
-    private val BASE_URL = "http://10.0.2.2:3000"
+    private val BASE_URL = "http://192.168.1.7:3000"
 
     private val client = HttpClient(Android) {
         // Conversion JSON automatique
