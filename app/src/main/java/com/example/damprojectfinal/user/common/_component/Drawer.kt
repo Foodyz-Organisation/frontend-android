@@ -23,26 +23,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.damprojectfinal.R
 
-// Define the items for the drawer
+// --- DrawerItem Data ---
 data class DrawerItem(
     val icon: ImageVector,
     val label: String,
     val route: String
 )
 
-// 🔥 NOUVEAU : Item pour créer un événement
-val createEventDrawerItem = DrawerItem(
-    Icons.Default.AddCircle, // Icône ajouter
-    "Créer un Événement",
-    "create_event" // Nouvelle route
-)
-
-val eventsDrawerItem = DrawerItem(
-    Icons.Default.Event, // Icône calendrier
-    "Événements",
-    "event_list"
-)
-
+// --- Drawer Items ---
 val drawerItems = listOf(
     DrawerItem(Icons.Default.Home, "Home", "home_route"),
     DrawerItem(Icons.Default.Settings, "Settings", "settings_route"),
@@ -51,11 +39,12 @@ val drawerItems = listOf(
     DrawerItem(Icons.Default.Help, "Help & Support", "help_route"),
     DrawerItem(Icons.Default.Add, "Ajouter Réclamation", "create_reclamation"),
     DrawerItem(Icons.Default.List, "Mes Réclamations", "list_reclamation_route"),
-    eventsDrawerItem,
-    createEventDrawerItem, // 🔥 AJOUTÉ ICI
+    DrawerItem(Icons.Default.Event, "Événements", "event_list"),
+    DrawerItem(Icons.Default.AddCircle, "Créer un Événement", "create_event"), // 🔥
+    DrawerItem(Icons.Default.ShoppingCart, "Liste des Deals", "deals/list")  // ✅ Changé ici
 )
 
-// 🔑 Professional Signup Item
+// --- Professional Signup Item ---
 val proSignupItem = DrawerItem(
     Icons.Default.Fastfood,
     "Signup as Professional",
@@ -72,16 +61,15 @@ fun AppDrawer(
         drawerContainerColor = Color(0xFFFFFFFF),
         modifier = Modifier.width(300.dp)
     ) {
-        // --- 1. Drawer Header (Profile and App Info) ---
-        DrawerHeader(
-            onProfileClick = {
-                navigateTo("user_profile_route")
-                onCloseDrawer()
-            }
-        )
+        // --- Header ---
+        DrawerHeader(onProfileClick = {
+            navigateTo("user_profile_route")
+            onCloseDrawer()
+        })
 
-        // --- 2. Navigation Items ---
         Spacer(Modifier.height(8.dp))
+
+        // --- Navigation Items ---
         drawerItems.forEach { item ->
             DrawerMenuItem(
                 item = item,
@@ -93,7 +81,7 @@ fun AppDrawer(
             )
         }
 
-        // --- 🔑 3. Pro Application Button ---
+        // --- Pro Signup ---
         Spacer(Modifier.height(16.dp))
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             Divider(color = Color.LightGray, thickness = 0.5.dp)
@@ -108,11 +96,11 @@ fun AppDrawer(
             )
         }
 
-        // --- 4. Footer (Logout/Divider) ---
+        // --- Footer ---
         Spacer(Modifier.weight(1f))
         Divider(color = Color.LightGray, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
         DrawerFooter(onClickLogout = {
-            // TODO: Handle logout logic
+            // TODO: handle logout
             onCloseDrawer()
         })
     }

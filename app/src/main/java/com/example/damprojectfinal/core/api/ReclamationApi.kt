@@ -12,33 +12,59 @@ import java.util.concurrent.TimeUnit
 interface ReclamationApi {
     @GET("reclamation")
     suspend fun getAllReclamations(): List<Reclamation>
+
     @GET("reclamation/my-reclamations")
     suspend fun getMyReclamations(): List<Reclamation>
+
     @POST("reclamation")
     suspend fun createReclamation(@Body request: CreateReclamationRequest): Reclamation
-    @GET("reclamations/{id}")
+
+    @GET("reclamation/{id}")
     suspend fun getReclamationById(@Path("id") id: String): Reclamation
 
+    /**
+     * ✅ NOUVELLE ROUTE: Récupère les réclamations de MON restaurant
+     * Endpoint: GET /reclamation/restaurant/my-reclamations
+     */
+    @GET("reclamation/restaurant/my-reclamations")
+    suspend fun getMyRestaurantReclamations(): List<Reclamation>
+
+    /**
+     * ✅ Récupère les réclamations pour un restaurant spécifique par ID
+     * Endpoint: GET /reclamation/restaurant/:restaurantId
+     */
+    @GET("reclamation/restaurant/{restaurantId}")
+    suspend fun getReclamationsByRestaurant(
+        @Path("restaurantId") restaurantId: String
+    ): List<Reclamation>
+
+    /**
+     * ✅ Répond à une réclamation
+     * Endpoint: PUT /reclamation/:id/respond
+     */
+    @PUT("reclamation/{id}/respond")
+    suspend fun respondToReclamation(
+        @Path("id") id: String,
+        @Body request: RespondReclamationRequest
+    ): Reclamation
 }
 
 object ReclamationRetrofitClient {
     private const val TAG = "ReclamationClient"
     private const val BASE_URL = "http://10.0.2.2:3000/"
 
-    // ✅ Fonction pour créer le client avec token
     fun createClient(token: String): ReclamationApi {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
 
-        // ✅ Intercepteur pour ajouter le token JWT
         val authInterceptor = Interceptor { chain ->
             val originalRequest = chain.request()
             val authenticatedRequest = originalRequest.newBuilder()
                 .header("Authorization", "Bearer $token")
                 .build()
 
-            Log.d(TAG, "Requête avec token: Bearer ${token.take(20)}...")
+            Log.d(TAG, "🔐 Requête avec token: Bearer ${token.take(20)}...")
             chain.proceed(authenticatedRequest)
         }
 

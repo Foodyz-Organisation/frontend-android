@@ -1,7 +1,5 @@
 package com.example.foodyz_dam.ui.theme.screens.reclamation
 
-
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,8 +11,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
-//import androidx.compose.material.icons.filled.Pending
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,11 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
 import java.util.*
-
-// ------------------ Brand Colors
-
-
-// ------------------ Data Model
 
 // ------------------ Liste des Réclamations
 @OptIn(ExperimentalMaterial3Api::class)
@@ -142,7 +135,6 @@ private fun ReclamationCard(
                         tint = BrandColors.Yellow,
                         modifier = Modifier.size(20.dp)
                     )
-                    // Remplacement sécurisé
                     Text(
                         text = reclamation.orderNumber ?: "N° inconnu",
                         fontWeight = FontWeight.Bold,
@@ -153,7 +145,7 @@ private fun ReclamationCard(
                 StatusBadgee(status = reclamation.status)
             }
 
-            // Complaint Type sécurisé
+            // Complaint Type
             Text(
                 text = reclamation.complaintType ?: "Type inconnu",
                 fontWeight = FontWeight.SemiBold,
@@ -161,7 +153,7 @@ private fun ReclamationCard(
                 fontSize = 14.sp
             )
 
-            // Description sécurisé
+            // Description
             Text(
                 text = reclamation.description ?: "Pas de description",
                 color = BrandColors.TextSecondary,
@@ -170,7 +162,7 @@ private fun ReclamationCard(
                 overflow = TextOverflow.Ellipsis
             )
 
-            // Date sécurisé
+            // Date
             Text(
                 text = reclamation.date?.let { dateFormat.format(it) } ?: "Date inconnue",
                 color = BrandColors.TextSecondary,
@@ -180,14 +172,35 @@ private fun ReclamationCard(
     }
 }
 
-
+// ✅ FIX : Ajouter IN_PROGRESS
 @Composable
 fun StatusBadgee(status: ReclamationStatus?) {
     val (color, icon, text) = when (status) {
-        ReclamationStatus.PENDING -> Triple(BrandColors.Orange, Icons.Default.CheckCircle, "En attente")
-        ReclamationStatus.RESOLVED -> Triple(BrandColors.Green, Icons.Default.CheckCircle, "Résolue")
-        ReclamationStatus.REJECTED -> Triple(BrandColors.Red, Icons.Default.Clear, "Rejetée")
-        null -> Triple(BrandColors.Red, Icons.Default.Add, "Inconnu")
+        ReclamationStatus.PENDING -> Triple(
+            BrandColors.Orange,
+            Icons.Default.Refresh,
+            "En attente"
+        )
+        ReclamationStatus.IN_PROGRESS -> Triple(
+            Color(0xFF2196F3), // Bleu
+            Icons.Default.Refresh,
+            "En cours"
+        )
+        ReclamationStatus.RESOLVED -> Triple(
+            BrandColors.Green,
+            Icons.Default.CheckCircle,
+            "Résolue"
+        )
+        ReclamationStatus.REJECTED -> Triple(
+            BrandColors.Red,
+            Icons.Default.Clear,
+            "Rejetée"
+        )
+        null -> Triple(
+            BrandColors.Red,
+            Icons.Default.Add,
+            "Inconnu"
+        )
     }
 
     Row(

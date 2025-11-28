@@ -78,21 +78,18 @@ fun HomeScreen(navController: NavHostController, currentRoute: String = "home") 
                         .padding(bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
-                    // 🎯 Cleaned up call: Using the imported name 'TopAppBar'
                     TopAppBar(
                         navController = navController,
                         currentRoute = currentRoute,
                         openDrawer = {
-                            // The click on the drawer icon opens the drawer
                             scope.launch { drawerState.open() }
                         },
-                        onSearchClick = {
-                            isSearchActive = true
-                        },
+                        onSearchClick = { isSearchActive = true },
                         onProfileClick = { navController.navigate("user_profile_route") }
                     )
 
-                    HighlightCard()
+                    // 🔹 Passer le NavController ici
+                    HighlightCard(navController = navController)
 
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -108,6 +105,7 @@ fun HomeScreen(navController: NavHostController, currentRoute: String = "home") 
                         PostsScreen()
                     }
                 }
+
 
                 // --- 2. Dynamic Search Overlay (Placed on top of content) ---
                 if (isSearchActive) {
@@ -128,7 +126,7 @@ fun HomeScreen(navController: NavHostController, currentRoute: String = "home") 
     )
 }
 @Composable
-fun HighlightCard() {
+fun HighlightCard(navController: NavHostController) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -158,16 +156,22 @@ fun HighlightCard() {
         HighlightCardItem(
             modifier = Modifier.weight(1f),
             data = takeawayCardData,
-            onClick = { /* Handle Takeaway click */ }
+            onClick = {
+                navController.navigate("takeaway/list") // si tu veux une autre route
+            }
         )
 
         HighlightCardItem(
             modifier = Modifier.weight(1f),
             data = dealsCardData,
-            onClick = { /* Handle Daily Deals click */ }
+            onClick = {
+                navController.navigate("deals/list") // ✅ navigation vers la liste des deals
+            }
         )
     }
 }
+
+
 
 // --- Helper Data Class and Composable for Reusability ---
 
@@ -407,5 +411,6 @@ fun HomeScreenPreview() {
 @Preview(showBackground = true)
 @Composable
 fun HighlightCardPreview() {
-    HighlightCard()
+    val navController = rememberNavController() // Dummy NavController pour la preview
+    HighlightCard(navController = navController)
 }

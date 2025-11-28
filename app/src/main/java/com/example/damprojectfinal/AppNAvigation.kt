@@ -2,14 +2,20 @@ package com.example.damprojectfinal
 
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
@@ -23,6 +29,8 @@ import com.example.damprojectfinal.core.utils.*
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.feature_relamation.ReclamationsRestaurantViewModel
+import com.example.damprojectfinal.feature_relamation.ReclamationsRestaurantViewModelFactory
 
 // User + Pro
 import com.example.damprojectfinal.user.common.HomeScreen
@@ -423,12 +431,62 @@ fun AppNavigation(
                 }
             }
         }
+        // Dans votre composable("restaurant_reclamations")
+        // Dans votre composable("restaurant_reclamations")
+        composable("restaurant_reclamations") {
+            val context = LocalContext.current
+            val tokenManager = TokenManager(context)
+
+            val repository = ReclamationRepository(tokenManager)
+
+            val vm: ReclamationsRestaurantViewModel = viewModel(
+                factory = ReclamationsRestaurantViewModelFactory(repository)
+            )
+
+            val reclamations by vm.reclamations.collectAsState()
+            val isLoading by vm.isLoading.collectAsState()
+            val error by vm.error.collectAsState()
+
+            // ✅ Appelle la nouvelle méthode
+            LaunchedEffect(Unit) {
+                Log.d("AppNavigation", "🔄 Chargement des réclamations du restaurant...")
+                vm.loadMyRestaurantReclamations()
+            }
+
+            com.example.damprojectfinal.ReclamationListRestaurantScreen(
+                reclamations = reclamations,
+                isLoading = isLoading,
+                onReclamationClick = { rec ->
+                    vm.selectReclamation(rec)
+                    navController.navigate("restaurant_reclamation_detail/${rec.id}")
+                },
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+
+            error?.let { errorMsg ->
+                LaunchedEffect(errorMsg) {
+                    Log.e("AppNavigation", "❌ Erreur: $errorMsg")
+                    Toast.makeText(context, "Erreur: $errorMsg", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+// ❌ SUPPRIMER COMPLÈTEMENT CETTE DÉFINITION SI ELLE EXISTE EN BAS DU FICHIER
+// @Composable
+// fun ReclamationListRestaurantScreen(...) { ... }
+
+
+
 
 
 
 
     }
 }
+
+
 
 private fun EventViewModel.createEvent(
     nom: String,
@@ -440,4 +498,26 @@ private fun EventViewModel.createEvent(
     categorie: String,
     statut: EventStatus
 ) {
+}
+// AppNavigation.kt (après la fin de AppNavigation)
+@Composable
+fun ReclamationListRestaurantScreen(
+    reclamations: List<Reclamation>,
+    onReclamationClick: (Reclamation) -> Unit,
+    onBackClick: () -> Unit
+) {
+    Column {
+        reclamations.forEach { rec ->
+            Text(
+                text = rec.description ?: "Pas de description",
+                modifier = Modifier
+                    .clickable { onReclamationClick(rec) }
+                    .padding(8.dp)
+            )
+        }
+
+        Button(onClick = onBackClick) {
+            Text("Retour")
+        }
+    }
 }

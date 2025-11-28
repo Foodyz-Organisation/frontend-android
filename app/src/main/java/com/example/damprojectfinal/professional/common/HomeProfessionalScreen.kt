@@ -135,6 +135,20 @@ fun HomeScreenPro(
                     isEnabled = false
                 )
                 Spacer(modifier = Modifier.height(32.dp))
+// --- Réclamations Card ---
+                // --- Réclamations Card ---
+                ActionCard(
+                    icon = Icons.Default.Inventory,
+                    title = "Réclamations",
+                    subtitle = "Voir les réclamations reçues",
+                    indicator = true,
+                    iconBackground = Color(0xFFE1F5FE),
+                    iconColor = Color(0xFF0288D1),
+                    onClick = {
+                        navController.navigate("restaurant_reclamations")  // ✅ CORRECT
+                    }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // --- 4. Recent Activity Header ---
                 Text(

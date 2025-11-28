@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import java.text.SimpleDateFormat
 import java.util.*
-import com.example.foodyz_dam.ui.theme.screens.reclamation.BrandColors
 
 // ------------------ Détails de la Réclamation
 @OptIn(ExperimentalMaterial3Api::class)
@@ -155,8 +154,8 @@ fun ReclamationDetailScreen(
                 }
             }
 
-            // Response
-            if (reclamation.response != null) {
+            // Response - ✅ FIX : Utiliser une variable locale
+            reclamation.response?.let { responseText ->
                 SectionLabel("Réponse")
                 Card(
                     modifier = Modifier
@@ -191,7 +190,7 @@ fun ReclamationDetailScreen(
                             )
                         }
                         Text(
-                            reclamation.response,
+                            responseText, // ✅ Variable locale au lieu de reclamation.response
                             color = BrandColors.TextPrimary,
                             fontSize = 14.sp,
                             lineHeight = 20.sp
@@ -320,17 +319,21 @@ private fun StatusOption(
     }
 }
 
+// ✅ FIX : Ajouter IN_PROGRESS
 private fun getStatusLabel(status: ReclamationStatus): String {
     return when (status) {
         ReclamationStatus.PENDING -> "En attente"
+        ReclamationStatus.IN_PROGRESS -> "En cours"
         ReclamationStatus.RESOLVED -> "Résolue"
         ReclamationStatus.REJECTED -> "Rejetée"
     }
 }
 
+// ✅ FIX : Ajouter IN_PROGRESS
 private fun getStatusDescription(status: ReclamationStatus): String {
     return when (status) {
         ReclamationStatus.PENDING -> "La réclamation est en cours de traitement"
+        ReclamationStatus.IN_PROGRESS -> "La réclamation est actuellement traitée"
         ReclamationStatus.RESOLVED -> "La réclamation a été résolue"
         ReclamationStatus.REJECTED -> "La réclamation a été rejetée"
     }
@@ -383,6 +386,47 @@ private fun DetailRow(label: String, value: String) {
             color = BrandColors.TextPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+// ✅ Composant StatusBadge manquant
+@Composable
+private fun StatusBadge(status: ReclamationStatus) {
+    val (backgroundColor, textColor, label) = when (status) {
+        ReclamationStatus.PENDING -> Triple(
+            Color(0xFFFFF3E0),
+            Color(0xFFF57C00),
+            "En attente"
+        )
+        ReclamationStatus.IN_PROGRESS -> Triple(
+            Color(0xFFE3F2FD),
+            Color(0xFF1976D2),
+            "En cours"
+        )
+        ReclamationStatus.RESOLVED -> Triple(
+            Color(0xFFE8F5E9),
+            Color(0xFF388E3C),
+            "Résolue"
+        )
+        ReclamationStatus.REJECTED -> Triple(
+            Color(0xFFFFEBEE),
+            Color(0xFFD32F2F),
+            "Rejetée"
+        )
+    }
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = backgroundColor,
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = label,
+            color = textColor,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
         )
     }
 }
