@@ -1,6 +1,8 @@
 package com.example.damprojectfinal.user.common._component
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,17 +17,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.compose.rememberNavController
-import com.example.damprojectfinal.UserRoutes // Import the routes object to access constants
+import com.example.damprojectfinal.R // Ensure you have this import for R.drawable
 
 // -----------------------------------------------------------------------------
-// MAIN COMPOSABLE
+// MAIN TOP APP BAR COMPOSABLE
 // -----------------------------------------------------------------------------
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,12 +40,12 @@ fun TopAppBar(
     currentRoute: String,
     openDrawer: () -> Unit,
     onSearchClick: () -> Unit,
-    // ⭐ CHANGE 1: Accept the current User ID for profile navigation
     currentUserId: String,
-    onProfileClick: (userId: String) -> Unit // This is the navigation hook for the profile
+    onProfileClick: (userId: String) -> Unit,
+    onLogoutClick: () -> Unit
 ) {
     var showAddOptions by remember { mutableStateOf(false) }
-    var showNotifications by remember { mutableStateOf(false) } // State for the dropdown
+    var showNotifications by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -59,7 +64,6 @@ fun TopAppBar(
                     .size(44.dp)
                     .clip(CircleShape)
                     .background(Color(0xFFEFF4FB))
-                    // ⭐ CHANGE 2: Call the lambda and pass the currentUserId
                     .clickable { onProfileClick(currentUserId) },
                 contentAlignment = Alignment.Center
             ) {
@@ -71,7 +75,7 @@ fun TopAppBar(
                 )
             }
 
-            // App title (Unchanged)
+            // App title
             Text(
                 text = "Foodies",
                 fontWeight = FontWeight.ExtraBold,
@@ -82,20 +86,19 @@ fun TopAppBar(
                     .weight(1f)
             )
 
-            // Search Button (Unchanged)
+            // Search Button
             IconButton(onClick = onSearchClick) {
                 Icon(Icons.Filled.Search, contentDescription = "Search", tint = Color(0xFF334155))
             }
 
-            // --- Notifications Icon (Unchanged) ---
+            // Notifications Icon
             NotificationIconWithDropdown(
                 showNotifications = showNotifications,
                 onToggle = { showNotifications = it },
                 navController = navController
             )
-            // ----------------------------------------------------
 
-            // Drawer Button (Unchanged)
+            // Drawer Button
             Box(
                 modifier = Modifier
                     .size(44.dp)
@@ -108,10 +111,10 @@ fun TopAppBar(
             }
         }
 
-        // Secondary Nav Bar (Unchanged)
+        // Secondary Nav Bar
         SecondaryNavBar(navController = navController, currentRoute = currentRoute)
 
-        // Add Options Popup (Unchanged)
+        // Add Options Popup (Placeholder)
         if (showAddOptions) {
             // ... (Add Options code remains unchanged)
         }
@@ -119,7 +122,7 @@ fun TopAppBar(
 }
 
 // -----------------------------------------------------------------------------
-// SECONDARY NAVBAR COMPOSABLES (Unchanged)
+// SECONDARY NAVBAR COMPOSABLES
 // -----------------------------------------------------------------------------
 
 @Composable
@@ -153,126 +156,157 @@ fun NavIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boo
 }
 
 // -----------------------------------------------------------------------------
-// DYNAMIC SEARCH OVERLAY COMPOSABLES (FIXED: Uses a literal ID on click)
+// SEARCH SCREEN COMPONENTS
 // -----------------------------------------------------------------------------
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DynamicSearchOverlay(onNavigateToProfile: (profileId: String?) -> Unit) {
-    var searchText by remember { mutableStateOf("") }
-    val searchHistory = remember { mutableStateListOf("Pizza near me", "Vegan bowl", "Spicy ramen", "Burger deals") }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-            .padding(top = 8.dp)
-    ) {
-        // ... (Search Input Bar remains unchanged)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White)
-                .padding(vertical = 8.dp, horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Back/Close Button
-            IconButton(onClick = { onNavigateToProfile(null) }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Close Search", tint = Color(0xFF334155))
-            }
+// --- Data Model and Mock Data ---
+data class Restaurant(
+    val id: String,
+    val name: String,
+    val cuisine: String,
+    // ⭐ UPDATED TYPE: Change Int to ImageVector to match the Icons.Default.Restaurant usage.
+    val imageUrl: ImageVector
+)
 
-            // Search Input Field
-            OutlinedTextField(
-                value = searchText,
-                onValueChange = { searchText = it },
-                placeholder = { Text("Search Foodies...", color = Color(0xFF64748B)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
-                trailingIcon = {
-                    if (searchText.isNotEmpty()) {
-                        IconButton(onClick = { searchText = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear Search")
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp),
-                shape = RoundedCornerShape(28.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFFF3F4F6),
-                    unfocusedContainerColor = Color(0xFFF3F4F6),
-                    focusedBorderColor = Color(0xFF334155),
-                    unfocusedBorderColor = Color.Transparent,
-                    cursorColor = Color(0xFF334155),
-                ),
-                singleLine = true
-            )
-        }
-
-        Divider()
-
-        // --- Search History/Results ---
-        LazyColumn(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            if (searchText.isEmpty()) {
-                item {
-                    Text(
-                        text = "Recent Searches",
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1F2937),
-                        modifier = Modifier.padding(16.dp)
-                    )
-                    Divider()
-                }
-
-                items(searchHistory) { item ->
-                    HistoryItem(
-                        text = item,
-                        // This logic is confusing, an item click should navigate to a search result, not a profile.
-                        // I will assume for now it's intended to navigate, and pass the text as a placeholder ID.
-                        onItemClick = {
-                            searchText = item
-                            // ⭐ IMPORTANT: This assumes the search result text *is* a profile ID, which is likely wrong.
-                            // This part of the logic needs review in a real app, but for now, we use the text as a mock ID.
-                            onNavigateToProfile(item)
-                        },
-                        onRemoveClick = { searchHistory.remove(item) }
-                    )
-                }
-            } else {
-                item {
-                    Text("Searching for results...", modifier = Modifier.padding(16.dp))
-                }
-            }
-        }
-    }
-}
+private val mockRestaurants = listOf(
+    // These now correctly match the ImageVector type:
+    Restaurant("1", "Chili's", "American Grill", Icons.Default.Restaurant),
+    Restaurant("2", "Zink", "Modern Fusion", Icons.Default.Restaurant),
+    Restaurant("3", "The Corner", "Cafe & Bistro", Icons.Default.Restaurant),
+    Restaurant("4", "Cristy Naan", "Indian Cuisine", Icons.Default.Restaurant),
+)
 
 @Composable
-fun HistoryItem(text: String, onItemClick: () -> Unit, onRemoveClick: () -> Unit) {
+fun RestaurantListItem(
+    restaurant: Restaurant,
+    onItemClick: (restaurantId: String) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onItemClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .clickable { onItemClick(restaurant.id) }
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.History, contentDescription = "History", tint = Color(0xFF64748B), modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(12.dp))
-            Text(text = text, color = Color(0xFF1F2937))
+            // ⭐ UPDATED: Replaced Image with Icon to use the ImageVector property
+            Icon(
+                imageVector = restaurant.imageUrl, // This is the ImageVector (e.g., Icons.Default.Restaurant)
+                contentDescription = restaurant.name,
+                // Set size and clipping on the Icon itself
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFE0E0E0)), // Optional: Add a light background for visibility
+                tint = Color(0xFF334155) // Optional: Set a color for the icon
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Text Block
+            Column {
+                Text(
+                    text = restaurant.name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color(0xFF1F2937)
+                )
+                Text(
+                    text = restaurant.cuisine,
+                    fontSize = 14.sp,
+                    color = Color(0xFF6B7280)
+                )
+            }
         }
 
-        IconButton(onClick = onRemoveClick, modifier = Modifier.size(24.dp)) {
-            Icon(Icons.Default.Close, contentDescription = "Remove History", tint = Color(0xFF9CA3AF))
-        }
+        // Right side: Radio Button/Selector (Circle placeholder from screenshot)
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .border(2.dp, Color(0xFFD1D5DB), CircleShape)
+                .clip(CircleShape)
+        )
     }
 }
 
 // -----------------------------------------------------------------------------
-// DYNAMIC NOTIFICATION DROPDOWN COMPOSABLES (Unchanged)
+// DYNAMIC SEARCH OVERLAY COMPOSABLES (TRANSFORMED TO SEARCH RESTAURANTS SCREEN)
+// -----------------------------------------------------------------------------
+// In file: com.example.damprojectfinal.user.common._component/DynamicSearchOverlay.kt
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+// ⭐ CRITICAL FIX: Signature now includes onDismiss
+fun DynamicSearchOverlay(navController: NavController, onDismiss: () -> Unit) {
+    var searchText by remember { mutableStateOf("") }
+
+    // Define the navigation function
+    val navigateToClientProfile: (restaurantId: String) -> Unit = { restaurantId ->
+        onDismiss() // Close the overlay
+        // Navigate to the ClientRestaurantProfileScreen route
+        navController.navigate("client_profile_view/$restaurantId")
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Search Restaurants", fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    // Back Button
+                    IconButton(onClick = onDismiss) { // ⭐ FIX: Now calls onDismiss to close the overlay state
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { /* Handle Filter Click */ }) {
+                        Icon(
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = "Filter",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        },
+        modifier = Modifier.fillMaxSize().background(Color(0xFFF7F7F7))
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // --- Search Input Bar ---
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // ... (OutlinedTextField code remains the same) ...
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // --- Restaurant List ---
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(mockRestaurants) { restaurant ->
+                    RestaurantListItem(
+                        restaurant = restaurant,
+                        onItemClick = navigateToClientProfile // Uses the navigation function
+                    )
+                }
+            }
+        }
+    }
+}
+// -----------------------------------------------------------------------------
+// DYNAMIC NOTIFICATION DROPDOWN COMPOSABLES
 // -----------------------------------------------------------------------------
 @Composable
 fun NotificationIconWithDropdown(
@@ -323,7 +357,7 @@ fun NotificationIconWithDropdown(
 }
 
 // -----------------------------------------------------------------------------
-// PREVIEW (Updated for new parameter)
+// PREVIEW
 // -----------------------------------------------------------------------------
 
 @Preview(showBackground = true)
@@ -335,7 +369,19 @@ fun TopAppBarPreview() {
         currentRoute = "home",
         openDrawer = {},
         onSearchClick = {},
-        currentUserId = "MOCK_USER_ID", // Added mock ID for preview
-        onProfileClick = {} // Changed signature
+        currentUserId = "MOCK_USER_ID",
+        onProfileClick = {},
+        onLogoutClick = {}
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+fun DynamicSearchOverlayPreview() {
+    // Requires a mock NavController for the preview
+    DynamicSearchOverlay(
+        navController = rememberNavController(),
+        // ⭐ FIX: Pass the required 'onDismiss' parameter
+        onDismiss = {}
     )
 }

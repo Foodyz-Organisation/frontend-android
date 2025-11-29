@@ -2,8 +2,7 @@ package com.example.damprojectfinal.core.dto.professional
 
 import kotlinx.serialization.Serializable
 
-
-@Serializable
+@OptIn(kotlinx.serialization.InternalSerializationApi::class)
 data class UpdateUserDto(
     val username: String? = null,
     val phone: String? = null,
@@ -12,6 +11,8 @@ data class UpdateUserDto(
     val isActive: Boolean? = null
 )
 
+
+@OptIn(kotlinx.serialization.InternalSerializationApi::class)
 @Serializable
 data class UserUpdateResponse(
     val id: String,

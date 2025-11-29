@@ -30,13 +30,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import com.example.damprojectfinal.UserRoutes
 
+// Placeholder Composable for HighlightCard/FilterChipItem (ensure they exist in your project)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     navController: NavHostController,
     currentRoute: String = "home",
-    onLogout: () -> Unit,                     // from parent
-    logoutSuccess: StateFlow<Boolean>         // from parent
+    onLogout: () -> Unit,
+    logoutSuccess: StateFlow<Boolean>
 ) {
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -44,39 +46,25 @@ fun HomeScreen(
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
 
-
     var isSearchActive by remember { mutableStateOf(false) }
 
-    // ⭐ FIX: Using getStoredUserId() as the assumed method.
-    // If your TokenManager only has getToken(), you must create an extension/helper
-    // to decode the token to get the ID, or implement a separate storage for the ID.
-    // Ensure you replace getStoredUserId() with the actual method name available in your TokenManager.
     val currentUserId: String by remember {
+        // NOTE: Replace getUserIdBlocking() with your actual method if different.
         mutableStateOf(tokenManager.getUserIdBlocking() ?: "placeholder_user_id_123")
     }
 
-
-    // 🔥 Observe logout result ONLY once
     LaunchedEffect(logoutSuccess) {
         logoutSuccess.collect { success ->
             if (success) {
-                // Navigate to Login after successful logout
-                navController.navigate("login_route") {
-                    popUpTo(0)
-                }
+                navController.navigate("login_route") { popUpTo(0) }
             }
         }
     }
 
-    // Navigation including logout
     val navigateTo: (String) -> Unit = { route ->
-        if (route == "logout_trigger") {
-            onLogout()   // DO NOT collect flow here
-        } else {
-            navController.navigate(route) {
-                launchSingleTop = true
-                restoreState = true
-            }
+        navController.navigate(route) {
+            launchSingleTop = true
+            restoreState = true
         }
     }
 
@@ -89,7 +77,8 @@ fun HomeScreen(
             AppDrawer(
                 onCloseDrawer = { scope.launch { drawerState.close() } },
                 navigateTo = navigateTo,
-                currentRoute = currentRoute
+                currentRoute = currentRoute,
+                onLogoutClick = onLogout
             )
         }
     ) {
@@ -99,10 +88,9 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0xFFF9FAFB), Color(0xFFF3F4F6))
-                        )
+                        Brush.verticalGradient(listOf(Color(0xFFF9FAFB), Color(0xFFF3F4F6)))
                     )
+                    // Disable vertical scrolling when search is active
                     .verticalScroll(rememberScrollState(), enabled = !isSearchActive)
                     .padding(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
@@ -111,13 +99,12 @@ fun HomeScreen(
                     navController = navController,
                     currentRoute = currentRoute,
                     openDrawer = { scope.launch { drawerState.open() } },
-                    onSearchClick = { isSearchActive = true },
-                    // ✅ Passed the currentUserId
+                    onSearchClick = { isSearchActive = true }, // Opens the search overlay
                     currentUserId = currentUserId,
-                    // ✅ Correctly navigates using the dynamic route
                     onProfileClick = { userId ->
                         navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/$userId")
-                    }
+                    },
+                    onLogoutClick = onLogout
                 )
 
                 HighlightCard()
@@ -137,20 +124,16 @@ fun HomeScreen(
                 }
             }
 
+            // --- Dynamic Search Overlay Call ---
             if (isSearchActive) {
                 DynamicSearchOverlay(
-                    onNavigateToProfile = { profileId ->
-                        isSearchActive = false
-                        if (profileId != null) {
-                            navController.navigate("restaurant_profile_route/$profileId")
-                        }
-                    }
+                    navController = navController, // Pass NavController for navigation
+                    onDismiss = { isSearchActive = false } // ⭐ FIX: This lambda dismisses the overlay
                 )
             }
         }
     }
 }
-
 // -------------------------- Helpers (unchanged) --------------------------
 
 @Composable

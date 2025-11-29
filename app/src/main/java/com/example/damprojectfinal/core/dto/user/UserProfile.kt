@@ -3,6 +3,8 @@ package com.example.damprojectfinal.core.dto.user
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName // <--- Import this
 
+
+@OptIn(kotlinx.serialization.InternalSerializationApi::class)
 @Serializable
 data class UpdateUserRequest(
     val username: String? = null,
@@ -13,6 +15,7 @@ data class UpdateUserRequest(
     val profilePictureUrl: String? = null
 )
 
+@OptIn(kotlinx.serialization.InternalSerializationApi::class)
 @Serializable
 data class UserResponse(
     @SerialName("_id")

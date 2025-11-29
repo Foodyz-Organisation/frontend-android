@@ -49,7 +49,8 @@ val proSignupItem = DrawerItem(
 fun AppDrawer(
     onCloseDrawer: () -> Unit,
     navigateTo: (String) -> Unit,
-    currentRoute: String // Used to highlight the current screen
+    currentRoute: String,
+    onLogoutClick: () -> Unit
 ) {
     ModalDrawerSheet(
         drawerContainerColor = Color(0xFFFFFFFF),
@@ -96,7 +97,8 @@ fun AppDrawer(
         Spacer(Modifier.weight(1f)) // Pushes the footer to the bottom
         Divider(color = Color.LightGray, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
         DrawerFooter(onClickLogout = {
-            // TODO: Handle logout logic
+            // ⭐ FIX: Call the direct logout handler
+            onLogoutClick()
             onCloseDrawer()
         })
     }

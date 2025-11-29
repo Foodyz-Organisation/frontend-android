@@ -3,7 +3,6 @@ package com.example.damprojectfinal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,11 +31,16 @@ import com.example.damprojectfinal.professional.feature_menu.ui.components.ItemD
 import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewModel
 import com.example.damprojectfinal.user.common.HomeScreen
 import com.example.damprojectfinal.user.feature_profile.ui.UpdateProfileScreen
-import com.example.damprojectfinal.user.feature_profile.ui.UserProfile
 import com.example.damprojectfinal.user.feature_profile.ui.UserProfileScreen
 import com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel
 import com.google.gson.Gson
-import androidx.compose.runtime.getValue // <-- Add this!
+import androidx.compose.runtime.mutableStateListOf
+import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileScreen
+import com.example.damprojectfinal.professional.feature_profile.ui.mockChilis
+import com.example.damprojectfinal.user.feature_menu.ui.RestaurantMenuScreen
+import com.example.damprojectfinal.user.feature_pro_profile.ui.ClientRestaurantProfileScreen
+import com.example.damprojectfinal.user.feautre_order.ui.OrderConfirmationScreen
+import com.example.damprojectfinal.user.feautre_order.ui.OrderItem
 object AuthRoutes {
     const val SPLASH = "splash_route"
     const val LOGIN = "login_route"
@@ -57,6 +61,11 @@ object ProRoutes {
     const val MENU_MANAGEMENT = "menu_management/{professionalId}"
 }
 
+object ProfileRoutes {
+    const val PROFESSIONAL_PROFILE_EDIT = "pro_profile_edit/{restaurantId}"
+    const val CLIENT_PROFILE_VIEW = "client_profile_view/{restaurantId}"
+}
+
 @Composable
 fun AppNavigation(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
@@ -67,7 +76,7 @@ fun AppNavigation(modifier: Modifier = Modifier) {
     // Initialize User API Service and Repository for ProfileViewModel
     val userApiService = remember { UserApiService() }
     val userRepository = remember { UserRepository(userApiService) }
-
+    val cartItems = remember { mutableStateListOf<OrderItem>() }
     // Debugger runs at the highest level
     DebugUserLogger(tokenManager = tokenManager)
 
@@ -248,9 +257,36 @@ fun AppNavigation(modifier: Modifier = Modifier) {
         // Professional Home
         composable("${UserRoutes.HOME_SCREEN_PRO}/{professionalId}") { backStackEntry ->
             val professionalId = backStackEntry.arguments?.getString("professionalId") ?: "unknown"
-            HomeScreenPro(professionalId, navController)
-        }
 
+            val context = LocalContext.current
+
+            // ⭐ 1. Initialize Logout ViewModel
+            val logoutViewModel: LogoutViewModel = viewModel(
+                factory = LogoutViewModelFactory(
+                    authApiService = AuthApiService(),
+                    tokenManager = TokenManager(context)
+                )
+            )
+
+            HomeScreenPro(
+                professionalId = professionalId,
+                navController = navController,
+
+                // ⭐ 2. Pass the onLogout callback to HomeScreenPro
+                onLogout = {
+                    // Perform logout logic (clear tokens etc.)
+                    logoutViewModel.logout()
+
+                    // Navigate to Login and clear the whole back stack
+                    navController.navigate(AuthRoutes.LOGIN) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+                // Assuming HomeScreenPro also takes a logoutSuccess parameter if needed:
+                // , logoutSuccess = logoutViewModel.logoutSuccess
+            )
+        }
 
 
         // ---------- Menu Management ----------
@@ -330,6 +366,92 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 professionalId = professionalId,
                 viewModel = menuItemViewModel,
                 navController = navController
+            )
+        }
+
+
+        composable(
+            route = "menu_order_route/{restaurantId}",
+            arguments = listOf(navArgument("restaurantId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val restaurantId = backStackEntry.arguments?.getString("restaurantId") ?: ""
+
+            RestaurantMenuScreen(
+                restaurantId = restaurantId,
+                onBackClick = { navController.popBackStack() },
+
+                // ⭐ FIX 1: Pass the missing parameter 'onViewCartClick' and define navigation.
+                onViewCartClick = {
+                    // Navigate to the cart screen
+                    navController.navigate("order_confirmation_route")
+                },
+
+                // FIX 2: Implement the logic to update the shared cart state.
+                onAddToCartClick = { item, finalPrice, quantity ->
+                    // Use the item details to create an OrderItem and add it to the list
+                    cartItems.add(OrderItem(item.id, item.name, quantity, finalPrice))
+                    println("Item added: ${item.name}, Price: $finalPrice DT, Qty: $quantity")
+                }
+            )
+        }
+
+
+        // ----------------------------------------------------
+// ⭐ 1. PROFESSIONAL PROFILE EDIT SCREEN (Editable) ⭐
+// ----------------------------------------------------
+        composable(
+            route = ProfileRoutes.PROFESSIONAL_PROFILE_EDIT, // e.g., "pro_profile_edit/{restaurantId}"
+            arguments = listOf(navArgument("restaurantId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val restaurantId = backStackEntry.arguments?.getString("restaurantId")
+                ?: throw IllegalStateException("Restaurant ID is required for Pro profile edit.")
+
+            // TODO: Fetch the specific restaurant details for editing
+            val restaurantDetails = mockChilis // Using mock data for compilation
+
+            ProfessionalProfileScreen(
+                restaurantDetails = restaurantDetails,
+                onBackClick = { navController.popBackStack() },
+                onSaveClick = { editedState ->
+                    // TODO: Call ViewModel to save changes
+                    println("Pro Profile Saved: ${editedState.name}")
+                    // Optional: navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = ProfileRoutes.CLIENT_PROFILE_VIEW, // e.g., "client_profile_view/{restaurantId}"
+            arguments = listOf(navArgument("restaurantId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val restaurantId = backStackEntry.arguments?.getString("restaurantId")
+                ?: throw IllegalStateException("Restaurant ID is required for client profile view.")
+
+            // TODO: Fetch the restaurant details for viewing
+            val restaurantDetails = mockChilis
+
+            ClientRestaurantProfileScreen(
+                restaurantDetails = restaurantDetails,
+                onBackClick = { navController.popBackStack() },
+                onViewMenuClick = {
+                    // Navigate to the existing menu/order screen
+                    navController.navigate("menu_order_route/$restaurantId")
+                }
+            )
+        }
+
+// 🧭 NEW ROUTE: The Cart/Order Confirmation Screen
+        composable("order_confirmation_route") {
+            // Pass the current list of items to the confirmation screen
+            OrderConfirmationScreen(
+                orderItems = cartItems.toList(),
+                onBackClick = { navController.popBackStack() },
+                onConfirmOrder = { commandType ->
+                    // TODO: Implement order submission, clearing the cart, and final navigation (e.g., to a success screen).
+                    println("Order Confirmed! Type: $commandType. Cart cleared.")
+                    cartItems.clear()
+                    navController.navigate("order_success_route")
+                }
             )
         }
     }

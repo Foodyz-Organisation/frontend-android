@@ -22,6 +22,7 @@ class ProSignupViewModel(
     val isLoading = mutableStateOf(false)
     val errorMessage = mutableStateOf<String?>(null)
     val isSignupSuccess = mutableStateOf(false)
+    val licenseNumber = mutableStateOf("")
 
     fun signup() {
         if (email.value.isBlank() || password.value.isBlank() || fullName.value.isBlank()) {
@@ -38,7 +39,7 @@ class ProSignupViewModel(
                     email = email.value,
                     password = password.value,
                     fullName = fullName.value,
-                    licenseNumber = "" // optional
+                    licenseNumber = licenseNumber.value // now dynamic
                 )
 
                 val response = authApiService.professionalSignup(request)

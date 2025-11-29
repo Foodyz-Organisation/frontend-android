@@ -1,271 +1,328 @@
 package com.example.damprojectfinal.professional.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.Inventory
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.example.damprojectfinal.AuthRoutes
+import androidx.navigation.compose.rememberNavController
+// Add these imports for the new bottom bar components
+import androidx.compose.material.icons.filled.TableBar
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.ListAlt
+import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
+
+// --- Mock Data Structures (Kept for screen content) ---
+data class Order(
+    val id: String,
+    val customerName: String,
+    val summary: String,
+    val total: String,
+    val timeReceived: String,
+    val address: String,
+    val type: OrderType
+)
+
+enum class OrderType { PICKUP, DINE_IN, DELIVERY }
+
+private val mockOrders = listOf(
+    Order(id = "1", customerName = "Ahmed Ben Ali", summary = "Couscous Royal (x1),...", total = "25.50 TND", timeReceived = "Received 5 minutes ago", address = "Avenue Habib Bourguiba, Tunis", type = OrderType.DELIVERY),
+    Order(id = "2", customerName = "Leila Jebali", summary = "Vegetarian Mezze Plat...", total = "28.00 TND", timeReceived = "Received 25 minutes ago", address = "Rue de Marseille, La Marsa", type = OrderType.PICKUP)
+)
+// -----------------------------------------------------------
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreenPro(
     professionalId: String,
     navController: NavHostController,
+    onLogout: () -> Unit // Required by the NavHost
 ) {
+    // State for the Bottom Bar filter
+    var selectedFilter by remember { mutableStateOf<OrderType?>(null) } // null means "Pending/All"
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Dashboard") },
-
-                // 🔥 Added Logout Button Here
-                actions = {
-                    IconButton(
-                        onClick = {
-                            navController.navigate(AuthRoutes.LOGIN) {
-                                popUpTo(navController.graph.id) { inclusive = true } // Clears entire backstack
-                            }
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ExitToApp,
-                            contentDescription = "Logout",
-                            tint = Color.Red
-                        )
-                    }
-                }
+            // Updated Top Bar with 5 icons and dynamic navigation
+            CustomProTopBarWithIcons(
+                professionalId = professionalId,
+                navController = navController,
+                onLogout = onLogout // Pass the onLogout callback
+            )
+        },
+        bottomBar = {
+            // New Bottom Navigation Bar for Pick-up/Dine-in/Delivery filtering
+            OrderFilterBottomBar(
+                selectedFilter = selectedFilter,
+                onFilterSelected = { selectedFilter = it }
             )
         }
     ) { paddingValues ->
+
+        // Apply a filter to the mock orders based on the selected filter
+        val filteredOrders = mockOrders.filter { order ->
+            selectedFilter == null || order.type == selectedFilter
+        }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color(0xFFF7F7F7))
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
+            contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
-            // --- 1. Top Metrics Cards ---
+            // --- Header Text ---
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    MetricCard(
-                        title = "Total Orders",
-                        value = "127",
-                        change = "+12% from last week",
-                        icon = Icons.Default.Inventory,
-                        backgroundColor = Color(0xFFFFFBEA),
-                        valueColor = Color(0xFF333333),
-                        modifier = Modifier.weight(1f)
-                    )
-                    MetricCard(
-                        title = "Revenue",
-                        value = "$3,847",
-                        change = "+8% from last week",
-                        icon = Icons.Default.TrendingUp,
-                        backgroundColor = Color(0xFFE8FFE8),
-                        valueColor = Color(0xFF333333),
-                        modifier = Modifier.weight(1f)
+                Text(
+                    text = "Pending Orders",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1F2A37),
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Text(
+                    text = "${filteredOrders.size} orders waiting for confirmation",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
+            // --- Order List ---
+            if (filteredOrders.isEmpty()) {
+                item {
+                    Text("No orders matching the selected filter.")
+                }
+            } else {
+                items(filteredOrders) { order ->
+                    OrderCard(
+                        order = order,
+                        onAccept = { /* TODO */ },
+                        onRefuse = { /* TODO */ }
                     )
                 }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                Text(
-                    text = "Quick Actions",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-            }
-
-            // --- 3. Navigation Cards ---
-            item {
-                ActionCard(
-                    icon = Icons.Default.Inventory,
-                    title = "Manage Orders",
-                    subtitle = "View and process customer orders",
-                    badge = "3",
-                    iconBackground = Color(0xFFE8EAF6),
-                    iconColor = Color(0xFF3F51B5),
-                    onClick = {
-                        navController.navigate("menu_management/$professionalId")
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                ActionCard(
-                    icon = Icons.Default.MenuBook,
-                    title = "Menu Management",
-                    subtitle = "Edit your menu and items",
-                    indicator = true,
-                    iconBackground = Color(0xFFF3E5F5),
-                    iconColor = Color(0xFF9C27B0),
-                    onClick = {
-                        navController.navigate("menu_management/$professionalId")
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                ActionCard(
-                    icon = Icons.Default.BarChart,
-                    title = "Analytics",
-                    subtitle = "Coming soon...",
-                    iconBackground = Color(0xFFE0F7FA),
-                    iconColor = Color(0xFF00BCD4),
-                    onClick = {},
-                    isEnabled = false
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                ActionCard(
-                    icon = Icons.Default.Settings,
-                    title = "Settings",
-                    subtitle = "Coming soon...",
-                    iconBackground = Color(0xFFFBE9E7),
-                    iconColor = Color(0xFFFF5722),
-                    onClick = {},
-                    isEnabled = false
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                Text(
-                    text = "Recent Activity",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                Text("No recent activity.")
             }
         }
     }
 }
 
-// --- Component: Top Metric Card ---
-@Composable
-fun MetricCard(
-    title: String,
-    value: String,
-    change: String,
-    icon: ImageVector,
-    backgroundColor: Color,
-    valueColor: Color,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.height(120.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(2.dp),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(title, style = MaterialTheme.typography.bodyMedium)
-            }
+// ---------------------------------------------------
+// --- Component: Custom Top Bar with 5 Icons ---
+// ---------------------------------------------------
 
-            Text(value, style = MaterialTheme.typography.headlineMedium.copy(color = valueColor))
-            Text(change, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-        }
-    }
-}
 
-// --- Component: Quick Action Navigation Card ---
 @Composable
-fun ActionCard(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-    iconBackground: Color,
-    iconColor: Color,
-    modifier: Modifier = Modifier,
-    badge: String? = null,
-    indicator: Boolean = false,
-    isEnabled: Boolean = true
-) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(80.dp)
+fun NavTopIcon(icon: ImageVector, description: String, selected: Boolean, onClick: () -> Unit) {
+    val backgroundColor = if (selected) Color(0xFFFFC107) else Color(0xFFF0F0F0)
+    val iconColor = if (selected) Color.Black else Color(0xFF64748B)
+
+    Box(
+        modifier = Modifier
+            .size(44.dp)
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick, enabled = isEnabled),
-        elevation = CardDefaults.cardElevation(1.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+            .background(backgroundColor)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
+        Icon(icon, contentDescription = description, tint = iconColor, modifier = Modifier.size(24.dp))
+    }
+}
 
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+// ---------------------------------------------------
+// --- Component: Order Filter Bottom Bar ---
+// ---------------------------------------------------
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
+@Composable
+fun OrderFilterBottomBar(
+    selectedFilter: OrderType?,
+    onFilterSelected: (OrderType?) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.SpaceAround,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // --- ALL Orders (Implied by the request) ---
+        BottomBarChip(
+            icon = Icons.Filled.Dashboard, // Using Dashboard icon for 'All'
+            label = "All",
+            isSelected = selectedFilter == null,
+            onClick = { onFilterSelected(null) }
+        )
+
+        // --- Pick-up ---
+        BottomBarChip(
+            icon = Icons.Filled.ShoppingBag,
+            label = "Pick-up",
+            isSelected = selectedFilter == OrderType.PICKUP,
+            onClick = { onFilterSelected(OrderType.PICKUP) }
+        )
+
+        // --- Dine-in ---
+        BottomBarChip(
+            icon = Icons.Filled.TableBar,
+            label = "Dine-in",
+            isSelected = selectedFilter == OrderType.DINE_IN,
+            onClick = { onFilterSelected(OrderType.DINE_IN) }
+        )
+
+        // --- Delivery ---
+        BottomBarChip(
+            icon = Icons.Filled.LocalShipping,
+            label = "Delivery",
+            isSelected = selectedFilter == OrderType.DELIVERY,
+            onClick = { onFilterSelected(OrderType.DELIVERY) }
+        )
+    }
+}
+
+@Composable
+fun BottomBarChip(
+    icon: ImageVector,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val backgroundColor = if (isSelected) Color(0xFFFFC107) else Color(0xFFF0F0F0)
+    val contentColor = if (isSelected) Color.Black else Color.Gray
+
+    // Using the button style from your screenshot's "Pick-up" button
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(backgroundColor)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = label, tint = contentColor, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(label, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = contentColor)
+        }
+    }
+}
+
+
+// --- OrderCard and OrderTypeChip components (unchanged from the previous step) ---
+@Composable
+fun OrderCard(order: Order, onAccept: () -> Unit, onRefuse: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+
+            // Row 1: Customer Name and Order Total
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                // Customer Avatar (Placeholder)
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Customer",
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF0F0F0)),
+                    tint = Color(0xFF6B7280)
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                // Name and Summary
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(order.customerName, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text(order.summary, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Text(order.timeReceived, style = MaterialTheme.typography.bodySmall, color = Color(0xFFD6A42E))
+                }
+
+                // Order Total
+                Text(order.total, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF218041))
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Row 2: Address
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFF5F3FF))
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = "Location",
+                    tint = Color(0xFF6D28D9),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(order.address, style = MaterialTheme.typography.bodySmall, color = Color(0xFF6D28D9))
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Row 3: Action Buttons (Accept/Refuse)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = onAccept,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = "Accept", modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Accept", fontWeight = FontWeight.SemiBold)
+                }
+
+                Button(
+                    onClick = onRefuse,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Refuse", modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Refuse", fontWeight = FontWeight.SemiBold)
+                }
+
+                IconButton(
+                    onClick = { /* Flag */ },
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(iconBackground),
-                    contentAlignment = Alignment.Center
+                        .background(Color(0xFFF0F0F0))
+                        .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(12.dp))
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = iconColor,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Icon(Icons.Default.Flag, contentDescription = "Flag", tint = Color.Gray)
                 }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Column {
-                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                }
-            }
-
-            if (badge != null) {
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = Color.White
-                ) {
-                    Text(badge)
-                }
-            } else if (indicator) {
-                Icon(Icons.Default.ArrowForward, contentDescription = null)
             }
         }
     }

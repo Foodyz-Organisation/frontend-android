@@ -2,8 +2,8 @@ package com.example.damprojectfinal.core.dto.auth
 
 import kotlinx.serialization.Serializable
 
-// CORRECT Kotlin syntax: no semicolons inside the constructor
-// Matches NestJS SignupDto
+
+@OptIn(kotlinx.serialization.InternalSerializationApi::class)
 @Serializable
 data class UserSignupRequest(
     val username: String,
@@ -14,6 +14,7 @@ data class UserSignupRequest(
     val address: String? = null
 )
 
+@OptIn(kotlinx.serialization.InternalSerializationApi::class)
 @Serializable
 data class SimpleMessageResponse(
     val message: String
