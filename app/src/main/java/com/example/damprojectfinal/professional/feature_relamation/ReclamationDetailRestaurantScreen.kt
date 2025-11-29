@@ -1,23 +1,37 @@
 package com.example.damprojectfinal.professional.feature_relamation
 
+import android.graphics.BitmapFactory
+import android.util.Log
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import androidx.compose.ui.unit.sp
 import com.example.foodyz_dam.ui.theme.screens.reclamation.Reclamation
 import com.example.foodyz_dam.ui.theme.screens.reclamation.ReclamationStatus
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
+
+private const val TAG = "ReclamationDetail"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,20 +40,59 @@ fun ReclamationDetailRestaurantScreen(
     onBackClick: () -> Unit,
     onRespond: (String) -> Unit
 ) {
+    Log.e(TAG, "═══════════════════════════════════════════════════════")
+    Log.e(TAG, "🎬 ECRAN OUVERT - ReclamationDetailRestaurantScreen")
+    Log.e(TAG, "═══════════════════════════════════════════════════════")
+
     var responseText by remember { mutableStateOf("") }
     var showResponseDialog by remember { mutableStateOf(false) }
+
+    val BASE_URL = "http://192.168.1.7:3000"
+
+    LaunchedEffect(Unit) {
+        Log.e(TAG, "📡 BASE_URL = $BASE_URL")
+        Log.e(TAG, "📋 Reclamation ID = ${reclamation.id}")
+        Log.e(TAG, "📸 Photos count = ${reclamation.photos?.size ?: 0}")
+
+        reclamation.photos?.forEachIndexed { index, photo ->
+            Log.e(TAG, "Photo $index original: $photo")
+        }
+    }
+
+    val statusColor = when (reclamation.status) {
+        ReclamationStatus.PENDING -> Color(0xFFFFA726)
+        ReclamationStatus.RESOLVED -> Color(0xFF66BB6A)
+        ReclamationStatus.IN_PROGRESS -> Color(0xFF42A5F5)
+        ReclamationStatus.REJECTED -> Color(0xFFEF5350)
+    }
+
+    val statusText = when (reclamation.status) {
+        ReclamationStatus.PENDING -> "En attente"
+        ReclamationStatus.RESOLVED -> "Résolue"
+        ReclamationStatus.IN_PROGRESS -> "En cours"
+        ReclamationStatus.REJECTED -> "Rejetée"
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Détail de la réclamation") },
+                title = { Text(text = "Détail de la réclamation", color = Color(0xFF1A1A1A)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, "Retour")
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Retour",
+                            tint = Color(0xFF1A1A1A)
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White
+                ),
+                modifier = Modifier.shadow(4.dp)
             )
-        }
+        },
+        containerColor = Color(0xFFF5F5F5)
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -48,17 +101,12 @@ fun ReclamationDetailRestaurantScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. Statut
+            // Statut
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = when (reclamation.status) {
-                            ReclamationStatus.PENDING -> Color(0xFFFFF3E0)
-                            ReclamationStatus.IN_PROGRESS -> Color(0xFFE3F2FD)
-                            ReclamationStatus.RESOLVED -> Color(0xFFE8F5E9)
-                            ReclamationStatus.REJECTED -> Color(0xFFFFEBEE)
-                        }
+                        containerColor = statusColor.copy(alpha = 0.1f)
                     )
                 ) {
                     Row(
@@ -73,109 +121,125 @@ fun ReclamationDetailRestaurantScreen(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        StatusBadge(status = reclamation.status)
+                        Surface(
+                            color = statusColor,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = statusText,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
 
-            // 2. Informations du client
+            // Informations client
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(2.dp, RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
                             text = "Informations client",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1A1A1A)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-
+                        Spacer(modifier = Modifier.height(12.dp))
                         InfoRow("Nom", reclamation.nomClient ?: "Non renseigné")
                         InfoRow("Email", reclamation.emailClient ?: "Non renseigné")
-                        InfoRow(
-                            "Date",
-                            reclamation.createdAt?.let { formatDate(it) } ?: "Non renseignée"
-                        )
+                        InfoRow("Date", reclamation.createdAt?.let { formatDate(it) } ?: "N/A")
                     }
                 }
             }
 
-            // 3. Détails de la réclamation
+            // Détails réclamation
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(2.dp, RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
                             text = "Détails de la réclamation",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1A1A1A)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // ✅ Utilise orderNumber (votre champ existant)
-                        reclamation.orderNumber?.let {
-                            InfoRow("Commande concernée", it)
-                        }
-
-                        reclamation.complaintType?.let {
-                            InfoRow("Type de réclamation", it)
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
+                        Spacer(modifier = Modifier.height(12.dp))
+                        InfoRow("Commande concernée", reclamation.orderNumber ?: "N/A")
+                        InfoRow("Type de réclamation", reclamation.complaintType ?: "N/A")
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = "Description",
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1A1A1A)
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = reclamation.description ?: "Aucune description",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
+                            color = Color(0xFF757575)
                         )
                     }
                 }
             }
 
-            // 4. Photos uploadées
+            // Photos avec chargement manuel
             if (!reclamation.photos.isNullOrEmpty()) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "Photos (${reclamation.photos.size})",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
+                    Text(
+                        text = "Photos jointes (${reclamation.photos.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1A1A1A),
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
                 }
 
-                // ✅ Affichage des photos
-                items(reclamation.photos) { photoUrl ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                    ) {
-                        AsyncImage(
-                            model = photoUrl,
-                            contentDescription = "Photo de réclamation",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                itemsIndexed(reclamation.photos) { index, photoPath ->
+                    val fullImageUrl = when {
+                        photoPath.startsWith("http://") || photoPath.startsWith("https://") -> {
+                            photoPath
+                        }
+                        photoPath.startsWith("/uploads/reclamations/") -> {
+                            "$BASE_URL$photoPath"
+                        }
+                        else -> {
+                            val filename = photoPath.substringAfterLast("/")
+                            "$BASE_URL/uploads/reclamations/$filename"
+                        }
                     }
+
+                    Log.e(TAG, "🖼️ Photo $index URL: $fullImageUrl")
+
+                    ManualImageLoader(
+                        imageUrl = fullImageUrl,
+                        index = index
+                    )
                 }
             }
 
-            // 5. Réponse du restaurant (si existe)
+            // Réponse du restaurant
             reclamation.responseMessage?.let { response ->
                 item {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFE8F5E9)
-                        )
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(2.dp, RoundedCornerShape(16.dp)),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
@@ -187,16 +251,14 @@ fun ReclamationDetailRestaurantScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = response,
-                                style = MaterialTheme.typography.bodyMedium
+                                color = Color(0xFF1A1A1A)
                             )
-
-                            // ✅ Date de réponse
-                            reclamation.respondedAt?.let { respondedDate ->
-                                Spacer(modifier = Modifier.height(4.dp))
+                            reclamation.respondedAt?.let {
+                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Répondu le ${formatDate(respondedDate)}",
+                                    "Répondu le ${formatDate(it)}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
+                                    color = Color(0xFF757575)
                                 )
                             }
                         }
@@ -204,22 +266,31 @@ fun ReclamationDetailRestaurantScreen(
                 }
             }
 
-            // 6. Bouton de réponse
-            if (reclamation.responseMessage == null &&
-                reclamation.status != ReclamationStatus.RESOLVED) {
+            // Bouton répondre
+            if (reclamation.responseMessage == null) {
                 item {
                     Button(
                         onClick = { showResponseDialog = true },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFC107)
+                        )
                     ) {
-                        Text("Répondre à la réclamation")
+                        Text(
+                            "Répondre à la réclamation",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
         }
     }
 
-    // Dialog pour répondre
+    // Dialog
     if (showResponseDialog) {
         AlertDialog(
             onDismissRequest = { showResponseDialog = false },
@@ -257,27 +328,139 @@ fun ReclamationDetailRestaurantScreen(
     }
 }
 
+// 🔥 NOUVEAU : Composant de chargement manuel d'image
 @Composable
-fun StatusBadge(status: ReclamationStatus) {
-    val (color, text) = when (status) {
-        ReclamationStatus.PENDING -> Color(0xFFFFA726) to "En attente"
-        ReclamationStatus.RESOLVED -> Color(0xFF66BB6A) to "Résolue"
-        ReclamationStatus.IN_PROGRESS -> Color(0xFF42A5F5) to "En cours"
-        ReclamationStatus.REJECTED -> Color(0xFFEF5350) to "Rejetée"
+fun ManualImageLoader(
+    imageUrl: String,
+    index: Int
+) {
+    var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(imageUrl) {
+        Log.e(TAG, "🔄 Chargement manuel de l'image $index...")
+        isLoading = true
+        errorMessage = null
+
+        withContext(Dispatchers.IO) {
+            try {
+                val url = URL(imageUrl)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.connectTimeout = 30000
+                connection.readTimeout = 30000
+                connection.doInput = true
+                connection.requestMethod = "GET"
+
+                Log.e(TAG, "📡 Connexion à: $imageUrl")
+                connection.connect()
+
+                val responseCode = connection.responseCode
+                Log.e(TAG, "📥 Code réponse: $responseCode")
+
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    val inputStream = connection.inputStream
+                    val loadedBitmap = BitmapFactory.decodeStream(inputStream)
+
+                    if (loadedBitmap != null) {
+                        bitmap = loadedBitmap
+                        Log.e(TAG, "✅ Image $index chargée! Taille: ${loadedBitmap.width}x${loadedBitmap.height}")
+                    } else {
+                        errorMessage = "Impossible de décoder l'image"
+                        Log.e(TAG, "❌ Erreur décodage bitmap")
+                    }
+
+                    inputStream.close()
+                } else {
+                    errorMessage = "Erreur HTTP: $responseCode"
+                    Log.e(TAG, "❌ Erreur HTTP $responseCode")
+                }
+
+                connection.disconnect()
+                isLoading = false
+            } catch (e: Exception) {
+                errorMessage = e.message ?: "Erreur inconnue"
+                Log.e(TAG, "❌ Exception: ${e.message}")
+                e.printStackTrace()
+                isLoading = false
+            }
+        }
     }
 
-    Surface(
-        color = color.copy(alpha = 0.2f),
-        shape = MaterialTheme.shapes.small,
-        modifier = Modifier.wrapContentSize()
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = color,
-            fontWeight = FontWeight.Bold
-        )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Image display (sans debug card)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .shadow(2.dp, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFFF5F5F5)),
+                contentAlignment = Alignment.Center
+            ) {
+                when {
+                    isLoading -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFFFFEB3B)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = Color.Black)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "⏳ Chargement manuel...",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    errorMessage != null -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFFFFEBEE))
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text("❌", fontSize = 48.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "Erreur de chargement",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Red
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    errorMessage ?: "Erreur inconnue",
+                                    fontSize = 10.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+                    bitmap != null -> {
+                        Image(
+                            bitmap = bitmap!!.asImageBitmap(),
+                            contentDescription = "Photo ${index + 1}",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -286,18 +469,19 @@ private fun InfoRow(label: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
             text = "$label:",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
+            color = Color(0xFF1A1A1A)
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray
+            fontSize = 14.sp,
+            color = Color(0xFF757575)
         )
     }
 }

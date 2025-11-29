@@ -1,42 +1,114 @@
 package com.example.foodyz_dam.ui.theme.screens.reclamation
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
 import android.util.Log
 import com.example.damprojectfinal.core.api.TokenManager
+import java.io.ByteArrayOutputStream
 
 class ReclamationRepository(
-    private val tokenManager: TokenManager
+    private val tokenManager: TokenManager,
+    private val context: Context
 ) {
-    private val TAG = "ReclamationRepository"
+    private val TAG = "ReclamationRepo"
 
     /**
-     * ✅ Récupère toutes les réclamations
+     * ✅ Convertit un URI en Base64
      */
-    suspend fun getAllReclamations(): List<Reclamation> {
-        val token = tokenManager.getAccessToken()
-            ?: throw Exception("Token manquant")
-        val api = ReclamationRetrofitClient.createClient(token)
-        return api.getAllReclamations()
+    private fun uriToBase64(uri: Uri): String? {
+        return try {
+            Log.e(TAG, "🖼️ Conversion: $uri")
+
+            val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+
+            if (originalBitmap == null) return null
+
+            Log.e(TAG, "   Original: ${originalBitmap.width}x${originalBitmap.height}")
+
+            // Redimensionner si nécessaire
+            val maxSize = 1200
+            val bitmap = if (originalBitmap.width > maxSize || originalBitmap.height > maxSize) {
+                val ratio = minOf(
+                    maxSize.toFloat() / originalBitmap.width,
+                    maxSize.toFloat() / originalBitmap.height
+                )
+                val newWidth = (originalBitmap.width * ratio).toInt()
+                val newHeight = (originalBitmap.height * ratio).toInt()
+
+                Bitmap.createScaledBitmap(originalBitmap, newWidth, newHeight, true).also {
+                    originalBitmap.recycle()
+                }
+            } else {
+                originalBitmap
+            }
+
+            // Compresser en JPEG
+            val outputStream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+            val imageBytes = outputStream.toByteArray()
+
+            Log.e(TAG, "   Compressé: ${imageBytes.size / 1024} KB")
+
+            // Convertir en Base64
+            val base64String = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+
+            bitmap.recycle()
+            outputStream.close()
+
+            Log.e(TAG, "   ✅ Base64: ${base64String.length} chars")
+
+            "data:image/jpeg;base64,$base64String"
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erreur: ${e.message}", e)
+            null
+        }
     }
 
     /**
-     * ✅ Crée une nouvelle réclamation
+     * ✅ Crée une réclamation avec photos en Base64
      */
-    suspend fun createReclamation(request: CreateReclamationRequest): Reclamation {
+    suspend fun createReclamation(
+        commandeConcernee: String,
+        complaintType: String,
+        description: String,
+        photoUris: List<Uri>
+    ): Reclamation {
+        Log.e(TAG, "════════════════════════════════")
+        Log.e(TAG, "🚀 Création réclamation")
+        Log.e(TAG, "   Commande: $commandeConcernee")
+        Log.e(TAG, "   Type: $complaintType")
+        Log.e(TAG, "   Photos: ${photoUris.size}")
+
         val token = tokenManager.getAccessToken()
+            ?: throw Exception("Token manquant")
 
-        Log.d(TAG, "========== DEBUT CREATION RECLAMATION ==========")
-        Log.d(TAG, "Token: ${token?.take(30)}...")
-        Log.d(TAG, "Request: $request")
-
-        if (token.isNullOrEmpty()) {
-            throw Exception("❌ Token manquant")
+        // Convertir les photos en Base64
+        val photosBase64 = photoUris.mapIndexedNotNull { index, uri ->
+            Log.e(TAG, "📷 Photo ${index + 1}/${photoUris.size}")
+            uriToBase64(uri)
         }
+
+        Log.e(TAG, "✅ Photos converties: ${photosBase64.size}/${photoUris.size}")
+
+        val request = CreateReclamationRequest(
+            description = description.trim(),
+            commandeConcernee = commandeConcernee.trim(),
+            complaintType = complaintType,
+            photos = photosBase64
+        )
 
         val api = ReclamationRetrofitClient.createClient(token)
 
         return try {
             val result = api.createReclamation(request)
-            Log.d(TAG, "✅ Succès: $result")
+            Log.e(TAG, "✅ Succès: ${result.id}")
+            Log.e(TAG, "════════════════════════════════")
             result
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erreur: ${e.message}", e)
@@ -44,90 +116,30 @@ class ReclamationRepository(
         }
     }
 
-    /**
-     * ✅ NOUVELLE MÉTHODE: Récupère les réclamations de MON restaurant
-     * Utilise le token JWT pour identifier le restaurant
-     * Appelle: GET /reclamation/restaurant/my-reclamations
-     */
+    suspend fun getAllReclamations(): List<Reclamation> {
+        val token = tokenManager.getAccessToken() ?: throw Exception("Token manquant")
+        val api = ReclamationRetrofitClient.createClient(token)
+        return api.getAllReclamations()
+    }
+
     suspend fun getMyRestaurantReclamations(): List<Reclamation> {
-        Log.d(TAG, "========== MES RECLAMATIONS RESTAURANT ==========")
-
-        val token = tokenManager.getAccessToken()
-
-        if (token.isNullOrEmpty()) {
-            Log.e(TAG, "❌ Token manquant")
-            throw Exception("❌ Token manquant")
-        }
-
-        Log.d(TAG, "Token: ${token.take(30)}...")
-
+        val token = tokenManager.getAccessToken() ?: throw Exception("Token manquant")
         val api = ReclamationRetrofitClient.createClient(token)
-
-        return try {
-            val result = api.getMyRestaurantReclamations()
-            Log.d(TAG, "✅ Réclamations trouvées: ${result.size}")
-            result.forEachIndexed { index, rec ->
-                Log.d(TAG, "  ${index + 1}. ${rec.nomClient}: ${rec.description}")
-            }
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Erreur getMyRestaurantReclamations: ${e.message}", e)
-            throw e
-        }
+        return api.getMyRestaurantReclamations()
     }
 
-    /**
-     * ✅ Récupère les réclamations pour un restaurant spécifique par ID
-     * Appelle: GET /reclamation/restaurant/:restaurantId
-     */
     suspend fun getReclamationsByRestaurant(restaurantId: String): List<Reclamation> {
-        Log.d(TAG, "========== RECLAMATIONS RESTAURANT PAR ID ==========")
-        Log.d(TAG, "Restaurant ID: $restaurantId")
-
-        val token = tokenManager.getAccessToken()
-
-        if (token.isNullOrEmpty()) {
-            Log.e(TAG, "❌ Token manquant")
-            throw Exception("❌ Token manquant")
-        }
-
-        Log.d(TAG, "Token: ${token.take(30)}...")
-
+        val token = tokenManager.getAccessToken() ?: throw Exception("Token manquant")
         val api = ReclamationRetrofitClient.createClient(token)
-
-        return try {
-            val result = api.getReclamationsByRestaurant(restaurantId)
-            Log.d(TAG, "✅ Réclamations trouvées: ${result.size}")
-            result.forEachIndexed { index, rec ->
-                Log.d(TAG, "  ${index + 1}. ${rec.nomClient}: ${rec.description}")
-            }
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Erreur getReclamationsByRestaurant: ${e.message}", e)
-            throw e
-        }
+        return api.getReclamationsByRestaurant(restaurantId)
     }
 
-    /**
-     * ✅ Répond à une réclamation
-     */
     suspend fun respondToReclamation(
         id: String,
         request: RespondReclamationRequest
     ): Reclamation {
-        val token = tokenManager.getAccessToken()
-            ?: throw Exception("Token manquant")
+        val token = tokenManager.getAccessToken() ?: throw Exception("Token manquant")
         val api = ReclamationRetrofitClient.createClient(token)
-
-        Log.d(TAG, "📝 Réponse à la réclamation $id: ${request.responseMessage}")
-
-        return try {
-            val result = api.respondToReclamation(id, request)
-            Log.d(TAG, "✅ Réponse envoyée avec succès")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Erreur respondToReclamation: ${e.message}", e)
-            throw e
-        }
+        return api.respondToReclamation(id, request)
     }
 }

@@ -89,6 +89,12 @@ dependencies {
     implementation("org.osmdroid:osmdroid-android:6.1.18")
     implementation("com.google.android.gms:play-services-location:21.0.1")
     implementation(libs.androidx.compose.runtime)
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // OkHttp (requis par Coil pour le réseau)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
 
 
     // Testing (Your Existing)

@@ -2,22 +2,19 @@ package com.example.damprojectfinal
 
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,12 +26,15 @@ import androidx.navigation.navArgument
 import com.example.damprojectfinal.feature_auth.ui.*
 import com.example.damprojectfinal.feature_auth.repository.AuthRepository
 import com.example.damprojectfinal.feature_auth.viewmodels.*
-import com.example.damprojectfinal.core.utils.*
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.utils.ForgotPasswordViewModelFactory
+import com.example.damprojectfinal.core.utils.ResetPasswordViewModelFactory
+import com.example.damprojectfinal.core.utils.VerifyOtpViewModelFactory
 import com.example.damprojectfinal.feature_relamation.ReclamationsRestaurantViewModel
 import com.example.damprojectfinal.feature_relamation.ReclamationsRestaurantViewModelFactory
+import com.example.damprojectfinal.feature_relamation.ReclamationViewModelFactory
 import com.example.damprojectfinal.professional.feature_relamation.ReclamationDetailRestaurantScreen
 
 // User + Pro
@@ -194,7 +194,7 @@ fun AppNavigation(
             val userApiService = UserApiService(tokenManager)
 
             val vm: ReclamationViewModel = viewModel(
-                factory = ReclamationViewModelFactory(userApiService, tokenManager)
+                factory = ReclamationViewModelFactory(userApiService, tokenManager, context)
             )
 
             val reclamations by vm.reclamations.collectAsState()
@@ -232,7 +232,7 @@ fun AppNavigation(
             val userApiService = UserApiService(tokenManager)
 
             val vm: ReclamationViewModel = viewModel(
-                factory = ReclamationViewModelFactory(userApiService, tokenManager)
+                factory = ReclamationViewModelFactory(userApiService, tokenManager, context)
             )
 
             LaunchedEffect(reclamationId) {
@@ -258,7 +258,7 @@ fun AppNavigation(
             val userApiService = UserApiService(tokenManager)
 
             val vm: ReclamationViewModel = viewModel(
-                factory = ReclamationViewModelFactory(userApiService, tokenManager)
+                factory = ReclamationViewModelFactory(userApiService, tokenManager, context)
             )
 
             val orders = listOf(
@@ -285,14 +285,13 @@ fun AppNavigation(
                     Log.d("AppNavigation", "Description: $description")
                     Log.d("AppNavigation", "Photos: ${photos.size}")
 
-                    val request = CreateReclamationRequest(
+                    // ✅ Appel correct avec tous les paramètres nécessaires
+                    vm.createReclamation(
                         commandeConcernee = commandeConcernee,
                         complaintType = complaintType,
                         description = description,
-                        photos = photos.map { it.toString() }
-                    )
-
-                    vm.createReclamation(request) { reclamation ->
+                        photoUris = photos
+                    ) { reclamation ->
                         Log.d("AppNavigation", "✅ Reclamation créée avec succès: ${reclamation.id}")
                         Toast.makeText(
                             context,
@@ -433,7 +432,7 @@ fun AppNavigation(
         composable("restaurant_reclamations") {
             val context = LocalContext.current
             val tokenManager = TokenManager(context)
-            val repository = ReclamationRepository(tokenManager)
+            val repository = ReclamationRepository(tokenManager, context)
 
             val vm: ReclamationsRestaurantViewModel = viewModel(
                 factory = ReclamationsRestaurantViewModelFactory(repository)
@@ -468,8 +467,7 @@ fun AppNavigation(
             }
         }
 
-        // 1️⃣7️⃣ ✅ NOUVELLE ROUTE: Détail réclamation (RESTAURANT)
-        // 1️⃣7️⃣ ✅ CORRECTED: Détail réclamation (RESTAURANT)
+        // 1️⃣7️⃣ Détail réclamation (RESTAURANT)
         composable(
             route = "restaurant_reclamation_detail/{reclamationId}",
             arguments = listOf(navArgument("reclamationId") { type = NavType.StringType })
@@ -477,7 +475,7 @@ fun AppNavigation(
             val reclamationId = backStackEntry.arguments?.getString("reclamationId") ?: return@composable
             val context = LocalContext.current
             val tokenManager = TokenManager(context)
-            val repository = ReclamationRepository(tokenManager)
+            val repository = ReclamationRepository(tokenManager, context)
 
             val vm: ReclamationsRestaurantViewModel = viewModel(
                 factory = ReclamationsRestaurantViewModelFactory(repository)
@@ -486,18 +484,15 @@ fun AppNavigation(
             val reclamations by vm.reclamations.collectAsState()
             val selectedReclamation by vm.selected.collectAsState()
 
-            // ✅ FIX: Charger les réclamations et sélectionner celle avec l'ID
             LaunchedEffect(reclamationId) {
                 Log.d("AppNavigation", "🔍 Chargement réclamation ID: $reclamationId")
 
-                // Si la liste est vide, charger toutes les réclamations d'abord
                 if (reclamations.isEmpty()) {
                     Log.d("AppNavigation", "📋 Liste vide, chargement des réclamations...")
                     vm.loadMyRestaurantReclamations()
                 }
             }
 
-            // ✅ FIX: Trouver et sélectionner la réclamation une fois la liste chargée
             LaunchedEffect(reclamations) {
                 if (reclamations.isNotEmpty() && selectedReclamation == null) {
                     val reclamation = reclamations.find { it.id == reclamationId }
@@ -510,7 +505,6 @@ fun AppNavigation(
                 }
             }
 
-            // ✅ Afficher l'écran de détail
             if (selectedReclamation != null) {
                 ReclamationDetailRestaurantScreen(
                     reclamation = selectedReclamation!!,
@@ -533,7 +527,6 @@ fun AppNavigation(
                     }
                 )
             } else {
-                // ✅ Afficher un loader pendant le chargement
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -560,5 +553,5 @@ private fun EventViewModel.createEvent(
     categorie: String,
     statut: EventStatus
 ) {
-    // Implementation vide - la logique est dans EventViewModel
+    // La logique métier est dans EventViewModel
 }

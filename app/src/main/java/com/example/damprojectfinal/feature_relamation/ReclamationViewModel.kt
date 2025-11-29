@@ -12,9 +12,6 @@ import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.dto.auth.OrderResponse
 import com.example.damprojectfinal.core.dto.auth.UserInfoResponse
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -40,17 +37,17 @@ class ReclamationViewModel(
     var uiState by mutableStateOf(ReclamationUiState())
         private set
 
-    private val _reclamations = kotlinx.coroutines.flow.MutableStateFlow<List<Reclamation>>(emptyList())
-    val reclamations: kotlinx.coroutines.flow.StateFlow<List<Reclamation>> get() = _reclamations
+    private val _reclamations = MutableStateFlow<List<Reclamation>>(emptyList())
+    val reclamations = _reclamations.asStateFlow()
 
-    private val _errorMessage = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
-    val errorMessage: kotlinx.coroutines.flow.StateFlow<String?> get() = _errorMessage
-    private val _isLoading = kotlinx.coroutines.flow.MutableStateFlow(false)
-    val isLoading: kotlinx.coroutines.flow.StateFlow<Boolean> get() = _isLoading
-    // 👉 À mettre tout en haut, avec les autres StateFlow
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage = _errorMessage.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading = _isLoading.asStateFlow()
+
     private val _selectedReclamation = MutableStateFlow<Reclamation?>(null)
     val selectedReclamation = _selectedReclamation.asStateFlow()
-
 
     init {
         loadUserData()
@@ -66,18 +63,10 @@ class ReclamationViewModel(
                 }
 
                 val userInfo = userApiService.getUserInfo(userId)
-
-                if (userInfo.name.isNullOrBlank()) {
-                    uiState = uiState.copy(
-                        error = "Impossible de récupérer le nom de l'utilisateur"
-                    )
-                    return@launch
-                }
-
                 val orders = userApiService.getUserOrders(userId)
                 uiState = uiState.copy(userInfo = userInfo, orders = orders)
             } catch (e: Exception) {
-                uiState = uiState.copy(error = "Erreur lors du chargement des données: ${e.message}")
+                uiState = uiState.copy(error = "Erreur: ${e.message}")
             }
         }
     }
@@ -109,7 +98,6 @@ class ReclamationViewModel(
         uiState = uiState.copy(agreeToTerms = !uiState.agreeToTerms)
     }
 
-    // ✅ GARDEZ SEULEMENT CETTE VERSION (simplifiée)
     fun isFormValid(): Boolean {
         return uiState.selectedOrder.isNotBlank() &&
                 uiState.complaintType.isNotBlank() &&
@@ -121,141 +109,112 @@ class ReclamationViewModel(
         viewModelScope.launch {
             try {
                 _isLoading.value = true
-                _errorMessage.value = null // Reset l'erreur
+                _errorMessage.value = null
 
                 val token = tokenManager.getAccessToken()
-                Log.d("ReclamationViewModel", "📍 Token récupéré: ${token?.take(20)}...")
-
                 if (token.isNullOrEmpty()) {
-                    _errorMessage.value = "Token manquant - veuillez vous reconnecter"
-                    Log.e("ReclamationViewModel", "❌ Token manquant")
+                    _errorMessage.value = "Token manquant"
                     return@launch
                 }
 
-                Log.d("ReclamationViewModel", "🌐 Appel API my-reclamations...")
                 val api = ReclamationRetrofitClient.createClient(token)
                 val result = api.getMyReclamations()
-
                 _reclamations.value = result
-                Log.d("ReclamationViewModel", "✅ ${result.size} réclamations chargées pour cet utilisateur")
 
-                // Log détaillé pour debug
-                result.forEachIndexed { index, rec ->
-                    Log.d("ReclamationViewModel", "  [$index] ${rec.orderNumber} - ${rec.complaintType}")
-                }
-
-            } catch (e: retrofit2.HttpException) {
-                val errorBody = e.response()?.errorBody()?.string()
-                Log.e("ReclamationViewModel", "❌ Erreur HTTP ${e.code()}: $errorBody", e)
-                _errorMessage.value = "Erreur serveur (${e.code()}): ${e.message()}"
+                Log.d("ReclamationVM", "✅ ${result.size} réclamations chargées")
             } catch (e: Exception) {
-                Log.e("ReclamationViewModel", "❌ Erreur: ${e.message}", e)
-                _errorMessage.value = "Erreur: ${e.message}"
+                Log.e("ReclamationVM", "❌ Erreur: ${e.message}", e)
+                _errorMessage.value = e.message
             } finally {
                 _isLoading.value = false
             }
         }
     }
+
     fun loadReclamationById(id: String) {
         viewModelScope.launch {
             try {
                 _isLoading.value = true
-                Log.d("ReclamationViewModel", "📍 Chargement réclamation ID: $id")
+                val token = tokenManager.getAccessToken() ?: return@launch
 
-                val token = tokenManager.getAccessToken()
-
-                if (token.isNullOrEmpty()) {
-                    _errorMessage.value = "Token manquant"
-                    Log.e("ReclamationViewModel", "❌ Token manquant")
-                    return@launch
-                }
-
-                Log.d("ReclamationViewModel", "🌐 Appel API getReclamationById($id)...")
                 val api = ReclamationRetrofitClient.createClient(token)
                 val reclamation = api.getReclamationById(id)
-
                 _selectedReclamation.value = reclamation
-                Log.d("ReclamationViewModel", "✅ Réclamation chargée: ${reclamation.orderNumber}")
-                Log.d("ReclamationViewModel", "   - Type: ${reclamation.complaintType}")
-                Log.d("ReclamationViewModel", "   - Description: ${reclamation.description?.take(50)}")
-                Log.d("ReclamationViewModel", "   - Status: ${reclamation.status}")
 
-            } catch (e: retrofit2.HttpException) {
-                val errorBody = e.response()?.errorBody()?.string()
-                Log.e("ReclamationViewModel", "❌ Erreur HTTP ${e.code()}: $errorBody", e)
-                _errorMessage.value = "Erreur serveur (${e.code()})"
             } catch (e: Exception) {
-                Log.e("ReclamationViewModel", "❌ Erreur: ${e.message}", e)
-                _errorMessage.value = "Erreur: ${e.message}"
+                Log.e("ReclamationVM", "❌ Erreur: ${e.message}", e)
+                _errorMessage.value = e.message
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-
-    fun createReclamation(request: CreateReclamationRequest, onSuccess: (Reclamation) -> Unit) {
+    /**
+     * ✅ Crée une réclamation avec conversion Base64
+     */
+    fun createReclamation(
+        commandeConcernee: String,
+        complaintType: String,
+        description: String,
+        photoUris: List<Uri>,
+        onSuccess: (Reclamation) -> Unit
+    ) {
         viewModelScope.launch {
             try {
-                val response = repository.createReclamation(request)
+                _isLoading.value = true
+                _errorMessage.value = null
+
+                Log.e("ReclamationVM", "════════════════════════════════")
+                Log.e("ReclamationVM", "🚀 Submit depuis ViewModel")
+                Log.e("ReclamationVM", "   Photos: ${photoUris.size}")
+
+                val response = repository.createReclamation(
+                    commandeConcernee = commandeConcernee,
+                    complaintType = complaintType,
+                    description = description,
+                    photoUris = photoUris
+                )
+
+                Log.e("ReclamationVM", "✅ Créée: ${response.id}")
+                Log.e("ReclamationVM", "════════════════════════════════")
+
                 loadReclamations()
                 onSuccess(response)
+
             } catch (e: Exception) {
+                Log.e("ReclamationVM", "❌ Erreur: ${e.message}", e)
                 _errorMessage.value = e.message
+            } finally {
+                _isLoading.value = false
             }
         }
     }
 
     fun submitReclamation(onSuccess: () -> Unit = {}) {
         if (!isFormValid()) {
-            uiState = uiState.copy(
-                error = "Veuillez remplir tous les champs requis"
-            )
+            uiState = uiState.copy(error = "Veuillez remplir tous les champs")
             return
         }
 
-        val request = CreateReclamationRequest(
+        Log.e("ReclamationVM", "========== SUBMIT ==========")
+        Log.e("ReclamationVM", "Commande: ${uiState.selectedOrder}")
+        Log.e("ReclamationVM", "Type: ${uiState.complaintType}")
+        Log.e("ReclamationVM", "Photos: ${uiState.photos.size}")
+
+        createReclamation(
             commandeConcernee = uiState.selectedOrder.trim(),
             complaintType = uiState.complaintType,
             description = uiState.description.trim(),
-            photos = uiState.photos.map { it.toString() }
-        )
-
-        // ✅ AJOUTEZ CE LOG
-        Log.d("ReclamationVM", "========== ENVOI RECLAMATION ==========")
-        Log.d("ReclamationVM", "Request: $request")
-        Log.d("ReclamationVM", "Token présent: ${tokenManager.getAccessToken() != null}")
-        Log.d("ReclamationVM", "=========================================")
-
-        createReclamation(request) {
+            photoUris = uiState.photos
+        ) {
             uiState = uiState.copy(submitSuccess = true)
             onSuccess()
         }
     }
+
     fun resetState() {
         uiState = ReclamationUiState()
         loadUserData()
-    }
-}
-
-class ReclamationViewModelFactory(
-    private val userApiService: UserApiService,
-    private val tokenManager: TokenManager
-) : androidx.lifecycle.ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(ReclamationViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            val repository = ReclamationRepository(tokenManager)
-            return ReclamationViewModel(userApiService, tokenManager, repository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
-}
-
-fun parseDate(dateString: String?): Date? {
-    return try {
-        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).parse(dateString)
-    } catch (e: Exception) {
-        null
     }
 }
