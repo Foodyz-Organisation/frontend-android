@@ -1,18 +1,12 @@
 package com.example.damprojectfinal.professional.common
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn // ⬅️ ADD THIS LINE
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Inventory
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,7 +17,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-// ... (any other necessary imports)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreenPro(
@@ -31,7 +25,6 @@ fun HomeScreenPro(
     navController: NavHostController,
 ) {
     Scaffold(
-        // Assuming a simple top app bar, though the design is usually full screen
         topBar = {
             TopAppBar(
                 title = { Text("Dashboard") }
@@ -51,23 +44,21 @@ fun HomeScreenPro(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Total Orders Card (Yellow/Light Orange background)
                     MetricCard(
                         title = "Total Orders",
                         value = "127",
                         change = "+12% from last week",
-                        icon = Icons.Default.Inventory, // Changed to a suitable icon
-                        backgroundColor = Color(0xFFFFFBEA), // Light Yellow
+                        icon = Icons.Default.Inventory,
+                        backgroundColor = Color(0xFFFFFBEA),
                         valueColor = Color(0xFF333333),
                         modifier = Modifier.weight(1f)
                     )
-                    // Revenue Card (Green/Light Green background)
                     MetricCard(
                         title = "Revenue",
                         value = "$3,847",
                         change = "+8% from last week",
-                        icon = Icons.Default.TrendingUp, // Changed to a suitable icon
-                        backgroundColor = Color(0xFFE8FFE8), // Light Green
+                        icon = Icons.Default.TrendingUp,
+                        backgroundColor = Color(0xFFE8FFE8),
                         valueColor = Color(0xFF333333),
                         modifier = Modifier.weight(1f)
                     )
@@ -83,31 +74,60 @@ fun HomeScreenPro(
                 )
             }
 
-            // --- 3. Navigation Cards (Matching the image style) ---
+            // --- 3. Navigation Cards ---
             item {
-                // Manage Orders Card (Blue/Cube icon)
+                // Manage Orders Card
                 ActionCard(
-                    icon = Icons.Default.Inventory, // Icon matching the image style
+                    icon = Icons.Default.Inventory,
                     title = "Manage Orders",
                     subtitle = "View and process customer orders",
-                    badge = "3", // Example badge number
-                    iconBackground = Color(0xFFE8EAF6), // Light blue background for icon
-                    iconColor = Color(0xFF3F51B5), // Darker blue icon
+                    badge = "3",
+                    iconBackground = Color(0xFFE8EAF6),
+                    iconColor = Color(0xFF3F51B5),
                     onClick = {
                         navController.navigate("menu_management/$professionalId")
-                    })
+                    }
+                )
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Menu Management Card (Purple/Menu lines icon)
+                // Menu Management Card
                 ActionCard(
                     icon = Icons.Default.MenuBook,
                     title = "Menu Management",
                     subtitle = "Edit your menu and items",
-                    indicator = true, // Right arrow indicator
-                    iconBackground = Color(0xFFF3E5F5), // Light purple background for icon
-                    iconColor = Color(0xFF9C27B0), // Darker purple icon
+                    indicator = true,
+                    iconBackground = Color(0xFFF3E5F5),
+                    iconColor = Color(0xFF9C27B0),
                     onClick = {
                         navController.navigate("add_meal/$professionalId")
+                    }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 🎯 DEALS MANAGEMENT CARD
+                ActionCard(
+                    icon = Icons.Default.LocalOffer,
+                    title = "Deals Management",
+                    subtitle = "Manage your offers and promotions",
+                    indicator = true,
+                    iconBackground = Color(0xFFFFF3E0),
+                    iconColor = Color(0xFFFF9800),
+                    onClick = {
+                        navController.navigate("pro_deals")
+                    }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Réclamations Card
+                ActionCard(
+                    icon = Icons.Default.Report,
+                    title = "Réclamations",
+                    subtitle = "Voir les réclamations reçues",
+                    indicator = true,
+                    iconBackground = Color(0xFFE1F5FE),
+                    iconColor = Color(0xFF0288D1),
+                    onClick = {
+                        navController.navigate("restaurant_reclamations")
                     }
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -117,8 +137,8 @@ fun HomeScreenPro(
                     icon = Icons.Default.BarChart,
                     title = "Analytics",
                     subtitle = "Coming soon...",
-                    iconBackground = Color(0xFFE0F7FA), // Light teal background for icon
-                    iconColor = Color(0xFF00BCD4), // Darker teal icon
+                    iconBackground = Color(0xFFE0F7FA),
+                    iconColor = Color(0xFF00BCD4),
                     onClick = { /* No action yet */ },
                     isEnabled = false
                 )
@@ -129,26 +149,12 @@ fun HomeScreenPro(
                     icon = Icons.Default.Settings,
                     title = "Settings",
                     subtitle = "Coming soon...",
-                    iconBackground = Color(0xFFFBE9E7), // Light orange/red background for icon
-                    iconColor = Color(0xFFFF5722), // Darker orange/red icon
+                    iconBackground = Color(0xFFFBE9E7),
+                    iconColor = Color(0xFFFF5722),
                     onClick = { /* No action yet */ },
                     isEnabled = false
                 )
                 Spacer(modifier = Modifier.height(32.dp))
-// --- Réclamations Card ---
-                // --- Réclamations Card ---
-                ActionCard(
-                    icon = Icons.Default.Inventory,
-                    title = "Réclamations",
-                    subtitle = "Voir les réclamations reçues",
-                    indicator = true,
-                    iconBackground = Color(0xFFE1F5FE),
-                    iconColor = Color(0xFF0288D1),
-                    onClick = {
-                        navController.navigate("restaurant_reclamations")  // ✅ CORRECT
-                    }
-                )
-                Spacer(modifier = Modifier.height(12.dp))
 
                 // --- 4. Recent Activity Header ---
                 Text(
@@ -157,7 +163,6 @@ fun HomeScreenPro(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
-                // ⚠️ Placeholder for Recent Activity items
                 Text("No recent activity.")
             }
         }
@@ -219,7 +224,9 @@ fun ActionCard(
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick, enabled = isEnabled),
         elevation = CardDefaults.cardElevation(1.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(
+            containerColor = if (isEnabled) Color.White else Color(0xFFF5F5F5)
+        )
     ) {
         Row(
             modifier = Modifier
@@ -229,11 +236,10 @@ fun ActionCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Icon Background Circle
                 Box(
                     modifier = Modifier
                         .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp)) // Use rounded corners like the image
+                        .clip(RoundedCornerShape(12.dp))
                         .background(iconBackground),
                     contentAlignment = Alignment.Center
                 ) {
@@ -246,12 +252,20 @@ fun ActionCard(
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
-                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isEnabled) Color.Black else Color.Gray
+                    )
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
                 }
             }
 
-            // Right-side badge or indicator
             if (badge != null) {
                 Badge(
                     containerColor = MaterialTheme.colorScheme.error,
@@ -259,8 +273,12 @@ fun ActionCard(
                 ) {
                     Text(badge)
                 }
-            } else if (indicator) {
-                Icon(Icons.Default.ArrowForward, contentDescription = "Navigate")
+            } else if (indicator && isEnabled) {
+                Icon(
+                    Icons.Default.ArrowForward,
+                    contentDescription = "Navigate",
+                    tint = Color.Gray
+                )
             }
         }
     }

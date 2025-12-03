@@ -15,7 +15,7 @@ import kotlinx.serialization.json.Json
 
 class AuthApiService {
 
-    private val BASE_URL = "http://192.168.1.7:3000"
+    private val BASE_URL = "http://192.168.1.10:3000"
 
     private val client = HttpClient(Android) {
         install(ContentNegotiation) {
