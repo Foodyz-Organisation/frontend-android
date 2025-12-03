@@ -4,17 +4,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.damprojectfinal.core.api.AuthApiService
+
 import com.example.damprojectfinal.feature_auth.ui.ForgetPasswordScreen
 import com.example.damprojectfinal.feature_auth.ui.LoginScreen
 import com.example.damprojectfinal.feature_auth.ui.SignupScreen
 import com.example.damprojectfinal.feature_auth.ui.SplashScreen
 import com.example.damprojectfinal.feature_auth.ui.ProSignupScreen
 import com.example.damprojectfinal.professional.common.HomeScreenPro
+import com.example.damprojectfinal.ui.theme.screens.chat.ChatDetailScreen
 import com.example.damprojectfinal.user.common.HomeScreen
+import com.example.damprojectfinal.ui.theme.screens.chat.ChatManagementScreen
+import com.example.damprojectfinal.core.api.TokenManager
+
 
 /**
  * Define all the routes for the authentication flow
@@ -49,10 +58,23 @@ fun AppNavigation(modifier: Modifier = Modifier) {
     ) {
         // 1️⃣ Splash Screen
         composable(AuthRoutes.SPLASH) {
+            val context = LocalContext.current
+            val nextRoute = remember { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(Unit) {
+                val authState = TokenManager(context).getAuthState()
+                nextRoute.value = when (authState?.role) {
+                    "professional" -> "${UserRoutes.HOME_SCREEN_PRO}/${authState.userId}"
+                    "user" -> UserRoutes.HOME_SCREEN
+                    else -> null
+                } ?: AuthRoutes.LOGIN
+            }
+
             SplashScreen(
                 durationMs = 1600,
                 onFinished = {
-                    navController.navigate(AuthRoutes.LOGIN) {
+                    val target = nextRoute.value ?: AuthRoutes.LOGIN
+                    navController.navigate(target) {
                         popUpTo(AuthRoutes.SPLASH) { inclusive = true }
                     }
                 }
@@ -112,6 +134,27 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 authApiService = authApiService
             )
         }
+
+        // Chat management (copied from other project, minimal integration)
+        composable("chatList") {
+            ChatManagementScreen(navController = navController)
+        }
+
+        composable("chatDetail/{conversationId}/{chatName}/{currentUserId}") { backStackEntry ->
+            val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
+            val chatName = backStackEntry.arguments?.getString("chatName") ?: ""
+            // On récupère le currentUserId passé dans la route si disponible,
+            // sinon on peut tomber sur une valeur par défaut récupérée depuis l'auth
+            val currentUserId = backStackEntry.arguments?.getString("currentUserId") ?: "USER_ID_DEPuis_AUTH"
+
+            ChatDetailScreen(
+                chatName = chatName,
+                conversationId = conversationId,
+                currentUserId = currentUserId,
+                navController = navController
+            )
+        }
+
 
         composable("${UserRoutes.HOME_SCREEN_PRO}/{professionalId}") { backStackEntry ->
             val professionalId = backStackEntry.arguments?.getString("professionalId") ?: "unknown"

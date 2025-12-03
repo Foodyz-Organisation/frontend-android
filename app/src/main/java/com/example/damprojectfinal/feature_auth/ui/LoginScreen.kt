@@ -40,6 +40,8 @@ import com.example.damprojectfinal.R
 import com.example.damprojectfinal.UserRoutes
 import com.example.damprojectfinal.AuthRoutes // <-- New Import for Login Route
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalContext
+import com.example.damprojectfinal.core.api.TokenManager
 
 @Composable
 fun LoginScreen(
@@ -56,6 +58,7 @@ fun LoginScreen(
 
     val uiState = viewModel.uiState
     val userRole by viewModel.userRole.collectAsState(initial = null)
+    val context = LocalContext.current
     var showPassword by remember { mutableStateOf(false) }
     var rememberMeChecked by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -97,6 +100,21 @@ fun LoginScreen(
             }
 
             if (destinationRoute != null) {
+                // Save tokens to DataStore for future authenticated requests
+                // Use the tokens provided by the ViewModel (set on successful login)
+                val access = uiState.accessToken
+                val refresh = uiState.refreshToken
+                if (!access.isNullOrEmpty() && !refresh.isNullOrEmpty() && !uiState.userId.isNullOrEmpty() && !uiState.role.isNullOrEmpty()) {
+                    // Persist tokens asynchronously
+                    scope.launch {
+                        try {
+                            TokenManager(context).saveTokens(access, refresh, uiState.userId!!, uiState.role!!)
+                        } catch (e: Exception) {
+                            // Non-blocking: log or ignore for now - navigation can proceed
+                            println("Failed to save tokens: ${e.message}")
+                        }
+                    }
+                }
                 navController.navigate(destinationRoute) {
                     popUpTo(AuthRoutes.LOGIN) { inclusive = true }
                 }

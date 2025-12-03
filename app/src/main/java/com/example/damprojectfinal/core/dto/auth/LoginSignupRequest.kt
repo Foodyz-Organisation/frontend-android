@@ -17,4 +17,6 @@ data class LoginResponse(
     val role: String,
     val email: String,
     val id: String,
+    val username: String? = null,
+    val avatarUrl: String? = null,
 )

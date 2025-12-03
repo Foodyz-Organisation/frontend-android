@@ -44,6 +44,8 @@ android {
 }
 
 dependencies {
+    // Socket.IO for real-time messaging
+    implementation("io.socket:socket.io-client:2.1.0")
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -62,7 +64,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-text") // <--- THIS ONE
     implementation("io.ktor:ktor-client-content-negotiation:2.3.6")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.6")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // 🔑 NEW ADDITION FOR SECURE TOKEN STORAGE (DataStore) 🔑
     // DataStore (Preferences)
@@ -80,9 +82,10 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.8.3")
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.10.0")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    // Socket.IO dependency removed (websockets not used)
     // Font Awesome icons (Your Existing)
     implementation("br.com.devsrsouza.compose.icons:font-awesome:1.1.0")
 

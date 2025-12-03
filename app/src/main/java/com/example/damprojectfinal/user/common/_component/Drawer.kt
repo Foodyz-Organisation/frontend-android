@@ -32,6 +32,7 @@ data class DrawerItem(
 
 val drawerItems = listOf(
     DrawerItem(Icons.Default.Home, "Home", "home_route"),
+    DrawerItem(Icons.Default.ChatBubble, "Chats", "chatList"),
     DrawerItem(Icons.Default.Settings, "Settings", "settings_route"),
     DrawerItem(Icons.Default.Favorite, "Favorites", "favorites_route"),
     DrawerItem(Icons.Default.Person, "Profile", "profile_route"),
@@ -49,7 +50,8 @@ val proSignupItem = DrawerItem(
 fun AppDrawer(
     onCloseDrawer: () -> Unit,
     navigateTo: (String) -> Unit,
-    currentRoute: String // Used to highlight the current screen
+    currentRoute: String, // Used to highlight the current screen
+    onLogout: () -> Unit
 ) {
     ModalDrawerSheet(
         drawerContainerColor = Color(0xFFFFFFFF),
@@ -96,7 +98,7 @@ fun AppDrawer(
         Spacer(Modifier.weight(1f)) // Pushes the footer to the bottom
         Divider(color = Color.LightGray, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
         DrawerFooter(onClickLogout = {
-            // TODO: Handle logout logic
+            onLogout()
             onCloseDrawer()
         })
     }

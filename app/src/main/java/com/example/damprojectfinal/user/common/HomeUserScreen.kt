@@ -31,12 +31,17 @@ import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
 import com.example.damprojectfinal.user.feature_posts.ui.PostsScreen
 // 🔑 Import the TopAppBar component from the common components package
 import com.example.damprojectfinal.user.common._component.TopAppBar
+import androidx.compose.ui.platform.LocalContext
+import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.AuthRoutes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavHostController, currentRoute: String = "home") {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
 
     var isSearchActive by remember { mutableStateOf(false) }
 
@@ -59,7 +64,15 @@ fun HomeScreen(navController: NavHostController, currentRoute: String = "home") 
             AppDrawer(
                 onCloseDrawer = { scope.launch { drawerState.close() } },
                 navigateTo = navigateTo,
-                currentRoute = currentRoute
+                currentRoute = currentRoute,
+                onLogout = {
+                    scope.launch {
+                        tokenManager.clearTokens()
+                        navController.navigate(AuthRoutes.LOGIN) {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        }
+                    }
+                }
             )
         },
         content = {

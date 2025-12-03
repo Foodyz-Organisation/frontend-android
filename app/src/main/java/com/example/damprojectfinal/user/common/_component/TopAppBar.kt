@@ -169,7 +169,7 @@ fun SecondaryNavBar(navController: NavController, currentRoute: String) {
         NavIcon(Icons.Filled.Home, currentRoute == "home") { navController.navigate("home") }
         NavIcon(Icons.Filled.TrendingUp, currentRoute == "trends") { navController.navigate("trends") }
         NavIcon(Icons.Filled.PlayArrow, currentRoute == "reels") { navController.navigate("reels") }
-        NavIcon(Icons.Filled.Chat, currentRoute == "chat") { navController.navigate("chat") }
+        NavIcon(Icons.Filled.Chat, currentRoute == "chatList") { navController.navigate("chatList") }
         NavIcon(Icons.Filled.AttachMoney, currentRoute == "orders") { navController.navigate("orders") }
     }
 }

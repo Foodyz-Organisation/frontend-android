@@ -21,6 +21,8 @@ data class LoginUiState(
     val loginSuccess: Boolean = false,
     val userId: String? = null,
     val role: String? = null,
+    val accessToken: String? = null,
+    val refreshToken: String? = null,
     val error: String? = null
 )
 
@@ -70,6 +72,8 @@ class LoginViewModel(
                     loginSuccess = true,
                     userId = response.id,
                     role = response.role,
+                    accessToken = response.access_token,
+                    refreshToken = response.refresh_token,
                     error = null
                 )
 
