@@ -11,7 +11,6 @@ data class UpdateUserDto(
     val isActive: Boolean? = null
 )
 
-
 @OptIn(kotlinx.serialization.InternalSerializationApi::class)
 @Serializable
 data class UserUpdateResponse(

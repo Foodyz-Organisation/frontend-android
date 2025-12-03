@@ -8,40 +8,25 @@ import io.ktor.http.*
 
 class ProfessionalApiService(private val client: HttpClient) {
 
-    private val BASE_URL = "http://localhost:3000/professionals"
+    private val BASE_URL = "http://10.0.2.2:3000/professionals"
 
-    // Fetch by ID
-    suspend fun getById(id: String): ProfessionalDto {
-        return client.get("$BASE_URL/$id") {
+    suspend fun getById(id: String): ProfessionalDto =
+        client.get("$BASE_URL/$id") {
             contentType(ContentType.Application.Json)
         }.body()
-    }
 
-    // Fetch by Email
-    suspend fun getByEmail(email: String): ProfessionalDto {
-        return client.get("$BASE_URL/email/$email") {
+    suspend fun getByEmail(email: String): ProfessionalDto =
+        client.get("$BASE_URL/email/${email.encodeURLPath()}") {
             contentType(ContentType.Application.Json)
         }.body()
-    }
 
-    // Search by Name
     suspend fun searchByName(name: String): List<ProfessionalDto> {
-        return client.get("$BASE_URL/name/$name") {
-            contentType(ContentType.Application.Json)
-        }.body()
-    }
-
-    // Optional: Update professional
-    suspend fun update(id: String, dto: Map<String, Any?>): ProfessionalDto {
-        return client.patch("$BASE_URL/$id") {
-            contentType(ContentType.Application.Json)
-            setBody(dto)
-        }.body()
-    }
-
-    // Optional: Toggle active
-    suspend fun toggleActive(id: String): ProfessionalDto {
-        return client.patch("$BASE_URL/$id/toggle") {
+        val encodedName = name.encodeURLPath() // encode ' and spaces
+        return client.get {
+            url {
+                takeFrom(BASE_URL)
+                encodedPath += "/name/$encodedName"
+            }
             contentType(ContentType.Application.Json)
         }.body()
     }

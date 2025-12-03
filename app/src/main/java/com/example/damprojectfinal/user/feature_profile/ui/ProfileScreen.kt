@@ -26,6 +26,14 @@ import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel
 
+// --- Custom Colors for Food App Vibe ---
+val FoodPrimary = Color(0xFFFF5722) // Vibrant Orange-Red for food app primary (e.g., brand color)
+val FoodAccent = Color(0xFFFF9800) // Orange Accent (e.g., placeholder or secondary highlight)
+val FoodBackground = Color(0xFFF9F9F9) // Light grey background
+val FoodCard = Color.White
+val FoodTextPrimary = Color(0xFF212121) // Darker text for readability
+val FoodTextSecondary = Color(0xFF757575) // Grey text
+
 // --- UI Data Model (Used for display) ---
 data class UserProfile(
     val name: String,
@@ -78,14 +86,15 @@ fun UserProfileScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My Profile", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
+                title = { Text("My Profile", fontWeight = FontWeight.ExtraBold, color = FoodTextPrimary) }, // Bolder text
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = FoodBackground), // Use light background
                 // ⭐ ADDED NAVIGATION ICON HERE ⭐
                 navigationIcon = {
                     IconButton(onClick = onBackClick) { // Calls the navigation action
                         Icon(
                             imageVector = Icons.Filled.ArrowBack,
-                            contentDescription = "Return to Home Screen"
+                            contentDescription = "Return to Home Screen",
+                            tint = FoodTextPrimary
                         )
                     }
                 }
@@ -93,12 +102,12 @@ fun UserProfileScreen(
         },
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF7F7F7))
+            .background(FoodBackground) // Apply Food Background
     ){ paddingValues ->
 
         if (isLoading) {
             Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = FoodPrimary)
             }
         } else if (errorMessage != null) {
             Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
@@ -109,20 +118,21 @@ fun UserProfileScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp), // Use horizontal padding on the column
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // --- 1. Profile Header (Image and Name) ---
                 ProfileHeader(user = userProfile, onEditProfileClick = onEditProfileClick)
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp)) // Reduced spacing
 
-                // --- 2. Profile Details Card ---
+                // --- 2. Profile Details Card (Used for metrics/quick info in food app style) ---
                 ProfileDetailsCard(user = userProfile)
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp)) // Reduced spacing
 
                 // --- 3. Action Menu ---
+                // Reorganized for better grouping
                 ActionMenu(
                     onSettingsClick = onEditProfileClick,
                 )
@@ -133,12 +143,12 @@ fun UserProfileScreen(
 
 @Composable
 fun ProfileHeader(user: UserProfile, onEditProfileClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Box(contentAlignment = Alignment.BottomEnd) {
             val imageModifier = Modifier
                 .size(120.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFFFE15A))
+                .background(FoodAccent) // Use Accent color as placeholder background
 
             // ⭐ CONDITIONAL DISPLAY: Image or Icon ⭐
             if (!user.profilePictureUrl.isNullOrBlank()) {
@@ -167,14 +177,15 @@ fun ProfileHeader(user: UserProfile, onEditProfileClick: () -> Unit) {
             }
 
 
-            // Edit Button overlay (unchanged)
+            // Edit Button overlay (improved FAB styling)
             FloatingActionButton(
                 onClick = onEditProfileClick,
-                modifier = Modifier.size(36.dp).offset(x = 4.dp, y = 4.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                shape = CircleShape
+                modifier = Modifier.size(40.dp).offset(x = 4.dp, y = 4.dp), // Slightly larger FAB
+                containerColor = FoodPrimary, // Use Food Primary color
+                shape = CircleShape,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
             ) {
-                Icon(Icons.Filled.Edit, contentDescription = "Edit Profile", tint = Color.White, modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.Edit, contentDescription = "Edit Profile", tint = Color.White, modifier = Modifier.size(20.dp))
             }
         }
 
@@ -182,61 +193,125 @@ fun ProfileHeader(user: UserProfile, onEditProfileClick: () -> Unit) {
 
         Text(
             text = user.name,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = Color(0xFF374151)
+            fontSize = 26.sp, // Larger name
+            fontWeight = FontWeight.Black, // Stronger weight
+            color = FoodTextPrimary
         )
         Text(
             text = user.email,
-            fontSize = 14.sp,
-            color = Color(0xFF6B7280)
+            fontSize = 16.sp, // Slightly larger email text
+            color = FoodTextSecondary
         )
     }
 }
 
+// Renamed/repurposed to serve as a 'Metrics' card common in food/ecommerce apps.
 @Composable
 fun ProfileDetailsCard(user: UserProfile) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        shape = RoundedCornerShape(12.dp), // Slightly smaller radius
+        colors = CardDefaults.cardColors(containerColor = FoodCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp) // Higher elevation for pop
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            DetailRow(label = "Email", value = user.email, icon = Icons.Filled.Email)
-            Divider(modifier = Modifier.padding(vertical = 12.dp))
-            DetailRow(label = "Member Since", value = user.joinDate, icon = Icons.Filled.CalendarMonth)
-            Divider(modifier = Modifier.padding(vertical = 12.dp))
-            DetailRow(label = "Role", value = user.role, icon = Icons.Filled.Star)
+        // Instead of a vertical list of profile data, we show a horizontal metrics summary
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Mock Data for food app metrics (using DetailRow's logic but adjusted for horizontal layout)
+            MetricItem(value = "15", label = "Orders", icon = Icons.Filled.ListAlt)
+            Divider(modifier = Modifier.height(40.dp).width(1.dp), color = FoodBackground)
+            MetricItem(value = "8", label = "Favorites", icon = Icons.Filled.Favorite)
+            Divider(modifier = Modifier.height(40.dp).width(1.dp), color = FoodBackground)
+            MetricItem(value = "4.9", label = "Rating", icon = Icons.Filled.Star)
         }
     }
 }
 
+// Helper composable for the metrics items in ProfileDetailsCard
+@Composable
+fun MetricItem(value: String, label: String, icon: ImageVector) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = FoodPrimary,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = value,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = FoodTextPrimary
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = FoodTextSecondary,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+
+// Original DetailRow kept for completeness, though it is not used in the new ProfileDetailsCard
 @Composable
 fun DetailRow(label: String, value: String, icon: ImageVector) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(24.dp))
+        Icon(icon, contentDescription = null, tint = FoodAccent, modifier = Modifier.size(24.dp)) // Changed tint
         Spacer(modifier = Modifier.width(16.dp))
         Column {
-            Text(label, fontSize = 12.sp, color = Color(0xFF6B7280))
-            Text(value, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF374151))
+            Text(label, fontSize = 12.sp, color = FoodTextSecondary) // Changed color
+            Text(value, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = FoodTextPrimary) // Changed color
         }
     }
 }
+
 
 @Composable
 fun ActionMenu(
     onSettingsClick: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column {
-            ActionMenuItem(Icons.Filled.Settings, "Account Settings", Color(0xFF374151), onSettingsClick)
-            Divider(modifier = Modifier.padding(horizontal = 16.dp))
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // --- Essential Food Actions Group ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = FoodCard),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column {
+                ActionMenuItem(Icons.Filled.ListAlt, "My Orders", FoodTextPrimary, {}) // Added new action
+                Divider(modifier = Modifier.padding(horizontal = 20.dp), color = FoodBackground)
+                ActionMenuItem(Icons.Filled.LocationOn, "Delivery Addresses", FoodTextPrimary, {}) // Added new action
+                Divider(modifier = Modifier.padding(horizontal = 20.dp), color = FoodBackground)
+                ActionMenuItem(Icons.Filled.Payment, "Payment Methods", FoodTextPrimary, {}) // Added new action
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- Settings/Support Group ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = FoodCard),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column {
+                ActionMenuItem(Icons.Filled.Settings, "Account Settings", FoodTextPrimary, onSettingsClick)
+                Divider(modifier = Modifier.padding(horizontal = 20.dp), color = FoodBackground)
+                // Added Logout action
+                ActionMenuItem(Icons.Filled.Logout, "Log Out", Color.Red, {})
+            }
         }
     }
 }
@@ -245,7 +320,7 @@ fun ActionMenu(
 fun ActionMenuItem(icon: ImageVector, title: String, color: Color, onClick: () -> Unit) {
     TextButton(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(60.dp),
+        modifier = Modifier.fillMaxWidth().height(64.dp), // Taller button
         contentPadding = PaddingValues(horizontal = 20.dp)
     ) {
         Row(
@@ -254,11 +329,37 @@ fun ActionMenuItem(icon: ImageVector, title: String, color: Color, onClick: () -
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+                // Icon with a colorful background circle for modern look
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        // Use FoodPrimary for most actions, but a softer red for Logout
+                        .background(
+                            if (icon == Icons.Filled.Logout) Color.Red.copy(alpha = 0.1f) else FoodPrimary.copy(alpha = 0.1f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = if (icon == Icons.Filled.Logout) Color.Red else FoodPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
                 Spacer(modifier = Modifier.width(16.dp))
-                Text(title, fontSize = 16.sp, color = color, fontWeight = FontWeight.Medium)
+
+                Text(
+                    title,
+                    fontSize = 16.sp,
+                    color = color,
+                    fontWeight = FontWeight.Medium
+                )
             }
-            Icon(Icons.Filled.ChevronRight, contentDescription = "Next", tint = Color(0xFF9CA3AF))
+            // Chevron is always a secondary color unless it's the Logout button
+            val chevronTint = if (icon == Icons.Filled.Logout) Color.Red else FoodTextSecondary.copy(alpha = 0.6f)
+            Icon(Icons.Filled.ChevronRight, contentDescription = "Next", tint = chevronTint)
         }
     }
 }

@@ -1,8 +1,10 @@
 package com.example.damprojectfinal.user.feature_profile.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.user.UpdateUserRequest
 import com.example.damprojectfinal.core.dto.user.UserResponse
 import com.example.damprojectfinal.core.repository.UserRepository
@@ -12,7 +14,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 
-class ProfileViewModel(private val userRepo: UserRepository) : ViewModel() {
+class ProfileViewModel(
+    private val userRepo: UserRepository,
+    private val context: Context
+) : ViewModel() {
 
     // --- State Holders ---
     val userState = MutableStateFlow<UserResponse?>(null)
@@ -27,13 +32,24 @@ class ProfileViewModel(private val userRepo: UserRepository) : ViewModel() {
         _updateSuccess.value = false
     }
 
+    // --- Helper: get token from TokenManager ---
+    private fun getToken(): String? = TokenManager(context).getAccessTokenBlocking()
+
     // --- 1. Fetch Profile ---
-    fun fetchUserProfile(userId: String, token: String) {
+    fun fetchUserProfile() {
         viewModelScope.launch {
             isLoading.value = true
             resetStatus()
+            val token = getToken()
+            val currentUserId = TokenManager(context).getUserIdBlocking()
+            if (token == null || currentUserId == null) {
+                errorMessage.value = "Token or User ID missing"
+                isLoading.value = false
+                return@launch
+            }
+
             try {
-                val user = userRepo.getUserById(userId, token)
+                val user = userRepo.getUserById(currentUserId, token)
                 userState.value = user
             } catch (e: Exception) {
                 errorMessage.value = e.message
@@ -43,27 +59,24 @@ class ProfileViewModel(private val userRepo: UserRepository) : ViewModel() {
         }
     }
 
-    // --- 2. Update Details (FIXED: Using 'id' property) ---
+    // --- 2. Update Details ---
     fun updateProfile(updateRequest: UpdateUserRequest, token: String) {
         viewModelScope.launch {
             isLoading.value = true
             resetStatus()
-
-            // ⭐ FIX: Changed '_id' to 'id' to match Kotlin property name.
+            val token = getToken()
             val currentUserId = userState.value?.id
+            if (token == null || currentUserId == null) {
+                errorMessage.value = "Token or User ID missing"
+                isLoading.value = false
+                return@launch
+            }
 
             try {
-                // 1. Execute the update API call (Response discarded to avoid serialization error)
                 userRepo.updateProfile(updateRequest, token)
-
-                // 2. Re-fetch the entire profile to get complete, updated data
-                if (currentUserId != null) {
-                    val updatedUser = userRepo.getUserById(currentUserId, token)
-                    userState.value = updatedUser
-                    _updateSuccess.value = true
-                } else {
-                    errorMessage.value = "User ID not available for profile refresh."
-                }
+                val updatedUser = userRepo.getUserById(currentUserId, token)
+                userState.value = updatedUser
+                _updateSuccess.value = true
             } catch (e: Exception) {
                 errorMessage.value = e.message
             } finally {
@@ -72,27 +85,24 @@ class ProfileViewModel(private val userRepo: UserRepository) : ViewModel() {
         }
     }
 
-    // --- 3. Toggle Active Status (FIXED: Using 'id' property) ---
-    fun toggleActive(token: String) {
+    // --- 3. Toggle Active Status ---
+    fun toggleActive() {
         viewModelScope.launch {
             isLoading.value = true
             resetStatus()
-
-            // ⭐ FIX: Changed '_id' to 'id' to match Kotlin property name.
+            val token = getToken()
             val currentUserId = userState.value?.id
+            if (token == null || currentUserId == null) {
+                errorMessage.value = "Token or User ID missing"
+                isLoading.value = false
+                return@launch
+            }
 
             try {
-                // 1. Execute the toggle API call (Response discarded)
                 userRepo.toggleActive(token)
-
-                // 2. Re-fetch the profile to get the updated 'isActive' status
-                if (currentUserId != null) {
-                    val updatedUser = userRepo.getUserById(currentUserId, token)
-                    userState.value = updatedUser
-                    _updateSuccess.value = true
-                } else {
-                    errorMessage.value = "User ID not available for profile refresh."
-                }
+                val updatedUser = userRepo.getUserById(currentUserId, token)
+                userState.value = updatedUser
+                _updateSuccess.value = true
             } catch (e: Exception) {
                 errorMessage.value = e.message
             } finally {
@@ -101,17 +111,22 @@ class ProfileViewModel(private val userRepo: UserRepository) : ViewModel() {
         }
     }
 
-    // --- 4. Upload Profile Image (Kept as is, as userId is passed as argument) ---
-    fun uploadProfileImage(userId: String, file: File, token: String) {
+    // --- 4. Upload Profile Image ---
+    fun uploadProfileImage(file: File) {
         viewModelScope.launch {
             isLoading.value = true
             resetStatus()
-            try {
-                // 1. Execute the upload API call (Response discarded)
-                userRepo.uploadProfileImage(userId, file, token)
+            val token = getToken()
+            val currentUserId = userState.value?.id
+            if (token == null || currentUserId == null) {
+                errorMessage.value = "Token or User ID missing"
+                isLoading.value = false
+                return@launch
+            }
 
-                // 2. Re-fetch the profile to get the new profilePictureUrl
-                val updatedUser = userRepo.getUserById(userId, token)
+            try {
+                userRepo.uploadProfileImage(currentUserId, file, token)
+                val updatedUser = userRepo.getUserById(currentUserId, token)
                 userState.value = updatedUser
                 _updateSuccess.value = true
             } catch (e: Exception) {
@@ -122,17 +137,14 @@ class ProfileViewModel(private val userRepo: UserRepository) : ViewModel() {
         }
     }
 
-    /**
-     * Factory class required to instantiate ProfileViewModel with a custom UserRepository dependency
-     * when using the `viewModel()` Composable function.
-     */
+    // --- Factory for ViewModel with context dependency ---
     companion object {
-        fun Factory(userRepository: UserRepository): ViewModelProvider.Factory =
+        fun Factory(userRepository: UserRepository, context: Context): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(ProfileViewModel::class.java)) {
-                        return ProfileViewModel(userRepository) as T
+                        return ProfileViewModel(userRepository, context) as T
                     }
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }

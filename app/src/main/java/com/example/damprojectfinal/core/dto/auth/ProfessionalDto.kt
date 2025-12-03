@@ -1,5 +1,6 @@
 package com.example.damprojectfinal.core.dto.auth
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 
@@ -16,7 +17,7 @@ data class ProfessionalDocumentDto(
 @OptIn(kotlinx.serialization.InternalSerializationApi::class)
 @Serializable
 data class ProfessionalDto(
-    val id: String,
+    @SerialName("_id") val id: String, // maps _id from backend
     val email: String,
     val fullName: String? = null,
     val licenseNumber: String? = null,

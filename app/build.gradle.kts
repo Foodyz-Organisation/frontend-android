@@ -82,10 +82,10 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.10.0")
-
+    implementation("javax.inject:javax.inject:1")
     // ===== Icons =====
     implementation("br.com.devsrsouza.compose.icons:font-awesome:1.1.0")
-
+    implementation("io.ktor:ktor-client-cio:2.3.5")
     // ===== Testing =====
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

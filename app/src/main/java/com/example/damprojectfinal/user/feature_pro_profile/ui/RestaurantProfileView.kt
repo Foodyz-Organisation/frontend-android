@@ -1,5 +1,6 @@
 package com.example.damprojectfinal.user.feature_pro_profile.ui
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,18 +25,25 @@ import com.example.damprojectfinal.professional.feature_profile.ui.ReadOnlyInfoR
 import com.example.damprojectfinal.professional.feature_profile.ui.mockChilis
 import com.example.damprojectfinal.professional.feature_profile.ui.DarkText
 
-// --- Design Colors (Using the same colors) ---
+// --- Design Colors ---
 val PrimaryRed = Color(0xFFEF4444)
 val BackgroundLight = Color(0xFFF9FAFB)
 val CardBackground = Color(0xFFFFFFFF)
+val PrimaryYellow = Color(0xFFFFC107) // Yellow color for primary actions
+val DarkTextForYellow = Color(0xFF1F2937) // Dark text for contrast on yellow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClientRestaurantProfileScreen(
+    professionalId: String, // ⭐ Add this
     restaurantDetails: RestaurantDetails,
     onBackClick: () -> Unit,
-    onViewMenuClick: () -> Unit
+    onViewMenuClick: (professionalId: String) -> Unit // pass the ID
 ) {
+    LaunchedEffect(professionalId) {
+        Log.d("ClientProfile", "Opened profile with professionalId = $professionalId")
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = BackgroundLight,
@@ -59,18 +67,25 @@ fun ClientRestaurantProfileScreen(
         bottomBar = {
             Surface(shadowElevation = 8.dp, color = CardBackground) {
                 Button(
-                    onClick = onViewMenuClick,
+                    onClick = {
+                        Log.d("ClientProfile", "Navigating with professionalId = $professionalId")
+                        onViewMenuClick(professionalId)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(64.dp)
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .clip(RoundedCornerShape(12.dp)),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935), contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PrimaryYellow,
+                        contentColor = DarkTextForYellow
+                    )
                 ) {
                     Text("View Menu & Order", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
+
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(paddingValues),
@@ -112,13 +127,13 @@ fun ClientRestaurantProfileScreen(
         }
     }
 }
-
 @Preview(showBackground = true)
 @Composable
 fun ClientRestaurantProfilePreview() {
     ClientRestaurantProfileScreen(
+        professionalId = "dummy_id", // ✅ required for preview
         restaurantDetails = mockChilis,
         onBackClick = {},
-        onViewMenuClick = {}
+        onViewMenuClick = { id -> /* do nothing for preview */ }
     )
 }

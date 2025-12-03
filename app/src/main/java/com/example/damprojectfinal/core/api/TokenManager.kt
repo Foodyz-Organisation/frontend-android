@@ -63,9 +63,9 @@ class TokenManager(private val context: Context) {
     // --- Blocking Getters (Used for synchronous access, like in remember {}) ---
     // -------------------------------------------------------------------------
 
-    // fun getAccessTokenBlocking(): String? = runBlocking {
-    //     context.dataStore.data.map { it[ACCESS_TOKEN_KEY] }.first()
-    // }
+     fun getAccessTokenBlocking(): String? = runBlocking {
+         context.dataStore.data.map { it[ACCESS_TOKEN_KEY] }.first()
+    }
 
     // fun getRefreshTokenBlocking(): String? = runBlocking {
     //     context.dataStore.data.map { it[REFRESH_TOKEN_KEY] }.first()

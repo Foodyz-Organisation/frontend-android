@@ -1,6 +1,5 @@
 package com.example.damprojectfinal.user.feature_menu.ui
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,36 +18,64 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.damprojectfinal.R
-import com.example.damprojectfinal.ui.theme.* // Import global colors
+// DTOs for Menu Item structure (source)
+import com.example.damprojectfinal.core.dto.menu.IngredientDto
+import com.example.damprojectfinal.core.dto.menu.MenuItemResponseDto
+// DTOs for Cart structure (target)
+import com.example.damprojectfinal.core.dto.cart.AddToCartRequest
+import com.example.damprojectfinal.core.dto.cart.IngredientDto as CartIngredientDto
+import com.example.damprojectfinal.core.dto.cart.OptionDto as CartOptionDto
+// Repositories and Networking
+import com.example.damprojectfinal.core.repository.MenuItemRepository
+import com.example.damprojectfinal.core.retro.RetrofitClient
+import com.example.damprojectfinal.ui.theme.*
+// ViewModels and State
+import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewModel
+import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartUiState
+import com.example.damprojectfinal.user.feature_menu.viewmodel.DynamicMenuViewModel
+import com.example.damprojectfinal.user.feature_menu.viewmodel.DynamicMenuViewModelFactory
+import com.google.gson.Gson
 
-// --- Data Models for Menu and Customization ---
+// -----------------------------------------------------------------------------
+// --- DATA MODELS ---
+// -----------------------------------------------------------------------------
+data class Option(
+    val name: String,
+    val price: Float
+)
 
 data class MenuItem(
     val id: String,
     val name: String,
     val priceDT: Float,
-    val imageUrl: Int, // Drawable resource ID
-    val defaultIngredients: List<String> = emptyList() // Ingredients for customization
+    val imageUrl: String?,
+    val defaultIngredients: List<String> = emptyList(),
+    val extraOptions: List<Option> = emptyList()
 )
 
-private val mockMenuItems = listOf(
-    MenuItem("1", "Cheese Burger", 38.0f, R.drawable.burger, listOf("Tomatoes", "Lettuce", "Onions", "Cheese")),
-    MenuItem("2", "Pasta", 25.0f, R.drawable.pasta, listOf("Basil", "Parmesan", "Meat Sauce")),
-    MenuItem("3", "Pizza", 40.0f, R.drawable.pizza, listOf("Pepperoni", "Mozzarella", "Tomato Sauce")),
-)
-
-// --- Data Model for the Cart Item ---
-data class OrderItem(
-    val id: String,
-    val name: String,
-    val quantity: Int,
-    val finalPrice: Float
-)
+// DTO to UI Model Mappers (Necessary to convert backend Double to UI Float)
+private fun List<IngredientDto>?.toIngredientNames(): List<String> {
+    return this?.mapNotNull { it.name } ?: emptyList()
+}
+private fun List<com.example.damprojectfinal.core.dto.menu.OptionDto>?.toOptionModels(): List<Option> {
+    return this?.map { Option(name = it.name, price = it.price.toFloat()) } ?: emptyList()
+}
+private fun MenuItemResponseDto.toUiModel(): MenuItem {
+    return MenuItem(
+        id = this.id,
+        name = this.name,
+        priceDT = this.price.toFloat(),
+        imageUrl = this.image,
+        defaultIngredients = this.ingredients.toIngredientNames(),
+        extraOptions = this.options.toOptionModels()
+    )
+}
 
 // -----------------------------------------------------------------------------
 // MAIN COMPOSABLE: Restaurant Menu Screen
@@ -60,53 +87,176 @@ fun RestaurantMenuScreen(
     restaurantId: String,
     onBackClick: () -> Unit,
     onViewCartClick: () -> Unit,
-    onAddToCartClick: (MenuItem, Float, Int) -> Unit
+    onConfirmOrderClick: () -> Unit,
+    // REQUIRED DEPENDENCIES
+    cartViewModel: CartViewModel,
+    userId: String,
 ) {
+    val gson = remember { Gson() }
+    val menuRepository = remember {
+        MenuItemRepository(RetrofitClient.menuItemApi, gson)
+    }
+    // TODO: Replace with real auth token retrieval mechanism
+    val authToken = remember { "YOUR_REAL_TOKEN" }
+
+    // --- Menu ViewModel Setup ---
+    val menuViewModel: DynamicMenuViewModel = viewModel(
+        factory = DynamicMenuViewModelFactory(
+            repository = menuRepository,
+            professionalId = restaurantId,
+            authToken = authToken
+        )
+    )
+
+    // --- Cart State Observation ---
+    val cartUiState by cartViewModel.uiState.collectAsState()
+
+    // ⭐ FIX 1: Safely cast the state to Success to access the cart data
+    val currentCart = (cartUiState as? CartUiState.Success)?.cart
+
+    // UI Data conversion
+    val rawMenuItems by menuViewModel.menuItems.collectAsState()
+
+    // ⭐ FIX: Enforce unique IDs when mapping to UI models to prevent LazyColumn crash
+    val uiMenuItems: List<MenuItem> = remember(rawMenuItems) {
+        rawMenuItems
+            .distinctBy { it.id } // Filters out any duplicate IDs
+            .map { it.toUiModel() }
+    }
+
+    // UI state for loading and error
+    val isLoading by menuViewModel.isLoading.collectAsState()
+    val errorMessage by menuViewModel.errorMessage.collectAsState()
+
     var selectedItemForCustomization by remember { mutableStateOf<MenuItem?>(null) }
-    var totalOrderPrice by remember { mutableStateOf(0.0f) }
+
+    // Derived state for UI display (Reads directly from the updated cart)
+    // ⭐ FIX 2: Safely access cart properties after checking type
+    val cartItemCount = currentCart?.items?.size ?: 0
+    val totalOrderPrice = currentCart?.items?.sumOf { it.calculatedPrice * it.quantity }?.toFloat() ?: 0.0f
+
+    // Load cart on start
+    LaunchedEffect(userId) {
+        // ⭐ FIX 3: Removed userId argument based on the ViewModel provided in the last step
+        cartViewModel.loadCart()
+    }
 
     Scaffold(
         topBar = {
             MenuTopAppBar(
-                restaurantName = "Chili's",
+                restaurantName = "Chili's", // Consider passing the real restaurant name here
                 onBackClick = onBackClick,
-                onCartClick = onViewCartClick
+                // FIX: Change 'onViewCartClick' to 'onCartClick' to match the function definition
+                onCartClick = onViewCartClick,
+                cartItemCount = cartItemCount
             )
         },
         bottomBar = {
             MenuBottomBar(
                 totalOrderPrice = totalOrderPrice,
-                onCheckoutClick = onViewCartClick
+                onConfirmClick = onConfirmOrderClick
             )
         },
         modifier = Modifier.fillMaxSize(),
         containerColor = AppBackgroundLight
     ) { paddingValues ->
-
-        LazyColumn(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(paddingValues)
-        ) {
-            item {
-                Spacer(Modifier.height(16.dp))
+        when {
+            isLoading -> {
+                Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
             }
-            items(mockMenuItems) { item ->
-                MenuItemCard(
-                    item = item,
-                    onAddClick = { selectedItemForCustomization = item }
-                )
+            errorMessage != null -> {
+                Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+                    Text(text = "Error loading menu: ${errorMessage}", color = Color.Red)
+                }
+            }
+            uiMenuItems.isEmpty() -> {
+                Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+                    Text(text = "No menu items available.", color = Color.Gray)
+                }
+            }
+
+            else -> {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(paddingValues)
+                ) {
+                    item { Spacer(Modifier.height(16.dp)) }
+
+                    // Ensures each item has a unique, stable key based on its ID
+                    items(
+                        items = uiMenuItems,
+                        key = { item -> item.id }
+                    ) { item ->
+                        MenuItemCard(
+                            item = item,
+                            onAddClick = { selectedItemForCustomization = item }
+                        )
+                    }
+                }
             }
         }
     }
 
-    selectedItemForCustomization?.let { item ->
+
+// --- Customization Overlay Logic ---
+    selectedItemForCustomization?.let { item -> // 'item' is the MenuItem UI model
         ItemCustomizationOverlay(
             item = item,
             onDismiss = { selectedItemForCustomization = null },
-            onConfirmAddToCart = { confirmedItem, finalPrice, quantity ->
-                onAddToCartClick(confirmedItem, finalPrice, quantity)
-                totalOrderPrice += finalPrice * quantity
+            onConfirmAddToCart = { confirmedItem, quantity, ingredientsToRemove, selectedOptions ->
+
+                val menuItem = confirmedItem
+
+                // --- 1. Unit Price Calculation ---
+                val basePrice = menuItem.priceDT.toDouble()
+                val optionsPrice = selectedOptions.sumOf { it.price.toDouble() }
+
+                // The price per unit (item) AFTER options are added
+                val unitPrice = basePrice + optionsPrice
+
+                // --- 2. Data Mapping (UI Models to DTOs) ---
+
+                // Map selectedOptions (Set<Option> UI model) to List<CartOptionDto> DTO
+                val finalSelectedOptions: List<CartOptionDto> = selectedOptions.map { uiOption ->
+                    CartOptionDto(
+                        name = uiOption.name,
+                        price = uiOption.price.toDouble()
+                    )
+                }
+
+                // Filter Ingredients: Map UI ingredient names (Set<String>) back to DTOs
+                val initialIngredientNames: List<String> = menuItem.defaultIngredients
+                val namesToKeep = initialIngredientNames.filter { it !in ingredientsToRemove }
+
+                // Map ingredients names to CartIngredientDto (the DTO needed for the Cart POST endpoint)
+                val finalIngredientsDto: List<CartIngredientDto> = namesToKeep.map { name ->
+                    // Assuming all ingredients in this flow are default ones, as the UI only allows removal of default ones.
+                    CartIngredientDto(name = name, isDefault = true)
+                }
+
+                // --- 3. Construct AddToCartRequest DTO ---
+                val menuItemId = menuItem.id
+
+                // ⭐ FIX 4: Corrected DTO field names to match the AddToCartRequest definition
+                val request = AddToCartRequest(
+                    menuItemId = menuItemId,
+                    quantity = quantity,
+                    name = menuItem.name,
+                    chosenIngredients = finalIngredientsDto,
+                    chosenOptions = finalSelectedOptions,
+                    calculatedPrice = unitPrice,
+                )
+
+
+                // Call the existing 'addItem' function in CartViewModel
+                // ⭐ FIX 5: Removed customerId argument based on the ViewModel provided in the last step
+                cartViewModel.addItem(
+                    request = request
+                )
+
                 selectedItemForCustomization = null
             }
         )
@@ -114,20 +264,23 @@ fun RestaurantMenuScreen(
 }
 
 // -----------------------------------------------------------------------------
-// ITEM CUSTOMIZATION OVERLAY (The Pop-up Screen)
+// CUSTOMIZATION OVERLAY AND HELPERS
 // -----------------------------------------------------------------------------
 
 @Composable
 fun ItemCustomizationOverlay(
     item: MenuItem,
     onDismiss: () -> Unit,
-    onConfirmAddToCart: (MenuItem, Float, Int) -> Unit
+    onConfirmAddToCart: (MenuItem, Int, Set<String>, Set<Option>) -> Unit
 ) {
     var quantity by remember { mutableStateOf(1) }
     var ingredientsToRemove by remember { mutableStateOf(setOf<String>()) }
+    var selectedOptions by remember { mutableStateOf(setOf<Option>()) }
 
-    val finalTotal = remember(item.priceDT, quantity, ingredientsToRemove) {
-        item.priceDT * quantity
+    // Calculate final total (for display only)
+    val finalTotal = remember(item.priceDT, quantity, selectedOptions) {
+        val optionsPrice = selectedOptions.sumOf { it.price.toDouble() }.toFloat()
+        (item.priceDT + optionsPrice) * quantity
     }
 
     androidx.compose.ui.window.Dialog(
@@ -139,7 +292,6 @@ fun ItemCustomizationOverlay(
                 .fillMaxSize()
                 .background(AppBackgroundLight)
         ) {
-            // ⭐ ERROR FIXED: CustomizationHeader is now defined below.
             CustomizationHeader(item = item, onDismiss = onDismiss)
 
             LazyColumn(
@@ -150,19 +302,16 @@ fun ItemCustomizationOverlay(
             ) {
                 item {
                     Spacer(Modifier.height(16.dp))
-
-                    // ⭐ ERROR FIXED: QuantitySelector is now defined below.
                     QuantitySelector(
                         quantity = quantity,
                         onQuantityChange = { quantity = it }
                     )
                     Spacer(Modifier.height(24.dp))
 
-                    // ⭐ ERROR FIXED: IngredientsCustomizer is now defined below.
+                    // 1. Ingredients (Removal)
                     IngredientsCustomizer(
                         ingredients = item.defaultIngredients,
                         ingredientsToRemove = ingredientsToRemove,
-                        // ⭐ ERROR FIXED: Lambda parameter 'ingredient' is implicitly typed by the function signature
                         onToggleIngredient = { ingredient ->
                             ingredientsToRemove = if (ingredientsToRemove.contains(ingredient)) {
                                 ingredientsToRemove - ingredient
@@ -171,53 +320,56 @@ fun ItemCustomizationOverlay(
                             }
                         }
                     )
+
+                    // 2. Options (Add-ons)
+                    if (item.extraOptions.isNotEmpty()) {
+                        Spacer(Modifier.height(24.dp))
+                        OptionsCustomizer(
+                            options = item.extraOptions,
+                            selectedOptions = selectedOptions,
+                            onToggleOption = { option ->
+                                selectedOptions = if (selectedOptions.contains(option)) {
+                                    selectedOptions - option
+                                } else {
+                                    selectedOptions + option
+                                }
+                            }
+                        )
+                    }
                     Spacer(Modifier.height(24.dp))
                 }
             }
 
-            // ⭐ ERROR FIXED: CustomizationFooter is now defined below.
             CustomizationFooter(
                 total = finalTotal,
-                onAddToCart = { onConfirmAddToCart(item, item.priceDT, quantity) }
+                onAddToCart = {
+                    onConfirmAddToCart(item, quantity, ingredientsToRemove, selectedOptions)
+                }
             )
         }
     }
 }
 
-// -----------------------------------------------------------------------------
-// ⭐ CUSTOMIZATION HELPER COMPONENTS (THESE WERE MISSING) ⭐
-// -----------------------------------------------------------------------------
+// --- Supporting Composable Implementations ---
 
 @Composable
 fun CustomizationHeader(item: MenuItem, onDismiss: () -> Unit) {
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(250.dp)
+            .background(AppCardBackground)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Image(
-            painter = painterResource(id = item.imageUrl),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize()
-        )
-        // Item Name and Price overlay
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.3f))
-                .padding(16.dp)
-        ) {
-            Text(item.name, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text("${item.priceDT} DT", color = Color.White, fontSize = 18.sp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(item.name, color = AppDarkText, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text("${item.priceDT} DT", color = AppPrimaryRed, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
         }
-        // Close Button (Top Right)
         IconButton(
             onClick = onDismiss,
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
                 .clip(CircleShape)
                 .background(Color.White)
                 .size(32.dp)
@@ -225,6 +377,7 @@ fun CustomizationHeader(item: MenuItem, onDismiss: () -> Unit) {
             Icon(Icons.Default.Close, contentDescription = "Close", tint = AppDarkText)
         }
     }
+    Divider(color = Color.LightGray, thickness = 1.dp, modifier = Modifier.padding(horizontal = 16.dp))
 }
 
 @Composable
@@ -236,7 +389,6 @@ fun QuantitySelector(quantity: Int, onQuantityChange: (Int) -> Unit) {
     ) {
         Text("Quantity", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AppDarkText)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Minus Button
             Button(
                 onClick = { if (quantity > 1) onQuantityChange(quantity - 1) },
                 colors = ButtonDefaults.buttonColors(containerColor = AppCardBackground, contentColor = AppDarkText),
@@ -249,7 +401,6 @@ fun QuantitySelector(quantity: Int, onQuantityChange: (Int) -> Unit) {
             Spacer(Modifier.width(16.dp))
             Text(quantity.toString(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AppDarkText)
             Spacer(Modifier.width(16.dp))
-            // Plus Button
             FloatingActionButton(
                 onClick = { onQuantityChange(quantity + 1) },
                 containerColor = AppCartButtonYellow,
@@ -310,6 +461,63 @@ fun IngredientsCustomizer(
 }
 
 @Composable
+fun OptionsCustomizer(
+    options: List<Option>,
+    selectedOptions: Set<Option>,
+    onToggleOption: (Option) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Extra Options (Add-ons)",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = AppDarkText
+        )
+        Text(
+            "Add extra sauces or toppings",
+            fontSize = 14.sp,
+            color = Color.Gray,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        options.forEach { option ->
+            val isSelected = selectedOptions.contains(option)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(AppCardBackground)
+                    .clickable { onToggleOption(option) }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onToggleOption(option) },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = AppCartButtonYellow,
+                            uncheckedColor = Color.LightGray
+                        )
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(option.name, color = AppDarkText, fontWeight = FontWeight.Medium)
+                }
+
+                Text(
+                    text = String.format("+%.2f DT", option.price),
+                    color = AppPrimaryRed,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
 fun CustomizationFooter(total: Float, onAddToCart: () -> Unit) {
     Column(
         modifier = Modifier
@@ -352,13 +560,14 @@ fun CustomizationFooter(total: Float, onAddToCart: () -> Unit) {
     }
 }
 
-// -----------------------------------------------------------------------------
-// HELPER COMPOSABLES FOR MENU LIST
-// -----------------------------------------------------------------------------
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MenuTopAppBar(restaurantName: String, onBackClick: () -> Unit, onCartClick: () -> Unit) {
+fun MenuTopAppBar(
+    restaurantName: String,
+    onBackClick: () -> Unit,
+    onCartClick: () -> Unit,
+    cartItemCount: Int
+) {
     Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
         Row(
             modifier = Modifier
@@ -381,7 +590,29 @@ fun MenuTopAppBar(restaurantName: String, onBackClick: () -> Unit, onCartClick: 
             }
 
             IconButton(onClick = onCartClick) {
-                Icon(Icons.Default.ShoppingCart, contentDescription = "View Cart", tint = AppDarkText)
+                BadgedBox(
+                    badge = {
+                        if (cartItemCount > 0) {
+                            Badge(
+                                containerColor = AppPrimaryRed,
+                                contentColor = Color.White
+                            ) {
+                                Text(
+                                    text = if (cartItemCount > 99) "99+" else cartItemCount.toString(),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                )
+                            }
+                        }
+                    }
+                ) {
+                    Icon(
+                        Icons.Default.ShoppingCart,
+                        contentDescription = "View Cart",
+                        tint = AppDarkText,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
         Row(
@@ -399,7 +630,7 @@ fun MenuTopAppBar(restaurantName: String, onBackClick: () -> Unit, onCartClick: 
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = restaurantName.first().toString(),
+                    text = restaurantName.firstOrNull()?.toString() ?: "",
                     color = AppDarkText,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
@@ -424,14 +655,16 @@ fun MenuItemCard(item: MenuItem, onAddClick: () -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(AppCardBackground)
-            .clickable { /* Show customization overlay */ onAddClick() }
+            .clickable { onAddClick() }
             .height(120.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(
-            painter = painterResource(id = item.imageUrl),
+        AsyncImage(
+            model = item.imageUrl,
             contentDescription = item.name,
             contentScale = ContentScale.Crop,
+            placeholder = painterResource(id = R.drawable.placeholder),
+            error = painterResource(id = R.drawable.placeholder),
             modifier = Modifier
                 .fillMaxHeight()
                 .width(120.dp)
@@ -471,7 +704,7 @@ fun MenuItemCard(item: MenuItem, onAddClick: () -> Unit) {
 }
 
 @Composable
-fun MenuBottomBar(totalOrderPrice: Float, onCheckoutClick: () -> Unit) {
+fun MenuBottomBar(totalOrderPrice: Float, onConfirmClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -496,33 +729,23 @@ fun MenuBottomBar(totalOrderPrice: Float, onCheckoutClick: () -> Unit) {
         }
         Spacer(Modifier.height(16.dp))
         Button(
-            onClick = onCheckoutClick,
+            onClick = onConfirmClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
                 .clip(RoundedCornerShape(12.dp)),
-            colors = ButtonDefaults.buttonColors(containerColor = AppPrimaryRed)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AppCartButtonYellow,
+                contentColor = AppDarkText
+            )
         ) {
             Text(
-                text = "View Cart & Confirm Order",
+                text = "Confirm Order",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.Default.ArrowForward, contentDescription = null, tint = AppDarkText)
         }
     }
-}
-
-// -----------------------------------------------------------------------------
-// PREVIEW
-// -----------------------------------------------------------------------------
-
-@Preview(showBackground = true)
-@Composable
-fun RestaurantMenuPreview() {
-    RestaurantMenuScreen(
-        restaurantId = "1",
-        onBackClick = {},
-        onViewCartClick = {},
-        onAddToCartClick = { _, _, _ -> }
-    )
 }

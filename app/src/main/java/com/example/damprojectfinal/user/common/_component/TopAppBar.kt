@@ -1,6 +1,5 @@
 package com.example.damprojectfinal.user.common._component
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,17 +16,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
-import com.example.damprojectfinal.R // Ensure you have this import for R.drawable
+import com.example.damprojectfinal.ProRoutes.ORDERS_ROUTE
+import com.example.damprojectfinal.core.api.ProfessionalApiService
+import com.example.damprojectfinal.core.dto.auth.ProfessionalDto
+import com.example.damprojectfinal.core.`object`.KtorClient
+import com.example.damprojectfinal.core.repository.ProfessionalRepository
+import com.example.damprojectfinal.user.common.viewmodel.SearchViewModel
+import io.ktor.client.HttpClient
 
 // -----------------------------------------------------------------------------
 // MAIN TOP APP BAR COMPOSABLE
@@ -137,7 +140,9 @@ fun SecondaryNavBar(navController: NavController, currentRoute: String) {
         NavIcon(Icons.Filled.TrendingUp, currentRoute == "trends") { navController.navigate("trends") }
         NavIcon(Icons.Filled.PlayArrow, currentRoute == "reels") { navController.navigate("reels") }
         NavIcon(Icons.Filled.Chat, currentRoute == "chat") { navController.navigate("chat") }
-        NavIcon(Icons.Filled.AttachMoney, currentRoute == "orders") { navController.navigate("orders") }
+        NavIcon(Icons.Filled.AttachMoney, currentRoute == ORDERS_ROUTE) {
+            navController.navigate(ORDERS_ROUTE)
+        }
     }
 }
 
@@ -238,34 +243,45 @@ fun RestaurantListItem(
 // In file: com.example.damprojectfinal.user.common._component/DynamicSearchOverlay.kt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-// ⭐ CRITICAL FIX: Signature now includes onDismiss
-fun DynamicSearchOverlay(navController: NavController, onDismiss: () -> Unit) {
-    var searchText by remember { mutableStateOf("") }
+fun DynamicSearchOverlay(
+    navController: NavController,
+    onDismiss: () -> Unit
+) {
+    // --- Dependencies & ViewModel Setup ---
+    val client = remember { HttpClient() }
+    val apiService = remember { ProfessionalApiService(client) }
+    val repository = remember { ProfessionalRepository(apiService) }
 
-    // Define the navigation function
-    val navigateToClientProfile: (restaurantId: String) -> Unit = { restaurantId ->
-        onDismiss() // Close the overlay
-        // Navigate to the ClientRestaurantProfileScreen route
-        navController.navigate("client_profile_view/$restaurantId")
+    val searchViewModel: SearchViewModel = viewModel(
+        factory = SearchViewModel.Factory(
+            ProfessionalRepository(KtorClient.professionalApiService)
+        )
+    )
+
+    // --- State Management ---
+    var searchText by remember { mutableStateOf("") }
+    val searchResults by searchViewModel.searchResults.collectAsState()
+    val isLoading by searchViewModel.isLoading.collectAsState()
+    val errorMessage by searchViewModel.errorMessage.collectAsState()
+
+    // --- Navigation ---
+    val navigateToProfessionalProfile: (professionalId: String) -> Unit = { professionalId ->
+        onDismiss()
+        navController.navigate("client_profile_view/$professionalId")
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Search Restaurants", fontWeight = FontWeight.SemiBold) },
+                title = { Text("Search Professionals", fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
-                    // Back Button
-                    IconButton(onClick = onDismiss) { // ⭐ FIX: Now calls onDismiss to close the overlay state
+                    IconButton(onClick = onDismiss) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     IconButton(onClick = { /* Handle Filter Click */ }) {
-                        Icon(
-                            imageVector = Icons.Default.FilterList,
-                            contentDescription = "Filter",
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Icon(Icons.Filled.FilterList, contentDescription = "Filter")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -278,33 +294,86 @@ fun DynamicSearchOverlay(navController: NavController, onDismiss: () -> Unit) {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // --- Search Input Bar ---
-            Row(
+            // --- Search Input ---
+            OutlinedTextField(
+                value = searchText,
+                onValueChange = { newValue ->
+                    searchText = newValue
+                    searchViewModel.searchByName(searchText) // Triggers the search
+                },
+                placeholder = { Text("Search by name...") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // ... (OutlinedTextField code remains the same) ...
-            }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // --- Restaurant List ---
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(mockRestaurants) { restaurant ->
-                    RestaurantListItem(
-                        restaurant = restaurant,
-                        onItemClick = navigateToClientProfile // Uses the navigation function
-                    )
+            // --- Dynamic Content Display (Loading, Error, Results) ---
+            when {
+                isLoading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+                errorMessage != null -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(text = errorMessage ?: "Error loading results", color = Color.Red)
+                    }
+                }
+                searchResults.isEmpty() && searchText.isNotEmpty() -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(text = "No professionals found")
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(searchResults) { professional ->
+                            ProfessionalListItem(
+                                professional = professional,
+                                onItemClick = navigateToProfessionalProfile
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
+@Composable
+fun ProfessionalListItem(
+    professional: ProfessionalDto,
+    onItemClick: (professionalId: String) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            // ⭐ Attach the click handler using the professional's ID
+            .clickable { onItemClick(professional.id) },
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // ⭐ Display the Full Name
+            Text(
+                text = professional.fullName ?: "Unnamed Professional",
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            // ⭐ Display the Email (as a secondary detail)
+            Text(
+                text = professional.email ?: "",
+                color = Color.Gray,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            // You can add more details here (e.g., cuisine, location) if they are in ProfessionalDto
+        }
+    }
+}
+
 // -----------------------------------------------------------------------------
 // DYNAMIC NOTIFICATION DROPDOWN COMPOSABLES
 // -----------------------------------------------------------------------------
@@ -378,10 +447,17 @@ fun TopAppBarPreview() {
 @Preview(showBackground = true)
 @Composable
 fun DynamicSearchOverlayPreview() {
-    // Requires a mock NavController for the preview
+    // Remove the unused mock repository definition:
+    /*
+    val mockRepository = object : ProfessionalRepository {
+        override suspend fun searchByName(name: String) = emptyList<ProfessionalDto>()
+        // Add other functions if needed
+    }
+    */
+
     DynamicSearchOverlay(
         navController = rememberNavController(),
-        // ⭐ FIX: Pass the required 'onDismiss' parameter
-        onDismiss = {}
+        onDismiss = {},
+        // REMOVE THIS LINE: repository = mockRepository
     )
 }

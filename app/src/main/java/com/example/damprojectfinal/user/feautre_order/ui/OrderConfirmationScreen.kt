@@ -16,29 +16,44 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.damprojectfinal.core.dto.order.OrderType
 import com.example.damprojectfinal.ui.theme.*
 
-data class OrderItem(
-    val id: String,
-    val name: String,
-    val quantity: Int,
-    val finalPrice: Float
-)
 
-enum class CommandType { TAKEAWAY, DINE_IN, DELIVERY }
+import com.example.damprojectfinal.core.dto.cart.CartItemResponse
+import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewModel
+import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartUiState
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrderConfirmationScreen(
-    orderItems: List<OrderItem>,
+    cartViewModel: CartViewModel,
+    professionalId: String,
     onBackClick: () -> Unit,
-    onConfirmOrder: (CommandType) -> Unit
+    onOrderSuccess: () -> Unit
 ) {
     // State for command type selection
-    var selectedCommand by remember { mutableStateOf<CommandType?>(null) }
+    var selectedCommand by remember { mutableStateOf<OrderType?>(null) }
+    val context = LocalContext.current
+    
+    // Load cart state from ViewModel
+    val cartState by cartViewModel.uiState.collectAsState()
+    LaunchedEffect(Unit) {
+        cartViewModel.loadCart()
+    }
+    
+    // Get cart items from state
+    val orderItems = when (cartState) {
+        is CartUiState.Success -> (cartState as CartUiState.Success).cart.items
+        else -> emptyList()
+    }
 
     // Calculate Order Total
-    val orderTotal = orderItems.sumOf { (it.quantity * it.finalPrice).toDouble() }.toFloat()
+    val orderTotal = orderItems.sumOf { (it.quantity * it.calculatedPrice) }.toFloat()
 
     Scaffold(
         topBar = {
@@ -55,7 +70,21 @@ fun OrderConfirmationScreen(
         bottomBar = {
             ConfirmationBottomBar(
                 onCancel = onBackClick,
-                onConfirm = { selectedCommand?.let { onConfirmOrder(it) } },
+                onConfirm = {
+                    selectedCommand?.let { type ->
+                        cartViewModel.checkout(
+                            professionalId = professionalId,
+                            orderType = type,
+                            onSuccess = {
+                                Toast.makeText(context, "Order placed successfully!", Toast.LENGTH_SHORT).show()
+                                onOrderSuccess()
+                            },
+                            onError = { error ->
+                                Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                            }
+                        )
+                    }
+                },
                 isConfirmEnabled = selectedCommand != null
             )
         },
@@ -67,16 +96,36 @@ fun OrderConfirmationScreen(
                 .padding(16.dp)
                 .fillMaxWidth()
         ) {
-            // 1. Cart Summary Card
-            CartSummaryCard(orderItems, orderTotal)
+            // Show loading or content
+            when (cartState) {
+                is CartUiState.Loading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+                is CartUiState.Empty -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Cart is empty", color = Color.Gray)
+                    }
+                }
+                is CartUiState.Error -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Error loading cart", color = AppPrimaryRed)
+                    }
+                }
+                is CartUiState.Success -> {
+                    // 1. Cart Summary Card
+                    CartSummaryCard(orderItems, orderTotal)
 
-            Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(24.dp))
 
-            // 2. Command Type Selection
-            CommandTypeSelection(
-                selectedType = selectedCommand,
-                onSelect = { selectedCommand = it }
-            )
+                    // 2. Command Type Selection
+                    CommandTypeSelection(
+                        selectedType = selectedCommand,
+                        onSelect = { selectedCommand = it }
+                    )
+                }
+            }
         }
     }
 }
@@ -84,7 +133,7 @@ fun OrderConfirmationScreen(
 // --- Order Confirmation Helpers ---
 
 @Composable
-fun CartSummaryCard(items: List<OrderItem>, total: Float) {
+fun CartSummaryCard(items: List<CartItemResponse>, total: Float) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -117,14 +166,14 @@ fun CartSummaryCard(items: List<OrderItem>, total: Float) {
 
 @Composable
 fun CommandTypeSelection(
-    selectedType: CommandType?,
-    onSelect: (CommandType) -> Unit
+    selectedType: OrderType?,
+    onSelect: (OrderType) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         listOf(
-            CommandType.TAKEAWAY to "À Emporter",
-            CommandType.DINE_IN to "Sur place",
-            CommandType.DELIVERY to "À livrer"
+            OrderType.TAKEAWAY to "À Emporter",
+            OrderType.EAT_IN to "Sur place",
+            OrderType.DELIVERY to "À livrer"
         ).forEach { (type, label) ->
             CommandTypeOption(
                 label = label,
@@ -198,6 +247,7 @@ fun ConfirmationBottomBar(
     }
 }
 
+/*
 @Preview(showBackground = true)
 @Composable
 fun OrderConfirmationPreview() {
@@ -211,3 +261,4 @@ fun OrderConfirmationPreview() {
         onConfirmOrder = {}
     )
 }
+*/

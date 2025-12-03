@@ -21,6 +21,9 @@ import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.repository.MenuItemRepository
 import com.example.damprojectfinal.core.repository.UserRepository
 import com.example.damprojectfinal.core.retro.RetrofitClient
+import com.example.damprojectfinal.core.repository.OrderRepository
+import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
+import com.example.damprojectfinal.user.feautre_order.ui.OrderHistoryScreen
 import com.example.damprojectfinal.core.utils.LogoutViewModelFactory
 import com.example.damprojectfinal.feature_auth.ui.*
 import com.example.damprojectfinal.feature_auth.viewmodels.LogoutViewModel
@@ -30,17 +33,20 @@ import com.example.damprojectfinal.professional.feature_menu.ui.components.Creat
 import com.example.damprojectfinal.professional.feature_menu.ui.components.ItemDetailsScreen
 import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewModel
 import com.example.damprojectfinal.user.common.HomeScreen
-import com.example.damprojectfinal.user.feature_profile.ui.UpdateProfileScreen
 import com.example.damprojectfinal.user.feature_profile.ui.UserProfileScreen
 import com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel
 import com.google.gson.Gson
-import androidx.compose.runtime.mutableStateListOf
+import com.example.damprojectfinal.core.`object`.KtorClient
 import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileScreen
 import com.example.damprojectfinal.professional.feature_profile.ui.mockChilis
+import com.example.damprojectfinal.user.feature_cart_item.ui.ShoppingCartScreen
 import com.example.damprojectfinal.user.feature_menu.ui.RestaurantMenuScreen
 import com.example.damprojectfinal.user.feature_pro_profile.ui.ClientRestaurantProfileScreen
 import com.example.damprojectfinal.user.feautre_order.ui.OrderConfirmationScreen
-import com.example.damprojectfinal.user.feautre_order.ui.OrderItem
+import com.example.damprojectfinal.core.repository.CartRepository
+import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewModel
+import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewModelFactory
+
 object AuthRoutes {
     const val SPLASH = "splash_route"
     const val LOGIN = "login_route"
@@ -59,11 +65,15 @@ object UserRoutes {
 
 object ProRoutes {
     const val MENU_MANAGEMENT = "menu_management/{professionalId}"
+
+    const val CART_ROUTE = "shopping_cart_route"
+
+    const val ORDERS_ROUTE = "orders_history_route"
 }
 
 object ProfileRoutes {
-    const val PROFESSIONAL_PROFILE_EDIT = "pro_profile_edit/{restaurantId}"
-    const val CLIENT_PROFILE_VIEW = "client_profile_view/{restaurantId}"
+    const val PROFESSIONAL_PROFILE_EDIT = "pro_profile_edit/{professionalId}"
+    const val CLIENT_PROFILE_VIEW = "client_profile_view/{professionalId}"
 }
 
 @Composable
@@ -76,9 +86,15 @@ fun AppNavigation(modifier: Modifier = Modifier) {
     // Initialize User API Service and Repository for ProfileViewModel
     val userApiService = remember { UserApiService() }
     val userRepository = remember { UserRepository(userApiService) }
-    val cartItems = remember { mutableStateListOf<OrderItem>() }
+    
+    // Order Repository
+    val orderApiService = remember { RetrofitClient.orderApi }
+    val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
+    
     // Debugger runs at the highest level
     DebugUserLogger(tokenManager = tokenManager)
+
+    val ServiceLocator = KtorClient
 
     NavHost(
         navController = navController,
@@ -158,16 +174,55 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 ?: throw IllegalStateException("userId is required for profile view.")
 
             // --- Setup ViewModel ---
+            val context = LocalContext.current
+
+            // Fix 1: Ensure Factory uses the correct constructor (referencing the logic from your newer block)
             val profileViewModel: ProfileViewModel = viewModel(
-                factory = ProfileViewModel.Factory(userRepository)
+                factory = ProfileViewModel.Factory(userRepository, context)
             )
 
-            val token = "YOUR_ACCESS_TOKEN"
+            // Fix 2: Remove arguments from fetchUserProfile.
+            // The ViewModel now handles token/userId internally via TokenManager.
+            LaunchedEffect(userId) {
+                profileViewModel.fetchUserProfile()
+            }
 
-            // Fetch the user profile when the screen is composed
-            LaunchedEffect(userId, token) {
-                if (token.isNotBlank()) {
-                    profileViewModel.fetchUserProfile(userId, token)
+            // --- Composable Call ---
+            UserProfileScreen(
+                viewModel = profileViewModel,
+                onBackClick = { navController.popBackStack() },
+                onEditProfileClick = {
+                    navController.navigate("profile_update/$userId")
+                }
+            )
+        }
+
+        // ----------------------------------------------------
+        // ⭐ PROFILE UPDATE SCREEN (USER) ⭐
+        // ----------------------------------------------------
+        composable(
+            route = UserRoutes.PROFILE_VIEW,
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) { backStackEntry ->
+
+            // 1. GET CONTEXT: Required for the ViewModel Factory (and TokenManager inside the VM)
+            val context = LocalContext.current
+
+            val userId = backStackEntry.arguments?.getString("userId")
+                ?: throw IllegalStateException("userId is required for profile view.")
+
+            // 2. VIEWMODEL INITIALIZATION: Pass both the repository and the context
+            val profileViewModel: ProfileViewModel = viewModel(
+                factory = ProfileViewModel.Companion.Factory(userRepository, context)
+            )
+
+            // The ViewModel handles token retrieval internally now.
+
+            // 3. DATA FETCHING: Call the parameter-less fetchUserProfile()
+            LaunchedEffect(userId) {
+                // The ViewModel will use the context to get the stored User ID and Token
+                if (profileViewModel.userState.value == null) {
+                    profileViewModel.fetchUserProfile()
                 }
             }
 
@@ -175,46 +230,12 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             UserProfileScreen(
                 viewModel = profileViewModel,
 
-                // ⭐ FIX: Implement the onBackClick action to return to the previous screen
+                // Implement the onBackClick action to return to the previous screen
                 onBackClick = { navController.popBackStack() },
 
                 onEditProfileClick = {
                     navController.navigate("profile_update/$userId")
                 }
-            )
-        }
-        // ----------------------------------------------------
-        // ⭐ PROFILE UPDATE SCREEN (USER) ⭐
-        // ----------------------------------------------------
-
-        composable(
-            route = UserRoutes.PROFILE_UPDATE,
-            arguments = listOf(navArgument("userId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId")
-                ?: throw IllegalStateException("userId is required for profile update.")
-
-            val profileViewModel: ProfileViewModel = viewModel(
-                factory = ProfileViewModel.Factory(userRepository)
-            )
-
-            // You MUST provide the access token here (e.g., from a token manager/session)
-            val token = "YOUR_ACCESS_TOKEN" // Replace with actual token retrieval logic
-
-            // ⭐ CRITICAL FIX: Fetch data when the screen is accessed ⭐
-            LaunchedEffect(userId, token) {
-                // Only fetch if the ViewModel doesn't already have the data
-                if (token.isNotBlank() && profileViewModel.userState.value == null) {
-                    profileViewModel.fetchUserProfile(userId, token)
-                }
-            }
-
-            // ... rest of the navigation logic (LaunchedEffect for updateSuccess) ...
-
-            UpdateProfileScreen(
-                viewModel = profileViewModel,
-                onBackClick = { navController.popBackStack() },
-                onUpdateSuccess = { /* ... */ }
             )
         }
         // ----------------------------------------------------
@@ -370,30 +391,41 @@ fun AppNavigation(modifier: Modifier = Modifier) {
         }
 
 
+
         composable(
-            route = "menu_order_route/{restaurantId}",
-            arguments = listOf(navArgument("restaurantId") { type = NavType.StringType })
+            route = "menu_order_route/{professionalId}",
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val restaurantId = backStackEntry.arguments?.getString("restaurantId") ?: ""
+            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: ""
+            val context = LocalContext.current
+
+            val tokenManager = remember { TokenManager(context) }
+            val userId = remember { tokenManager.getUserIdBlocking() ?: "" }
+
+            val cartApiService = remember { RetrofitClient.cartApi }
+            val cartRepository = remember { CartRepository(cartApiService, tokenManager) }
+            val orderApiService = remember { RetrofitClient.orderApi }
+            val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
+
+            val cartViewModel: CartViewModel = viewModel(
+                factory = CartViewModelFactory(cartRepository, orderRepository, userId)
+            )
 
             RestaurantMenuScreen(
-                restaurantId = restaurantId,
+                restaurantId = professionalId,
                 onBackClick = { navController.popBackStack() },
-
-                // ⭐ FIX 1: Pass the missing parameter 'onViewCartClick' and define navigation.
-                onViewCartClick = {
-                    // Navigate to the cart screen
-                    navController.navigate("order_confirmation_route")
+                onViewCartClick = { navController.navigate("shopping_cart_route/$professionalId") },
+                onConfirmOrderClick = {
+                    navController.navigate("order_confirmation_route/$professionalId")
                 },
-
-                // FIX 2: Implement the logic to update the shared cart state.
-                onAddToCartClick = { item, finalPrice, quantity ->
-                    // Use the item details to create an OrderItem and add it to the list
-                    cartItems.add(OrderItem(item.id, item.name, quantity, finalPrice))
-                    println("Item added: ${item.name}, Price: $finalPrice DT, Qty: $quantity")
-                }
+                cartViewModel = cartViewModel,
+                userId = userId
             )
         }
+
+
+
+
 
 
         // ----------------------------------------------------
@@ -421,37 +453,110 @@ fun AppNavigation(modifier: Modifier = Modifier) {
         }
 
         composable(
-            route = ProfileRoutes.CLIENT_PROFILE_VIEW, // e.g., "client_profile_view/{restaurantId}"
-            arguments = listOf(navArgument("restaurantId") { type = NavType.StringType })
+            route = ProfileRoutes.CLIENT_PROFILE_VIEW, // "client_profile_view/{professionalId}"
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val restaurantId = backStackEntry.arguments?.getString("restaurantId")
-                ?: throw IllegalStateException("Restaurant ID is required for client profile view.")
+            val professionalId = backStackEntry.arguments?.getString("professionalId")
+                ?: throw IllegalStateException("Professional ID is required for client profile view.")
 
-            // TODO: Fetch the restaurant details for viewing
+            // TODO: Fetch the professional details for viewing
             val restaurantDetails = mockChilis
 
             ClientRestaurantProfileScreen(
+                professionalId = professionalId,
                 restaurantDetails = restaurantDetails,
                 onBackClick = { navController.popBackStack() },
-                onViewMenuClick = {
+                onViewMenuClick = { id ->
                     // Navigate to the existing menu/order screen
-                    navController.navigate("menu_order_route/$restaurantId")
+                    navController.navigate("menu_order_route/$id")
                 }
             )
         }
 
-// 🧭 NEW ROUTE: The Cart/Order Confirmation Screen
-        composable("order_confirmation_route") {
-            // Pass the current list of items to the confirmation screen
+
+        // 🧭 NEW ROUTE: The Cart/Order Confirmation Screen
+        composable(
+            route = "order_confirmation_route/{professionalId}",
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: ""
+            val context = LocalContext.current
+            val tokenManager = remember { TokenManager(context) }
+            val userId = remember { tokenManager.getUserIdBlocking() ?: "" }
+
+            // Repositories
+            val cartApiService = remember { RetrofitClient.cartApi }
+            val cartRepository = remember { CartRepository(cartApiService, tokenManager) }
+            val orderApiService = remember { RetrofitClient.orderApi }
+            val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
+
+            // CartViewModel (for checkout)
+            val cartVMFactory = remember { CartViewModelFactory(cartRepository, orderRepository, userId) }
+            val cartViewModel: CartViewModel = viewModel(factory = cartVMFactory)
+
             OrderConfirmationScreen(
-                orderItems = cartItems.toList(),
+                cartViewModel = cartViewModel,
+                professionalId = professionalId,
                 onBackClick = { navController.popBackStack() },
-                onConfirmOrder = { commandType ->
-                    // TODO: Implement order submission, clearing the cart, and final navigation (e.g., to a success screen).
-                    println("Order Confirmed! Type: $commandType. Cart cleared.")
-                    cartItems.clear()
-                    navController.navigate("order_success_route")
+                onOrderSuccess = {
+                    navController.navigate(ProRoutes.ORDERS_ROUTE) {
+                        popUpTo("menu_order_route/$professionalId") { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
+            )
+        }
+
+        // 🧭 NEW ROUTE: Order History
+        composable(ProRoutes.ORDERS_ROUTE) {
+            val context = LocalContext.current
+            val tokenManager = remember { TokenManager(context) }
+            val userId = remember { tokenManager.getUserIdBlocking() ?: "" }
+
+            val orderApiService = remember { RetrofitClient.orderApi }
+            val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
+            
+            val orderViewModel: OrderViewModel = viewModel(
+                factory = OrderViewModel.Factory(orderRepository)
+            )
+
+            OrderHistoryScreen(
+                navController = navController,
+                orderViewModel = orderViewModel,
+                userId = userId,
+                onOrderClick = { orderId ->
+                    // Navigate to order details if needed
+                    // navController.navigate("order_details/$orderId")
+                }
+            )
+        }
+
+
+
+        composable(
+            route = "shopping_cart_route/{professionalId}",
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: ""
+            val context = LocalContext.current
+            val tokenManager = remember { TokenManager(context) }
+            val userId = remember { tokenManager.getUserIdBlocking() ?: "" }
+
+            val cartApiService = remember { RetrofitClient.cartApi }
+
+            // Repositories
+            val cartRepository = remember { CartRepository(cartApiService, tokenManager) }
+            val orderApiService = remember { RetrofitClient.orderApi }
+            val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
+
+            // ViewModel with userId and orderRepository
+            val cartVMFactory = remember { CartViewModelFactory(cartRepository, orderRepository, userId) }
+            val cartVM: CartViewModel = viewModel(factory = cartVMFactory)
+
+            ShoppingCartScreen(
+                navController = navController,
+                cartVM = cartVM,
+                professionalId = professionalId
             )
         }
     }

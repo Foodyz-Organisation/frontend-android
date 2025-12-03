@@ -16,13 +16,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.user.UpdateUserRequest
 import com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel
 
@@ -30,21 +31,21 @@ import com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewMod
 @Composable
 fun UpdateProfileScreen(
     viewModel: ProfileViewModel,
-    onBackClick: () -> Unit,
-    onUpdateSuccess: () -> Unit
+    onBackClick: () -> Unit
 ) {
-    // 1. Collect state from ViewModel
+    val context = LocalContext.current
+
+    // --- 1. Collect ViewModel state ---
     val userResponse by viewModel.userState.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val initialProfile = userResponse
 
-    // 2. Local UI state for input fields (Editable State)
+    // --- 2. Local UI state ---
     var username by remember { mutableStateOf(initialProfile?.username ?: "") }
     var phone by remember { mutableStateOf(initialProfile?.phone ?: "") }
     var address by remember { mutableStateOf(initialProfile?.address ?: "") }
 
-    // ⭐ PASSWORD FIELDS AND VALIDATION STATE ⭐
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf<String?>(null) }
@@ -52,17 +53,17 @@ fun UpdateProfileScreen(
     var isActive by remember { mutableStateOf(initialProfile?.isActive ?: true) }
     var showPassword by remember { mutableStateOf(false) }
 
-    // 3. Sync local state with ViewModel state upon initial load
+    // --- 3. Sync initial state ---
     LaunchedEffect(initialProfile) {
-        if (initialProfile != null) {
-            username = initialProfile.username
-            phone = initialProfile.phone ?: ""
-            address = initialProfile.address ?: ""
-            isActive = initialProfile.isActive
+        initialProfile?.let {
+            username = it.username
+            phone = it.phone ?: ""
+            address = it.address ?: ""
+            isActive = it.isActive
         }
     }
 
-    // --- UI Styling ---
+    // --- 4. TextField styling ---
     val primaryLightYellow = Color(0xFFFFD60A)
     val secondaryDarkText = Color(0xFF374151)
     val placeholderText = Color(0xFFAAAAAA)
@@ -75,55 +76,57 @@ fun UpdateProfileScreen(
         cursorColor = primaryLightYellow,
         focusedLabelColor = secondaryDarkText,
         unfocusedLabelColor = secondaryDarkText,
-        unfocusedTextColor = secondaryDarkText,
         focusedTextColor = secondaryDarkText,
-        unfocusedPlaceholderColor = placeholderText,
-        focusedPlaceholderColor = placeholderText
+        unfocusedTextColor = secondaryDarkText,
+        focusedPlaceholderColor = placeholderText,
+        unfocusedPlaceholderColor = placeholderText
     )
 
-    // 4. Action Function
-// In UpdateProfileScreen.kt
+    // --- 5. Save changes handler ---
+    val onSaveChanges: () -> Unit = save@{
+        passwordError = null
 
-// 4. Action Function
-    val onSaveChanges: () -> Unit = {
-        // Wrap the core logic in a 'run' block that returns Unit (the default type)
-        run {
-            // Reset local password error
-            passwordError = null
+        // Password validation
+        val newPasswordEntered = password.isNotBlank()
+        if (newPasswordEntered && password != confirmPassword) {
+            passwordError = "Passwords do not match."
+            return@save // ✅ returns only from this lambda
+        }
 
-            // --- Password Validation ---
-            val newPasswordEntered = password.isNotBlank()
-            if (newPasswordEntered && password != confirmPassword) {
-                passwordError = "Passwords do not match."
-                return@run // ⭐ FIX: This returns only from the 'run' block, not the outer function/composable.
-            }
+        val updateRequest = UpdateUserRequest(
+            username = username.takeIf { it != initialProfile?.username },
+            phone = phone.takeIf { it != initialProfile?.phone },
+            address = address.takeIf { it != initialProfile?.address },
+            password = password.takeIf { newPasswordEntered },
+            isActive = isActive.takeIf { it != initialProfile?.isActive }
+        )
 
-            // --- Construct Request ---
-            val updateRequest = UpdateUserRequest(
-                username = if (username != initialProfile?.username) username else null,
-                phone = if (phone != (initialProfile?.phone ?: "")) phone else null,
-                address = if (address != (initialProfile?.address ?: "")) address else null,
-                password = if (newPasswordEntered) password else null,
-                isActive = if (isActive != initialProfile?.isActive) isActive else null
-            )
+        // Only proceed if at least one field is changed
+        if (listOf(
+                updateRequest.username,
+                updateRequest.phone,
+                updateRequest.address,
+                updateRequest.password,
+                updateRequest.isActive
+            ).any { it != null }) {
 
-            // Only proceed if there is data to update
-            val token = "YOUR_ACCESS_TOKEN" // Replace with actual token retrieval
+            // Get token safely
+            val token = TokenManager(context).getAccessTokenBlocking()
+            if (!token.isNullOrBlank()) {
+                // Call ViewModel update
+                viewModel.updateProfile(updateRequest, token)
 
-            if (listOf(updateRequest.username, updateRequest.phone, updateRequest.address, updateRequest.password, updateRequest.isActive).any { it != null }) {
-                if (token.isNotBlank()) {
-                    viewModel.updateProfile(updateRequest, token)
-                    // Clear password fields immediately after sending the request
-                    password = ""
-                    confirmPassword = ""
-                }
+                // Clear passwords
+                password = ""
+                confirmPassword = ""
             } else {
-                // Optionally show a snackbar: "No changes detected."
+                // Show error if token not available
+                passwordError = "Failed to get authentication token."
             }
-        } // End of run block
+        }
     }
-    // --- End of Action Function ---
 
+    // --- 6. Scaffold / UI ---
     Scaffold(
         topBar = {
             TopAppBar(
@@ -161,95 +164,36 @@ fun UpdateProfileScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(32.dp))
-
             Text(
-                text = "Update Account Details",
+                "Update Account Details",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = secondaryDarkText,
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Display ViewModel error or Password mismatch error
-            if (errorMessage != null || passwordError != null) {
-                val displayError = errorMessage ?: passwordError
-                Text("Error: ${displayError!!}", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
+            Spacer(Modifier.height(8.dp))
+            (errorMessage ?: passwordError)?.let { error ->
+                Text(
+                    "Error: $error",
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // --- 1. Username Field ---
-            CustomOutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = "Username",
-                placeholder = "Enter your new username",
-                icon = Icons.Filled.Person,
-                colors = textFieldColors,
-                enabled = !isLoading
-            )
-
+            CustomOutlinedTextField(username, { username = it }, "Username", "Enter your new username", Icons.Filled.Person, colors = textFieldColors, enabled = !isLoading)
             Spacer(Modifier.height(16.dp))
-
-            // --- 2. Phone Field ---
-            CustomOutlinedTextField(
-                value = phone,
-                onValueChange = { phone = it },
-                label = "Phone Number",
-                placeholder = "e.g., +1 123-456-7890",
-                icon = Icons.Filled.Phone,
-                keyboardType = KeyboardType.Phone,
-                colors = textFieldColors,
-                enabled = !isLoading
-            )
-
+            CustomOutlinedTextField(phone, { phone = it }, "Phone Number", "e.g., +1 123-456-7890", Icons.Filled.Phone, keyboardType = KeyboardType.Phone, colors = textFieldColors, enabled = !isLoading)
             Spacer(Modifier.height(16.dp))
-
-            // --- 3. Address Field ---
-            CustomOutlinedTextField(
-                value = address,
-                onValueChange = { address = it },
-                label = "Address",
-                placeholder = "Full address including city/zip",
-                icon = Icons.Filled.LocationOn,
-                singleLine = false,
-                colors = textFieldColors,
-                enabled = !isLoading
-            )
-
+            CustomOutlinedTextField(address, { address = it }, "Address", "Full address including city/zip", Icons.Filled.LocationOn, singleLine = false, colors = textFieldColors, enabled = !isLoading)
             Spacer(Modifier.height(24.dp))
-
-            // --- 4. New Password Field ---
-            CustomPasswordTextField(
-                value = password,
-                onValueChange = { password = it; passwordError = null }, // Clear local error on change
-                onToggleVisibility = { showPassword = !showPassword },
-                label = "New Password (Leave blank to keep current)",
-                placeholder = "New secure password",
-                showPassword = showPassword,
-                colors = textFieldColors,
-                enabled = !isLoading,
-                isError = passwordError != null // Highlight if error is set
-            )
-
+            CustomPasswordTextField(password, { password = it; passwordError = null }, { showPassword = !showPassword }, "New Password (Leave blank to keep current)", "New secure password", showPassword, colors = textFieldColors, enabled = !isLoading, isError = passwordError != null)
             Spacer(Modifier.height(16.dp))
-
-            // ⭐ 5. Confirm Password Field ⭐
-            CustomPasswordTextField(
-                value = confirmPassword,
-                onValueChange = { confirmPassword = it; passwordError = null }, // Clear local error on change
-                onToggleVisibility = { showPassword = !showPassword },
-                label = "Confirm New Password",
-                placeholder = "Re-enter new password",
-                showPassword = showPassword,
-                colors = textFieldColors,
-                enabled = !isLoading,
-                isError = passwordError != null // Highlight if error is set
-            )
-
+            CustomPasswordTextField(confirmPassword, { confirmPassword = it; passwordError = null }, { showPassword = !showPassword }, "Confirm New Password", "Re-enter new password", showPassword, colors = textFieldColors, enabled = !isLoading, isError = passwordError != null)
             Spacer(Modifier.height(32.dp))
 
-            // --- 6. isActive Toggle ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -260,33 +204,23 @@ fun UpdateProfileScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = "Active Status", tint = primaryLightYellow)
+                    Icon(Icons.Filled.CheckCircle, null, tint = primaryLightYellow)
                     Spacer(Modifier.width(16.dp))
-                    Text(
-                        text = "Account Active Status",
-                        fontWeight = FontWeight.SemiBold,
-                        color = secondaryDarkText
-                    )
+                    Text("Account Active Status", fontWeight = FontWeight.SemiBold, color = secondaryDarkText)
                 }
                 Switch(
                     checked = isActive,
                     onCheckedChange = { isActive = it },
-                    colors = SwitchDefaults.colors(
-                        checkedTrackColor = primaryLightYellow,
-                        checkedThumbColor = Color.White
-                    ),
+                    colors = SwitchDefaults.colors(checkedTrackColor = primaryLightYellow, checkedThumbColor = Color.White),
                     enabled = !isLoading
                 )
             }
 
             Spacer(Modifier.height(40.dp))
 
-            // 🟨 SAVE BUTTON
             Button(
                 onClick = onSaveChanges,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                 contentPadding = PaddingValues(0.dp),
@@ -296,11 +230,7 @@ fun UpdateProfileScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(18.dp))
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(Color(0xFFFFD60A), Color(0xFFF59E0B))
-                            )
-                        ),
+                        .background(Brush.horizontalGradient(listOf(Color(0xFFFFD60A), Color(0xFFF59E0B)))),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("Save Changes", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
