@@ -24,7 +24,7 @@ import androidx.navigation.NavController
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
-import com.example.damprojectfinal.ProRoutes.ORDERS_ROUTE
+import com.example.damprojectfinal.UserRoutes
 import com.example.damprojectfinal.core.api.ProfessionalApiService
 import com.example.damprojectfinal.core.dto.auth.ProfessionalDto
 import com.example.damprojectfinal.core.`object`.KtorClient
@@ -32,8 +32,35 @@ import com.example.damprojectfinal.core.repository.ProfessionalRepository
 import com.example.damprojectfinal.user.common.viewmodel.SearchViewModel
 import io.ktor.client.HttpClient
 
+// --- Design Colors/Constants ---
+private val PrimaryDark = Color(0xFF1F2A37) // Dark Gray for text/icons
+private val AccentBlue = Color(0xFF1D4ED8)  // Dark Blue accent
+private val AccentLightBlue = Color(0xFFE5F0FF) // Light Blue background for selected
+private val GrayInactive = Color(0xFF64748B) // Gray for inactive elements
+private val LightBackground = Color.White    // General background
+
+// --- Helper Composable for Notification Dot ---
+@Composable
+fun NotificationIconWithDot(onClick: () -> Unit, hasNew: Boolean) {
+    Box(contentAlignment = Alignment.Center) {
+        IconButton(onClick = onClick) {
+            Icon(Icons.Filled.Notifications, contentDescription = "Notifications", tint = PrimaryDark)
+        }
+        if (hasNew) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFFC107)) // Yellow Dot
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-8).dp, y = 4.dp)
+            )
+        }
+    }
+}
+
 // -----------------------------------------------------------------------------
-// MAIN TOP APP BAR COMPOSABLE
+// MAIN TOP APP BAR COMPOSABLE (DESIGN IMPROVED)
 // -----------------------------------------------------------------------------
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,11 +76,12 @@ fun TopAppBar(
 ) {
     var showAddOptions by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
+    val hasNewNotifications = true // Assume true for visual display
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFFF9FAFB))
+            .background(LightBackground) // Use clean white background
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -61,20 +89,20 @@ fun TopAppBar(
                 .fillMaxWidth()
                 .padding(top = 48.dp, bottom = 12.dp, start = 16.dp, end = 16.dp)
         ) {
-            // Profile Avatar Button
+            // Profile Avatar Button (Simplified Styling and size)
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(40.dp) // Smaller size
                     .clip(CircleShape)
-                    .background(Color(0xFFEFF4FB))
+                    .background(Color(0xFFE5E7EB)) // Simple gray background
                     .clickable { onProfileClick(currentUserId) },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = "Profile Placeholder",
-                    tint = Color(0xFF334155),
-                    modifier = Modifier.size(24.dp)
+                    tint = PrimaryDark,
+                    modifier = Modifier.size(20.dp) // Smaller icon
                 )
             }
 
@@ -82,35 +110,32 @@ fun TopAppBar(
             Text(
                 text = "Foodies",
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 26.sp,
-                color = Color(0xFF1F2A37),
+                fontSize = 28.sp, // Larger title
+                color = PrimaryDark,
                 modifier = Modifier
                     .padding(start = 12.dp)
                     .weight(1f)
             )
 
-            // Search Button
-            IconButton(onClick = onSearchClick) {
-                Icon(Icons.Filled.Search, contentDescription = "Search", tint = Color(0xFF334155))
+            // Added 'Add' button for better adherence to modern layout/screenshot style
+            IconButton(onClick = { showAddOptions = true }) {
+                Icon(Icons.Filled.Add, contentDescription = "Add Content", tint = PrimaryDark)
             }
 
-            // Notifications Icon
-            NotificationIconWithDropdown(
-                showNotifications = showNotifications,
-                onToggle = { showNotifications = it },
-                navController = navController
+            // Search Button
+            IconButton(onClick = onSearchClick) {
+                Icon(Icons.Filled.Search, contentDescription = "Search", tint = PrimaryDark)
+            }
+
+            // Notifications Icon (Using new helper for dot)
+            NotificationIconWithDot(
+                onClick = { showNotifications = !showNotifications },
+                hasNew = hasNewNotifications
             )
 
-            // Drawer Button
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFEFF4FB))
-                    .clickable { openDrawer() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Filled.Menu, contentDescription = "Drawer", tint = Color(0xFF334155))
+            // Drawer Button (Simplified Styling)
+            IconButton(onClick = openDrawer) {
+                Icon(Icons.Filled.Menu, contentDescription = "Drawer", tint = PrimaryDark)
             }
         }
 
@@ -122,10 +147,20 @@ fun TopAppBar(
             // ... (Add Options code remains unchanged)
         }
     }
+
+    // Notification Dropdown logic remains here for compatibility
+    if (showNotifications) {
+        // Your original logic for DropdownMenu
+        NotificationIconWithDropdown(
+            showNotifications = showNotifications,
+            onToggle = { showNotifications = it },
+            navController = navController
+        )
+    }
 }
 
 // -----------------------------------------------------------------------------
-// SECONDARY NAVBAR COMPOSABLES
+// SECONDARY NAVBAR COMPOSABLES (DESIGN IMPROVED)
 // -----------------------------------------------------------------------------
 
 @Composable
@@ -133,48 +168,66 @@ fun SecondaryNavBar(navController: NavController, currentRoute: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 8.dp, horizontal = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        NavIcon(Icons.Filled.Home, currentRoute == "home") { navController.navigate("home") }
+        NavIcon(Icons.Filled.Home, currentRoute == UserRoutes.HOME_SCREEN) {
+            navController.navigate(UserRoutes.HOME_SCREEN) {
+                popUpTo(UserRoutes.HOME_SCREEN) { inclusive = true } // optional: clear back stack
+                launchSingleTop = true
+            }
+        }
         NavIcon(Icons.Filled.TrendingUp, currentRoute == "trends") { navController.navigate("trends") }
         NavIcon(Icons.Filled.PlayArrow, currentRoute == "reels") { navController.navigate("reels") }
         NavIcon(Icons.Filled.Chat, currentRoute == "chat") { navController.navigate("chat") }
-        NavIcon(Icons.Filled.AttachMoney, currentRoute == ORDERS_ROUTE) {
-            navController.navigate(ORDERS_ROUTE)
+        NavIcon(
+            Icons.Filled.AttachMoney,
+            currentRoute == UserRoutes.ORDERS_ROUTE // highlight if current route is orders_history_route
+        ) {
+            navController.navigate(UserRoutes.ORDERS_ROUTE) {
+                launchSingleTop = true
+                restoreState = true
+            }
         }
+
     }
 }
 
+
+
+// From the previously provided improved design code:
 @Composable
 fun NavIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boolean, onClick: () -> Unit) {
-    val backgroundColor = if (selected) Color(0xFFF0F0F0) else Color.Transparent
-    val iconColor = if (selected) Color(0xFF334155) else Color(0xFF64748B)
-    IconButton(
-        onClick = onClick,
+    // New, modern color scheme for selection
+    val backgroundColor = if (selected) Color(0xFFFFF9C4) else Color.Transparent // light yellow background
+    val iconColor = if (selected) Color(0xFFFFD700) else Color.Gray // golden yellow icon when selected
+
+    // Using Box to ensure the background color covers a larger, clickable area
+    Box(
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(backgroundColor)
+            .background(backgroundColor) // <-- This applies the light blue background
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
+        Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp)) // <-- This applies the dark blue icon tint
     }
 }
 
 // -----------------------------------------------------------------------------
-// SEARCH SCREEN COMPONENTS
+// SEARCH SCREEN COMPONENTS (DESIGN IMPROVED)
 // -----------------------------------------------------------------------------
 
-// --- Data Model and Mock Data ---
+// --- Data Model and Mock Data (Unchanged) ---
 data class Restaurant(
     val id: String,
     val name: String,
     val cuisine: String,
-    // ⭐ UPDATED TYPE: Change Int to ImageVector to match the Icons.Default.Restaurant usage.
     val imageUrl: ImageVector
 )
 
 private val mockRestaurants = listOf(
-    // These now correctly match the ImageVector type:
     Restaurant("1", "Chili's", "American Grill", Icons.Default.Restaurant),
     Restaurant("2", "Zink", "Modern Fusion", Icons.Default.Restaurant),
     Restaurant("3", "The Corner", "Cafe & Bistro", Icons.Default.Restaurant),
@@ -189,25 +242,29 @@ fun RestaurantListItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
+            .clip(RoundedCornerShape(12.dp)) // Slightly less rounded corners
+            .background(LightBackground)
             .clickable { onItemClick(restaurant.id) }
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp), // Adjusted padding
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // ⭐ UPDATED: Replaced Image with Icon to use the ImageVector property
-            Icon(
-                imageVector = restaurant.imageUrl, // This is the ImageVector (e.g., Icons.Default.Restaurant)
-                contentDescription = restaurant.name,
-                // Set size and clipping on the Icon itself
+            // Icon/Image Area (Modernized look)
+            Box(
                 modifier = Modifier
                     .size(56.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFE0E0E0)), // Optional: Add a light background for visibility
-                tint = Color(0xFF334155) // Optional: Set a color for the icon
-            )
+                    .clip(RoundedCornerShape(12.dp)) // Increased corner radius for a softer look
+                    .background(Color(0xFFF3F4F6)), // Very light gray background
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = restaurant.imageUrl,
+                    contentDescription = restaurant.name,
+                    modifier = Modifier.size(32.dp),
+                    tint = PrimaryDark
+                )
+            }
 
             Spacer(modifier = Modifier.width(16.dp))
 
@@ -215,32 +272,31 @@ fun RestaurantListItem(
             Column {
                 Text(
                     text = restaurant.name,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = Color(0xFF1F2937)
+                    fontWeight = FontWeight.SemiBold, // Slightly lighter font weight
+                    fontSize = 18.sp, // Slightly larger font
+                    color = PrimaryDark
                 )
                 Text(
                     text = restaurant.cuisine,
                     fontSize = 14.sp,
-                    color = Color(0xFF6B7280)
+                    color = GrayInactive
                 )
             }
         }
 
-        // Right side: Radio Button/Selector (Circle placeholder from screenshot)
+        // Right side: Radio Button/Selector (Circle placeholder - Simplified design)
         Box(
             modifier = Modifier
                 .size(24.dp)
-                .border(2.dp, Color(0xFFD1D5DB), CircleShape)
+                .border(2.dp, Color(0xFFD1D5DB), CircleShape) // Kept the border/circle structure
                 .clip(CircleShape)
         )
     }
 }
 
 // -----------------------------------------------------------------------------
-// DYNAMIC SEARCH OVERLAY COMPOSABLES (TRANSFORMED TO SEARCH RESTAURANTS SCREEN)
+// DYNAMIC SEARCH OVERLAY COMPOSABLES (DESIGN IMPROVED)
 // -----------------------------------------------------------------------------
-// In file: com.example.damprojectfinal.user.common._component/DynamicSearchOverlay.kt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DynamicSearchOverlay(
@@ -284,7 +340,7 @@ fun DynamicSearchOverlay(
                         Icon(Icons.Filled.FilterList, contentDescription = "Filter")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = LightBackground)
             )
         },
         modifier = Modifier.fillMaxSize().background(Color(0xFFF7F7F7))
@@ -294,7 +350,6 @@ fun DynamicSearchOverlay(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // --- Search Input ---
             OutlinedTextField(
                 value = searchText,
                 onValueChange = { newValue ->
@@ -302,10 +357,18 @@ fun DynamicSearchOverlay(
                     searchViewModel.searchByName(searchText) // Triggers the search
                 },
                 placeholder = { Text("Search by name...") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = GrayInactive) },
+                shape = RoundedCornerShape(12.dp), // Rounded corners
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFFFACC15),   // Light yellow when focused
+                    unfocusedBorderColor = Color(0xFFFDE68A), // Very pale yellow when unfocused
+                    cursorColor = Color(0xFFFACC15)           // Cursor matches focused border
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             )
+
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -313,7 +376,7 @@ fun DynamicSearchOverlay(
             when {
                 isLoading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = AccentBlue) // Colored spinner
                     }
                 }
                 errorMessage != null -> {
@@ -323,7 +386,7 @@ fun DynamicSearchOverlay(
                 }
                 searchResults.isEmpty() && searchText.isNotEmpty() -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "No professionals found")
+                        Text(text = "No professionals found", color = GrayInactive)
                     }
                 }
                 else -> {
@@ -351,79 +414,106 @@ fun ProfessionalListItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            // ⭐ Attach the click handler using the professional's ID
             .clickable { onItemClick(professional.id) },
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp), // Increased elevation
+        shape = RoundedCornerShape(12.dp) // Rounded card corners
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // ⭐ Display the Full Name
-            Text(
-                text = professional.fullName ?: "Unnamed Professional",
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            // ⭐ Display the Email (as a secondary detail)
-            Text(
-                text = professional.email ?: "",
-                color = Color.Gray,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Placeholder Avatar/Image
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFE5E7EB)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.Work, contentDescription = "Professional Icon", tint = PrimaryDark)
+            }
 
-            // You can add more details here (e.g., cuisine, location) if they are in ProfessionalDto
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column {
+                // Display the Full Name
+                Text(
+                    text = professional.fullName ?: "Unnamed Professional",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = PrimaryDark
+                )
+                // Display the Email
+                Text(
+                    text = professional.email ?: "Email not provided",
+                    fontSize = 14.sp,
+                    color = GrayInactive,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
         }
     }
 }
 
 // -----------------------------------------------------------------------------
-// DYNAMIC NOTIFICATION DROPDOWN COMPOSABLES
+// DYNAMIC NOTIFICATION DROPDOWN COMPOSABLES (DESIGN UNCHANGED AS IT'S A SYSTEM COMPONENT)
 // -----------------------------------------------------------------------------
 @Composable
-fun NotificationIconWithDropdown(
-    showNotifications: Boolean,
-    onToggle: (Boolean) -> Unit,
+fun NotificationButton(
+    hasNew: Boolean,
     navController: NavController
 ) {
-    // Mock Notifications data
-    val notifications = listOf(
-        "New follower: Alex Smith",
-        "Your post got 10 likes!",
-        "Order #1001 confirmed."
-    )
+    var expanded by remember { mutableStateOf(false) }
 
     Box {
-        IconButton(onClick = { onToggle(!showNotifications) }) {
-            Icon(Icons.Filled.Notifications, contentDescription = "Notifications", tint = Color(0xFF334155))
+        // Icon with dot
+        Box(contentAlignment = Alignment.TopEnd) {
+            IconButton(onClick = { expanded = !expanded }) {
+                Icon(Icons.Filled.Notifications, contentDescription = "Notifications", tint = PrimaryDark)
+            }
+
+            if (hasNew) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFFC107)) // Yellow dot
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-2).dp, y = 2.dp)
+                )
+            }
         }
 
+        // Dropdown anchored to this same Box
         DropdownMenu(
-            expanded = showNotifications,
-            onDismissRequest = { onToggle(false) }
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
         ) {
-            if (notifications.isEmpty()) {
-                DropdownMenuItem(text = { Text("No new notifications") }, onClick = { onToggle(false) })
-            } else {
-                notifications.forEach { notification ->
-                    DropdownMenuItem(
-                        text = { Text(notification) },
-                        onClick = {
-                            // Handle notification click (e.g., navigate to post/order)
-                            onToggle(false)
-                        }
-                    )
-                }
+            val notifications = listOf(
+                "New follower: Alex Smith",
+                "Your post got 10 likes!",
+                "Order #1001 confirmed."
+            )
+
+            notifications.forEach { notification ->
+                DropdownMenuItem(
+                    text = { Text(notification) },
+                    onClick = { expanded = false }
+                )
             }
+
             Divider()
             DropdownMenuItem(
                 text = { Text("View All Notifications", fontWeight = FontWeight.Bold) },
                 onClick = {
-                    // Navigate to a dedicated notifications screen
                     navController.navigate("notifications_screen")
-                    onToggle(false)
+                    expanded = false
                 }
             )
         }
     }
 }
+
 
 // -----------------------------------------------------------------------------
 // PREVIEW
@@ -433,9 +523,10 @@ fun NotificationIconWithDropdown(
 @Composable
 fun TopAppBarPreview() {
     val navController = rememberNavController()
+    // Showing "Trends" selected for a visual example of the active state
     TopAppBar(
         navController = navController,
-        currentRoute = "home",
+        currentRoute = "trends",
         openDrawer = {},
         onSearchClick = {},
         currentUserId = "MOCK_USER_ID",
@@ -447,17 +538,8 @@ fun TopAppBarPreview() {
 @Preview(showBackground = true)
 @Composable
 fun DynamicSearchOverlayPreview() {
-    // Remove the unused mock repository definition:
-    /*
-    val mockRepository = object : ProfessionalRepository {
-        override suspend fun searchByName(name: String) = emptyList<ProfessionalDto>()
-        // Add other functions if needed
-    }
-    */
-
     DynamicSearchOverlay(
         navController = rememberNavController(),
         onDismiss = {},
-        // REMOVE THIS LINE: repository = mockRepository
     )
 }

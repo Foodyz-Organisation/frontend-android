@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,9 +25,11 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.R
+import com.airbnb.lottie.compose.*
 // DTOs for Menu Item structure (source)
 import com.example.damprojectfinal.core.dto.menu.IngredientDto
 import com.example.damprojectfinal.core.dto.menu.MenuItemResponseDto
+import com.example.damprojectfinal.core.dto.menu.Category
 // DTOs for Cart structure (target)
 import com.example.damprojectfinal.core.dto.cart.AddToCartRequest
 import com.example.damprojectfinal.core.dto.cart.IngredientDto as CartIngredientDto
@@ -55,9 +58,35 @@ data class MenuItem(
     val name: String,
     val priceDT: Float,
     val imageUrl: String?,
+    val category: Category,
     val defaultIngredients: List<String> = emptyList(),
     val extraOptions: List<Option> = emptyList()
 )
+
+// Category UI Model
+data class CategoryItem(
+    val category: Category,
+    val displayName: String,
+    val icon: String
+)
+
+// Category configuration
+private fun getCategoryItems(): List<CategoryItem> {
+    return listOf(
+        CategoryItem(Category.BURGER, "BURGER", "🍔"),
+        CategoryItem(Category.PIZZA, "PIZZA", "🍕"),
+        CategoryItem(Category.PASTA, "PASTA", "🍝"),
+        CategoryItem(Category.MEXICAN, "MEXICAN", "🌮"),
+        CategoryItem(Category.SUSHI, "SUSHI", "🍣"),
+        CategoryItem(Category.ASIAN, "ASIAN", "🥡"),
+        CategoryItem(Category.SEAFOOD, "SEAFOOD", "🦞"),
+        CategoryItem(Category.CHICKEN, "CHICKEN", "🍗"),
+        CategoryItem(Category.SANDWICHES, "SANDWICHES", "🥪"),
+        CategoryItem(Category.SALAD, "SALAD", "🥗"),
+        CategoryItem(Category.DESSERT, "DESSERT", "🍰"),
+        CategoryItem(Category.DRINKS, "DRINKS", "🥤"),
+    )
+}
 
 // DTO to UI Model Mappers (Necessary to convert backend Double to UI Float)
 private fun List<IngredientDto>?.toIngredientNames(): List<String> {
@@ -72,6 +101,7 @@ private fun MenuItemResponseDto.toUiModel(): MenuItem {
         name = this.name,
         priceDT = this.price.toFloat(),
         imageUrl = this.image,
+        category = this.category,
         defaultIngredients = this.ingredients.toIngredientNames(),
         extraOptions = this.options.toOptionModels()
     )
@@ -129,6 +159,24 @@ fun RestaurantMenuScreen(
     val errorMessage by menuViewModel.errorMessage.collectAsState()
 
     var selectedItemForCustomization by remember { mutableStateOf<MenuItem?>(null) }
+    
+    // Category selection state
+    var selectedCategory by remember { mutableStateOf<Category?>(null) }
+    
+    // Filter items by category
+    val filteredItems = remember(uiMenuItems, selectedCategory) {
+        if (selectedCategory == null) {
+            uiMenuItems
+        } else {
+            uiMenuItems.filter { it.category == selectedCategory }
+        }
+    }
+    
+    // Get available categories from menu items
+    val availableCategories = remember(uiMenuItems) {
+        val categories = uiMenuItems.map { it.category }.distinct()
+        getCategoryItems().filter { it.category in categories }
+    }
 
     // Derived state for UI display (Reads directly from the updated cart)
     // ⭐ FIX 2: Safely access cart properties after checking type
@@ -160,40 +208,63 @@ fun RestaurantMenuScreen(
         modifier = Modifier.fillMaxSize(),
         containerColor = AppBackgroundLight
     ) { paddingValues ->
-        when {
-            isLoading -> {
-                Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
-            errorMessage != null -> {
-                Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                    Text(text = "Error loading menu: ${errorMessage}", color = Color.Red)
-                }
-            }
-            uiMenuItems.isEmpty() -> {
-                Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                    Text(text = "No menu items available.", color = Color.Gray)
-                }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Category Selector
+            if (availableCategories.isNotEmpty()) {
+                CategorySelector(
+                    categories = availableCategories,
+                    selectedCategory = selectedCategory,
+                    onCategorySelected = { selectedCategory = it }
+                )
             }
 
-            else -> {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.padding(paddingValues)
-                ) {
-                    item { Spacer(Modifier.height(16.dp)) }
-
-                    // Ensures each item has a unique, stable key based on its ID
-                    items(
-                        items = uiMenuItems,
-                        key = { item -> item.id }
-                    ) { item ->
-                        MenuItemCard(
-                            item = item,
-                            onAddClick = { selectedItemForCustomization = item }
+            // Content based on state
+            when {
+                isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                errorMessage != null -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Error loading menu: $errorMessage",
+                            color = Color.Red
                         )
+                    }
+                }
+                filteredItems.isEmpty() -> {
+                    // Empty state with animation
+                    EmptyCategoryState(
+                        categoryName = selectedCategory?.name ?: "this category"
+                    )
+                }
+                else -> {
+                    LazyColumn(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item { Spacer(Modifier.height(8.dp)) }
+
+                        items(
+                            items = filteredItems,
+                            key = { item -> item.id }
+                        ) { item ->
+                            MenuItemCard(
+                                item = item,
+                                onAddClick = { selectedItemForCustomization = item }
+                            )
+                        }
                     }
                 }
             }
@@ -746,6 +817,131 @@ fun MenuBottomBar(totalOrderPrice: Float, onConfirmClick: () -> Unit) {
             )
             Spacer(Modifier.width(8.dp))
             Icon(Icons.Default.ArrowForward, contentDescription = null, tint = AppDarkText)
+        }
+    }
+}
+// -----------------------------------------------------------------------------
+// CATEGORY SELECTOR
+// -----------------------------------------------------------------------------
+
+@Composable
+fun CategorySelector(
+    categories: List<CategoryItem>,
+    selectedCategory: Category?,
+    onCategorySelected: (Category?) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp)
+    ) {
+        items(categories) { categoryItem ->
+            CategoryChip(
+                categoryItem = categoryItem,
+                isSelected = selectedCategory == categoryItem.category,
+                onClick = {
+                    onCategorySelected(
+                        if (selectedCategory == categoryItem.category) null
+                        else categoryItem.category
+                    )
+                }
+            )
+        }
+    }
+    Divider(color = Color(0xFFE5E7EB), thickness = 1.dp)
+}
+
+@Composable
+fun CategoryChip(
+    categoryItem: CategoryItem,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp)
+    ) {
+        // Icon Circle
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isSelected) AppPrimaryRed.copy(alpha = 0.1f)
+                    else Color(0xFFFEF3F2)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = categoryItem.icon,
+                fontSize = 32.sp
+            )
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        // Category Name
+        Text(
+            text = categoryItem.displayName,
+            fontSize = 12.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            color = if (isSelected) AppPrimaryRed else AppDarkText
+        )
+    }
+}
+
+// -----------------------------------------------------------------------------
+// EMPTY STATE WITH ANIMATION
+// -----------------------------------------------------------------------------
+
+@Composable
+fun EmptyCategoryState(categoryName: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Lottie Animation
+            val composition by rememberLottieComposition(
+                LottieCompositionSpec.RawRes(R.raw.empty)
+            )
+            val progress by animateLottieCompositionAsState(
+                composition = composition,
+                iterations = LottieConstants.IterateForever
+            )
+
+            LottieAnimation(
+                composition = composition,
+                progress = { progress },
+                modifier = Modifier.size(200.dp)
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            Text(
+                text = "No items in $categoryName",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppDarkText
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = "Try selecting a different category",
+                fontSize = 14.sp,
+                color = Color.Gray
+            )
         }
     }
 }

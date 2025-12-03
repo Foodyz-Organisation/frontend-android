@@ -6,29 +6,32 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DeliveryDining
 import androidx.compose.material.icons.filled.LocalMall
 import androidx.compose.material.icons.filled.Redeem
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.*
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.user.common._component.AppDrawer
 import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
-import com.example.damprojectfinal.user.feature_posts.ui.PostsScreen
 import com.example.damprojectfinal.user.common._component.TopAppBar
-import kotlinx.coroutines.launch
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.user.feature_posts.ui.PostsScreen
+import com.example.damprojectfinal.UserRoutes
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import com.example.damprojectfinal.UserRoutes
+import kotlinx.coroutines.launch
 
 // Placeholder Composable for HighlightCard/FilterChipItem (ensure they exist in your project)
 
@@ -36,7 +39,7 @@ import com.example.damprojectfinal.UserRoutes
 @Composable
 fun HomeScreen(
     navController: NavHostController,
-    currentRoute: String = "home",
+    currentRoute: String = "home", // Default route is home
     onLogout: () -> Unit,
     logoutSuccess: StateFlow<Boolean>
 ) {
@@ -49,10 +52,10 @@ fun HomeScreen(
     var isSearchActive by remember { mutableStateOf(false) }
 
     val currentUserId: String by remember {
-        // NOTE: Replace getUserIdBlocking() with your actual method if different.
         mutableStateOf(tokenManager.getUserIdBlocking() ?: "placeholder_user_id_123")
     }
 
+    // Automatically navigate to login after logout
     LaunchedEffect(logoutSuccess) {
         logoutSuccess.collect { success ->
             if (success) {
@@ -61,13 +64,13 @@ fun HomeScreen(
         }
     }
 
+    // General navigation helper
     val navigateTo: (String) -> Unit = { route ->
         navController.navigate(route) {
             launchSingleTop = true
             restoreState = true
         }
     }
-
 
     // ------------------------- UI -------------------------
     ModalNavigationDrawer(
@@ -90,16 +93,16 @@ fun HomeScreen(
                     .background(
                         Brush.verticalGradient(listOf(Color(0xFFF9FAFB), Color(0xFFF3F4F6)))
                     )
-                    // Disable vertical scrolling when search is active
                     .verticalScroll(rememberScrollState(), enabled = !isSearchActive)
                     .padding(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
+                // ----------------- TOP APP BAR -----------------
                 TopAppBar(
                     navController = navController,
                     currentRoute = currentRoute,
                     openDrawer = { scope.launch { drawerState.open() } },
-                    onSearchClick = { isSearchActive = true }, // Opens the search overlay
+                    onSearchClick = { isSearchActive = true },
                     currentUserId = currentUserId,
                     onProfileClick = { userId ->
                         navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/$userId")
@@ -107,44 +110,43 @@ fun HomeScreen(
                     onLogoutClick = onLogout
                 )
 
+                // ----------------- HIGHLIGHT CARD -----------------
                 HighlightCard()
 
+                // ----------------- FILTER CHIPS -----------------
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.padding(horizontal = 20.dp)
                 ) {
-                    item { FilterChipItem("All", selected = true) }
+                    item { FilterChipItem("All", selected = currentRoute == "home") }
                     item { FilterChipItem("🔥 Spicy", selected = false) }
                     item { FilterChipItem("🥗 Healthy", selected = false) }
                     item { FilterChipItem("🍰 Sweet", selected = false) }
                 }
 
+                // ----------------- POSTS -----------------
                 Box(modifier = Modifier.padding(horizontal = 2.dp)) {
                     PostsScreen()
                 }
             }
 
-            // --- Dynamic Search Overlay Call ---
+            // ----------------- DYNAMIC SEARCH OVERLAY -----------------
             if (isSearchActive) {
                 DynamicSearchOverlay(
-                    navController = navController, // Pass NavController for navigation
-                    onDismiss = { isSearchActive = false } // ⭐ FIX: This lambda dismisses the overlay
+                    navController = navController,
+                    onDismiss = { isSearchActive = false }
                 )
             }
         }
     }
 }
+
 // -------------------------- Helpers (unchanged) --------------------------
 
 @Composable
 fun HighlightCard() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        val takeawayCardData = HighlightCardData(
+    val dynamicHighlights = listOf(
+        HighlightCardData(
             startColor = Color(0xFFE0E7FF),
             endColor = Color(0xFFC7D2FE),
             iconTint = Color(0xFF4F46E5),
@@ -152,22 +154,103 @@ fun HighlightCard() {
             subtitle = "Pick up your food",
             iconPainter = rememberVectorPainter(Icons.Filled.LocalMall),
             contentDescription = "Takeaway"
+        ),
+        HighlightCardData(
+            startColor = Color(0xFFE6FFFA),
+            endColor = Color(0xFFB2F5EA),
+            iconTint = Color(0xFF059669),
+            title = "Delivery",
+            subtitle = "Delivered to your door",
+            iconPainter = rememberVectorPainter(Icons.Filled.DeliveryDining),
+            contentDescription = "Delivery"
+        ),
+        HighlightCardData(
+            startColor = Color(0xFFFFF0F6),
+            endColor = Color(0xFFFBCFE8),
+            iconTint = Color(0xFFDB2777),
+            title = "Eat-in",
+            subtitle = "Dine with us",
+            iconPainter = rememberVectorPainter(Icons.Filled.Restaurant),
+            contentDescription = "Eat-in"
         )
+    )
 
-        val dealsCardData = HighlightCardData(
-            startColor = Color(0xFFFFFBEB),
-            endColor = Color(0xFFFEF3C7),
-            iconTint = Color(0xFFF59E0B),
-            title = "Daily Deals",
-            subtitle = "Up to 50% off",
-            iconPainter = rememberVectorPainter(Icons.Filled.Redeem),
-            contentDescription = "Daily Deals"
-        )
+    var currentIndex by remember { mutableStateOf(0) }
 
-        HighlightCardItem(modifier = Modifier.weight(1f), data = takeawayCardData, onClick = {})
-        HighlightCardItem(modifier = Modifier.weight(1f), data = dealsCardData, onClick = {})
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(3000)
+            currentIndex = (currentIndex + 1) % dynamicHighlights.size
+        }
+    }
+
+    val currentHighlight = dynamicHighlights[currentIndex]
+
+    val dealsCardData = HighlightCardData(
+        startColor = Color(0xFFFFFBEB),
+        endColor = Color(0xFFFEF3C7),
+        iconTint = Color(0xFFF59E0B),
+        title = "Daily Deals",
+        subtitle = "Up to 50% off",
+        iconPainter = rememberVectorPainter(Icons.Filled.Redeem),
+        contentDescription = "Daily Deals"
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        listOf(currentHighlight, dealsCardData).forEach { data ->
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(120.dp)
+                    .clickable { /* handle click */ },
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(data.startColor, data.endColor)
+                            )
+                        )
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Icon(
+                            painter = data.iconPainter,
+                            contentDescription = data.contentDescription,
+                            tint = data.iconTint,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Column {
+                            Text(
+                                text = data.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.Black
+                            )
+                            Text(
+                                text = data.subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.DarkGray
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
+
 
 private data class HighlightCardData(
     val startColor: Color,
@@ -240,7 +323,7 @@ fun HomeScreenPreview() {
 
     HomeScreen(
         navController = rememberNavController(),
-        currentRoute = "home_screen",
+        currentRoute = "home", // Ensure "home" is used for initial selection in preview
         onLogout = {},                 // do nothing in preview
         logoutSuccess = fakeLogoutState
     )

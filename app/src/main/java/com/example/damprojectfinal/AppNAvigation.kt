@@ -61,6 +61,12 @@ object UserRoutes {
     // Base route for navigation must match the NavHost setup, including argument placeholders
     const val PROFILE_VIEW = "profile_view/{userId}"
     const val PROFILE_UPDATE = "profile_update/{userId}"
+
+    const val ORDERS_SCREEN = "orders"
+
+    const val ORDERS_ROUTE = "orders_history_route"
+
+
 }
 
 object ProRoutes {
@@ -68,7 +74,6 @@ object ProRoutes {
 
     const val CART_ROUTE = "shopping_cart_route"
 
-    const val ORDERS_ROUTE = "orders_history_route"
 }
 
 object ProfileRoutes {
@@ -499,7 +504,7 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 professionalId = professionalId,
                 onBackClick = { navController.popBackStack() },
                 onOrderSuccess = {
-                    navController.navigate(ProRoutes.ORDERS_ROUTE) {
+                    navController.navigate(UserRoutes.ORDERS_ROUTE) {
                         popUpTo("menu_order_route/$professionalId") { inclusive = true }
                         launchSingleTop = true
                     }
@@ -508,7 +513,7 @@ fun AppNavigation(modifier: Modifier = Modifier) {
         }
 
         // 🧭 NEW ROUTE: Order History
-        composable(ProRoutes.ORDERS_ROUTE) {
+        composable(UserRoutes.ORDERS_ROUTE) {
             val context = LocalContext.current
             val tokenManager = remember { TokenManager(context) }
             val userId = remember { tokenManager.getUserIdBlocking() ?: "" }
@@ -526,7 +531,9 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 userId = userId,
                 onOrderClick = { orderId ->
                     // Navigate to order details if needed
-                    // navController.navigate("order_details/$orderId")
+                },
+                onLogout = {
+                    // Perform logout logic here if needed
                 }
             )
         }

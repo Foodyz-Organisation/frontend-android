@@ -1,5 +1,6 @@
 package com.example.damprojectfinal.user.feautre_order.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,90 +13,93 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.airbnb.lottie.compose.*
 import com.example.damprojectfinal.R
+import com.example.damprojectfinal.UserRoutes
 import com.example.damprojectfinal.core.dto.order.OrderResponse
 import com.example.damprojectfinal.core.dto.order.OrderStatus
+import com.example.damprojectfinal.user.common._component.TopAppBar
 import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
 
 // ----------- COLORS -----------
 val BackgroundLight = Color(0xFFF9FAFB)
 val AppDarkText = Color(0xFF1F2937)
+val LightBackground = Color.White // Consistent component color
 
 // ===============================================================
-// ORDER HISTORY SCREEN
+// ORDER HISTORY SCREEN WITH TopAppBar
 // ===============================================================
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrderHistoryScreen(
     navController: NavController,
     orderViewModel: OrderViewModel,
     userId: String,
-    onOrderClick: (String) -> Unit
+    onOrderClick: (String) -> Unit,
+    onLogout: () -> Unit
 ) {
     val ordersState by orderViewModel.orders.collectAsState()
     val isLoading by orderViewModel.loading.collectAsState()
+    var isSearchActive by remember { mutableStateOf(false) }
 
     LaunchedEffect(userId) {
         orderViewModel.loadOrdersByUser(userId)
     }
 
     Scaffold(
+        containerColor = BackgroundLight,
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        "Order History",
-                        fontWeight = FontWeight.ExtraBold,
-                        color = AppDarkText
-                    )
+                navController = navController,
+                currentRoute = UserRoutes.ORDERS_ROUTE, // "orders_history_route"
+                openDrawer = {}, // if you have a drawer, implement it
+                onSearchClick = { isSearchActive = true },
+                currentUserId = userId,
+                onProfileClick = { userId ->
+                    // navigate to profile screen if needed
                 },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            Icons.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = AppDarkText
-                        )
-                    }
-                }
+                onLogoutClick = onLogout
             )
         },
-        containerColor = BackgroundLight
-    ) { paddingValues ->
-
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (ordersState.isNullOrEmpty()) {
-            EmptyOrdersView(paddingValues)
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+        content = { paddingValues ->
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
             ) {
-                items(ordersState!!, key = { it._id }) { order ->
-                    OrderItemCard(order, onOrderClick)
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = AppDarkText)
+                    }
+                } else if (ordersState.isNullOrEmpty()) {
+                    EmptyOrdersView(PaddingValues(0.dp))
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(ordersState!!, key = { it._id }) { order ->
+                            OrderItemCard(order, onOrderClick)
+                        }
+                    }
                 }
             }
+
+            // --- Optional: Dynamic Search Overlay ---
+            if (isSearchActive) {
+                // Import and use your DynamicSearchOverlay if needed
+            }
         }
-    }
+    )
 }
 
 // ===============================================================
 // EMPTY STATE VIEW
 // ===============================================================
-
 @Composable
 fun EmptyOrdersView(paddingValues: PaddingValues) {
     Box(
@@ -121,15 +125,15 @@ fun EmptyOrdersView(paddingValues: PaddingValues) {
                 text = "No past orders",
                 color = AppDarkText,
                 fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
+                fontSize = 24.sp
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "You haven’t placed any orders yet.",
+                text = "You haven’t placed any orders yet. Start exploring delicious food!",
                 color = Color.Gray,
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 textAlign = TextAlign.Center
             )
         }
@@ -139,7 +143,6 @@ fun EmptyOrdersView(paddingValues: PaddingValues) {
 // ===============================================================
 // ORDER CARD
 // ===============================================================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrderItemCard(order: OrderResponse, onClick: (String) -> Unit) {
@@ -148,52 +151,53 @@ fun OrderItemCard(order: OrderResponse, onClick: (String) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = LightBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-
         Column(modifier = Modifier.padding(16.dp)) {
-
             // HEADER
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
                     Text(
-                        text = "Order #${order._id.takeLast(6)}", // Show last 6 chars of ID
+                        text = "Order #${order._id.takeLast(6)}",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
+                        fontSize = 17.sp
                     )
 
                     Text(
-                        text = "Professional: ${order.professionalId}", // Ideally fetch name
-                        color = Color.Gray,
+                        text = "Professional: ${order.professionalId}",
+                        color = Color(0xFF6B7280),
                         fontSize = 13.sp
                     )
                 }
 
                 Text(
-                    text = order.createdAt.take(10), // Show date part
-                    color = Color.Gray,
+                    text = order.createdAt.take(10),
+                    color = Color(0xFF9CA3AF),
                     fontSize = 12.sp
                 )
             }
 
             Divider(
                 modifier = Modifier.padding(vertical = 12.dp),
-                color = Color(0xFFF3F4F6)
+                color = Color(0xFFE5E7EB)
             )
 
             // FOOTER
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "$${"%.2f".format(order.totalPrice)}",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = AppDarkText
                 )
 
                 val statusColor = when (order.status) {
@@ -204,14 +208,14 @@ fun OrderItemCard(order: OrderResponse, onClick: (String) -> Unit) {
                 }
 
                 Badge(
-                    containerColor = statusColor.copy(alpha = 0.1f),
+                    containerColor = statusColor.copy(alpha = 0.15f),
                     contentColor = statusColor
                 ) {
                     Text(
                         text = order.status.name,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                     )
                 }
             }
