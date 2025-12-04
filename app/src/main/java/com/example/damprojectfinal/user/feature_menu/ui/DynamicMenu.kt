@@ -45,6 +45,9 @@ import com.example.damprojectfinal.user.feature_menu.viewmodel.DynamicMenuViewMo
 import com.example.damprojectfinal.user.feature_menu.viewmodel.DynamicMenuViewModelFactory
 import com.google.gson.Gson
 
+// Base URL for images
+private const val BASE_URL = "http://10.0.2.2:3000/"
+
 // -----------------------------------------------------------------------------
 // --- DATA MODELS ---
 // -----------------------------------------------------------------------------
@@ -100,7 +103,7 @@ private fun MenuItemResponseDto.toUiModel(): MenuItem {
         id = this.id,
         name = this.name,
         priceDT = this.price.toFloat(),
-        imageUrl = this.image,
+        imageUrl = if (this.image.isNullOrEmpty()) null else BASE_URL + this.image,
         category = this.category,
         defaultIngredients = this.ingredients.toIngredientNames(),
         extraOptions = this.options.toOptionModels()

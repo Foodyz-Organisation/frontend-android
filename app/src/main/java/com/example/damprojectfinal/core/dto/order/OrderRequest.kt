@@ -1,6 +1,7 @@
 package com.example.damprojectfinal.core.dto.order
 
 import com.google.gson.annotations.SerializedName
+import com.google.gson.JsonElement
 
 // ---------------------------------------------------------
 // REQUEST: CREATE ORDER
@@ -56,11 +57,20 @@ data class UpdateOrderRequest(
 )
 
 // ---------------------------------------------------------
+// USER INFO (for populated userId)
+// ---------------------------------------------------------
+data class UserInfo(
+    @SerializedName("_id") val _id: String,
+    @SerializedName("username") val username: String,
+    @SerializedName("email") val email: String?
+)
+
+// ---------------------------------------------------------
 // RESPONSE: ORDER
 // ---------------------------------------------------------
 data class OrderResponse(
     @SerializedName("_id") val _id: String,
-    @SerializedName("userId") val userId: String,
+    @SerializedName("userId") val userId: JsonElement,  // Can be String or UserInfo object
     @SerializedName("professionalId") val professionalId: String,
     @SerializedName("orderType") val orderType: OrderType,
     @SerializedName("scheduledTime") val scheduledTime: String?,
@@ -69,7 +79,38 @@ data class OrderResponse(
     @SerializedName("status") val status: OrderStatus,
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("updatedAt") val updatedAt: String
-)
+) {
+    // Helper to get user ID as string
+    fun getUserId(): String {
+        return try {
+            if (userId.isJsonObject) {
+                userId.asJsonObject.get("_id")?.asString ?: ""
+            } else {
+                userId.asString
+            }
+        } catch (e: Exception) {
+            println("ERROR getUserId: ${e.message}")
+            ""
+        }
+    }
+    
+    // Helper to get user name
+    fun getUserName(): String {
+        return try {
+            if (userId.isJsonObject) {
+                val username = userId.asJsonObject.get("username")?.asString
+                println("DEBUG: Extracted username = $username")
+                username ?: "Customer"
+            } else {
+                println("DEBUG: userId is not object, it's: $userId")
+                "Customer"
+            }
+        } catch (e: Exception) {
+            println("ERROR getUserName: ${e.message}")
+            "Customer"
+        }
+    }
+}
 
 data class OrderItemResponse(
     @SerializedName("menuItemId") val menuItemId: String,

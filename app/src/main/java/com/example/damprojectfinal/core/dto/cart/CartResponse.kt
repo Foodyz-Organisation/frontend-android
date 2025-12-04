@@ -11,9 +11,10 @@ data class CartResponse(
 )
 
 data class CartItemResponse(
-    @SerializedName("menuItemId") val menuItemId: String, // ObjectId comes as String
+    @SerializedName("menuItemId") val menuItemId: String,
     @SerializedName("quantity") val quantity: Int,
-    @SerializedName("name") val name: String, // <-- ADD THIS FIELD
+    @SerializedName("name") val name: String,
+    @SerializedName("image") val image: String?,  // Add image field
     @SerializedName("chosenIngredients") val chosenIngredients: List<IngredientDto>,
     @SerializedName("chosenOptions") val chosenOptions: List<OptionDto>,
     @SerializedName("calculatedPrice") val calculatedPrice: Double

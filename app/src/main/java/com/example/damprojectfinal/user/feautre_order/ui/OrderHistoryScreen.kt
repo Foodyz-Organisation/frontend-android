@@ -1,11 +1,8 @@
 package com.example.damprojectfinal.user.feautre_order.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,7 +13,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.airbnb.lottie.compose.*
 import com.example.damprojectfinal.R
 import com.example.damprojectfinal.UserRoutes
@@ -161,18 +157,46 @@ fun OrderItemCard(order: OrderResponse, onClick: (String) -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
+                    // Show menu items instead of order ID
+                    val itemsSummary = order.items.take(2).joinToString(", ") { 
+                        "${it.name} x${it.quantity}" 
+                    } + if (order.items.size > 2) ", +${order.items.size - 2} more" else ""
+                    
                     Text(
-                        text = "Order #${order._id.takeLast(6)}",
+                        text = itemsSummary,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp
+                        fontSize = 17.sp,
+                        color = AppDarkText
                     )
 
-                    Text(
-                        text = "Professional: ${order.professionalId}",
-                        color = Color(0xFF6B7280),
-                        fontSize = 13.sp
-                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Show order type badge
+                    Surface(
+                        color = when (order.orderType) {
+                            com.example.damprojectfinal.core.dto.order.OrderType.DELIVERY -> Color(0xFF8B5CF6)
+                            com.example.damprojectfinal.core.dto.order.OrderType.TAKEAWAY -> Color(0xFF10B981)
+                            com.example.damprojectfinal.core.dto.order.OrderType.EAT_IN -> Color(0xFF3B82F6)
+                        }.copy(alpha = 0.15f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = when (order.orderType) {
+                                com.example.damprojectfinal.core.dto.order.OrderType.DELIVERY -> "🚚 Delivery"
+                                com.example.damprojectfinal.core.dto.order.OrderType.TAKEAWAY -> "🛍️ Takeaway"
+                                com.example.damprojectfinal.core.dto.order.OrderType.EAT_IN -> "🍽️ Dine-in"
+                            },
+                            color = when (order.orderType) {
+                                com.example.damprojectfinal.core.dto.order.OrderType.DELIVERY -> Color(0xFF8B5CF6)
+                                com.example.damprojectfinal.core.dto.order.OrderType.TAKEAWAY -> Color(0xFF10B981)
+                                com.example.damprojectfinal.core.dto.order.OrderType.EAT_IN -> Color(0xFF3B82F6)
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
 
                 Text(
@@ -194,7 +218,7 @@ fun OrderItemCard(order: OrderResponse, onClick: (String) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "$${"%.2f".format(order.totalPrice)}",
+                    text = "${"%.2f".format(order.totalPrice)} TND",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = AppDarkText

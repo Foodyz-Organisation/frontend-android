@@ -18,19 +18,29 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import androidx.navigation.compose.rememberNavController
-// Add these imports for the new bottom bar components
 import androidx.compose.material.icons.filled.TableBar
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
+import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
+import com.example.damprojectfinal.core.repository.OrderRepository
+import com.example.damprojectfinal.core.retro.RetrofitClient
+import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.dto.order.OrderResponse
+import com.example.damprojectfinal.core.dto.order.OrderType as BackendOrderType
+import com.example.damprojectfinal.core.dto.order.OrderStatus
+import com.example.damprojectfinal.core.dto.order.UpdateOrderStatusRequest
+import android.widget.Toast
+import java.time.Instant
+import java.time.Duration
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 // --- Mock Data Structures (Kept for screen content) ---
 data class Order(
@@ -45,10 +55,81 @@ data class Order(
 
 enum class OrderType { PICKUP, DINE_IN, DELIVERY }
 
-private val mockOrders = listOf(
-    Order(id = "1", customerName = "Ahmed Ben Ali", summary = "Couscous Royal (x1),...", total = "25.50 TND", timeReceived = "Received 5 minutes ago", address = "Avenue Habib Bourguiba, Tunis", type = OrderType.DELIVERY),
-    Order(id = "2", customerName = "Leila Jebali", summary = "Vegetarian Mezze Plat...", total = "28.00 TND", timeReceived = "Received 25 minutes ago", address = "Rue de Marseille, La Marsa", type = OrderType.PICKUP)
-)
+// Mapper function: OrderResponse -> UI Order model
+private fun OrderResponse.toUiOrder(): Order {
+    val orderType = when (this.orderType) {
+        BackendOrderType.TAKEAWAY -> OrderType.PICKUP
+        BackendOrderType.EAT_IN -> OrderType.DINE_IN
+        BackendOrderType.DELIVERY -> OrderType.DELIVERY
+    }
+    
+    // Calculate time ago
+    val timeAgo = try {
+        val instant = Instant.parse(this.createdAt)
+        val minutes = Duration.between(instant, Instant.now()).toMinutes()
+        when {
+            minutes < 1 -> "Received just now"
+            minutes < 60 -> "Received $minutes minutes ago"
+            else -> "Received ${minutes / 60} hours ago"
+        }
+    } catch (e: Exception) {
+        "Received recently"
+    }
+    
+    // Create summary from items
+    val summary = this.items.take(2).joinToString(", ") { "${it.name} (x${it.quantity})" } +
+                  if (this.items.size > 2) "," else ""
+    
+    return Order(
+        id = this._id,
+        customerName = this.getUserName(),
+        summary = summary,
+        total = String.format("%.2f TND", this.totalPrice),
+        timeReceived = timeAgo,
+        address = "No address",
+        type = orderType
+    )
+}
+
+// Helper function to get status color
+private fun getStatusColor(status: OrderStatus): Color {
+    return when (status) {
+        OrderStatus.PENDING -> Color(0xFFFFA500)     // Orange
+        OrderStatus.CONFIRMED -> Color(0xFF4CAF50)   // Green
+        OrderStatus.COMPLETED -> Color(0xFF2196F3)   // Blue
+        OrderStatus.CANCELLED -> Color(0xFF9E9E9E)   // Gray
+        OrderStatus.REFUSED -> Color(0xFFF44336)     // Red
+    }
+}
+
+// Helper function to get status display name
+private fun getStatusDisplayName(status: OrderStatus): String {
+    return when (status) {
+        OrderStatus.PENDING -> "Pending"
+        OrderStatus.CONFIRMED -> "Confirmed"
+        OrderStatus.COMPLETED -> "Completed"
+        OrderStatus.CANCELLED -> "Cancelled"
+        OrderStatus.REFUSED -> "Refused"
+    }
+}
+
+// Helper function to get valid status transitions (matches backend logic)
+private fun getValidStatusTransitions(currentStatus: OrderStatus): List<OrderStatus> {
+    return when (currentStatus) {
+        OrderStatus.PENDING -> listOf(
+            OrderStatus.CONFIRMED,
+            OrderStatus.REFUSED,
+            OrderStatus.CANCELLED
+        )
+        OrderStatus.CONFIRMED -> listOf(
+            OrderStatus.COMPLETED,
+            OrderStatus.CANCELLED
+        )
+        OrderStatus.COMPLETED -> emptyList() // Final state - no transitions
+        OrderStatus.CANCELLED -> emptyList() // Final state - no transitions
+        OrderStatus.REFUSED -> emptyList() // Final state - no transitions
+    }
+}
 // -----------------------------------------------------------
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,73 +137,167 @@ private val mockOrders = listOf(
 fun HomeScreenPro(
     professionalId: String,
     navController: NavHostController,
-    onLogout: () -> Unit // Required by the NavHost
+    onLogout: () -> Unit
 ) {
-    // State for the Bottom Bar filter
-    var selectedFilter by remember { mutableStateOf<OrderType?>(null) } // null means "Pending/All"
+    // Setup ViewModel
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+    val orderApi = remember { RetrofitClient.orderApi }
+    val orderRepository = remember { OrderRepository(orderApi, tokenManager) }
+    val orderViewModel: OrderViewModel = viewModel(
+        factory = OrderViewModel.Factory(orderRepository)
+    )
+    
+    // Coroutine scope for async operations
+    val scope = rememberCoroutineScope()
+    
+    // State for filter
+    var selectedFilter by remember { mutableStateOf<OrderType?>(null) }
+    
+    // Load orders on start
+    LaunchedEffect(professionalId) {
+        orderViewModel.loadOrdersByProfessional(professionalId)
+    }
+    
+    // Observe ViewModel states
+    val ordersFromBackend by orderViewModel.orders.collectAsState()
+    val isLoading by orderViewModel.loading.collectAsState()
+    val errorMessage by orderViewModel.error.collectAsState()
+    
+    // Convert to UI models
+    val allOrders = remember(ordersFromBackend) {
+        ordersFromBackend?.map { it.toUiOrder() } ?: emptyList()
+    }
+    
+    // Filter by selected type
+    val filteredOrders = remember(allOrders, selectedFilter) {
+        allOrders.filter { order ->
+            selectedFilter == null || order.type == selectedFilter
+        }
+    }
 
     Scaffold(
         topBar = {
-            // Updated Top Bar with 5 icons and dynamic navigation
             CustomProTopBarWithIcons(
                 professionalId = professionalId,
                 navController = navController,
-                onLogout = onLogout // Pass the onLogout callback
+                onLogout = onLogout
             )
         },
         bottomBar = {
-            // New Bottom Navigation Bar for Pick-up/Dine-in/Delivery filtering
             OrderFilterBottomBar(
                 selectedFilter = selectedFilter,
                 onFilterSelected = { selectedFilter = it }
             )
         }
     ) { paddingValues ->
-
-        // Apply a filter to the mock orders based on the selected filter
-        val filteredOrders = mockOrders.filter { order ->
-            selectedFilter == null || order.type == selectedFilter
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFFF7F7F7))
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-
-            // --- Header Text ---
-            item {
-                Text(
-                    text = "Pending Orders",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1F2A37),
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-                Text(
-                    text = "${filteredOrders.size} orders waiting for confirmation",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-
-            // --- Order List ---
-            if (filteredOrders.isEmpty()) {
-                item {
-                    Text("No orders matching the selected filter.")
+        when {
+            isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Color(0xFFFFC107))
                 }
-            } else {
-                items(filteredOrders) { order ->
-                    OrderCard(
-                        order = order,
-                        onAccept = { /* TODO */ },
-                        onRefuse = { /* TODO */ }
-                    )
+            }
+            errorMessage != null -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Error loading orders",
+                            color = Color.Red,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = errorMessage ?: "Unknown error",
+                            color = Color.Gray,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFFF7F7F7))
+                        .padding(paddingValues)
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Header
+                    item {
+                        Text(
+                            text = "Pending Orders",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1F2A37),
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        Text(
+                            text = "${filteredOrders.size} orders waiting for confirmation",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+
+                    // Order List
+                    if (filteredOrders.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 48.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No orders matching the selected filter.",
+                                    color = Color.Gray,
+                                    fontSize = 16.sp
+                                )
+                            }
+                        }
+                    } else {
+                        items(filteredOrders, key = { it.id }) { order ->
+                            // Get original OrderResponse to access current status
+                            val originalOrder = ordersFromBackend?.find { it._id == order.id }
+                            val currentStatus = originalOrder?.status ?: OrderStatus.PENDING
+                            
+                            OrderCardWithStatusDropdown(
+                                order = order,
+                                currentStatus = currentStatus,
+                                onStatusChange = { newStatus ->
+                                    // Update order status using coroutine
+                                    scope.launch {
+                                        orderViewModel.updateOrderStatus(
+                                            order.id,
+                                            UpdateOrderStatusRequest(newStatus)
+                                        )
+                                        // Wait briefly for update to complete
+                                        delay(300)
+                                        // Reload orders
+                                        orderViewModel.loadOrdersByProfessional(professionalId)
+                                        Toast.makeText(
+                                            context,
+                                            "Order #${order.id.takeLast(6)} updated to ${getStatusDisplayName(newStatus)}",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -229,7 +404,177 @@ fun BottomBarChip(
 }
 
 
-// --- OrderCard and OrderTypeChip components (unchanged from the previous step) ---
+// --- OrderCard with Status Dropdown ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OrderCardWithStatusDropdown(
+    order: Order,
+    currentStatus: OrderStatus,
+    onStatusChange: (OrderStatus) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+
+            // Row 1: Customer Name and Order Total
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Customer",
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF0F0F0)),
+                    tint = Color(0xFF6B7280)
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(order.customerName, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text(order.summary, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Text(order.timeReceived, style = MaterialTheme.typography.bodySmall, color = Color(0xFFD6A42E))
+                }
+
+                Text(order.total, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF218041))
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Row 2: Address
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFF5F3FF))
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = "Location",
+                    tint = Color(0xFF6D28D9),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(order.address, style = MaterialTheme.typography.bodySmall, color = Color(0xFF6D28D9))
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Row 3: Status Dropdown
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Order Status:",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF1F2A37)
+                )
+                
+                // Check if status can be changed
+                val validStatuses = getValidStatusTransitions(currentStatus)
+                val canChangeStatus = validStatuses.isNotEmpty()
+                
+                // Status Dropdown
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { if (canChangeStatus) expanded = !expanded }
+                ) {
+                    OutlinedTextField(
+                        value = getStatusDisplayName(currentStatus),
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = canChangeStatus,
+                        trailingIcon = {
+                            if (canChangeStatus) {
+                                Icon(
+                                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = "Dropdown"
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Final State",
+                                    tint = Color.Gray
+                                )
+                            }
+                        },
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            containerColor = getStatusColor(currentStatus).copy(alpha = 0.1f),
+                            unfocusedBorderColor = getStatusColor(currentStatus),
+                            focusedBorderColor = getStatusColor(currentStatus),
+                            disabledBorderColor = getStatusColor(currentStatus).copy(alpha = 0.5f),
+                            disabledTextColor = getStatusColor(currentStatus)
+                        ),
+                        modifier = Modifier
+                            .menuAnchor()
+                            .width(160.dp)
+                            .height(56.dp),
+                        textStyle = LocalTextStyle.current.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = getStatusColor(currentStatus)
+                        )
+                    )
+                    
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        // Only show valid status transitions
+                        val validStatuses = getValidStatusTransitions(currentStatus)
+                        validStatuses.forEach { status ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(12.dp)
+                                                .clip(CircleShape)
+                                                .background(getStatusColor(status))
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = getStatusDisplayName(status),
+                                            fontWeight = if (status == currentStatus) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                        // Show "(Current)" for current status
+                                        if (status == currentStatus) {
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                text = "(Current)",
+                                                fontSize = 12.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    if (status != currentStatus) {
+                                        onStatusChange(status)
+                                    }
+                                    expanded = false
+                                },
+                                enabled = status != currentStatus // Disable current status
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- OrderCard and OrderTypeChip components (OLD - kept for backward compatibility) ---
 @Composable
 fun OrderCard(order: Order, onAccept: () -> Unit, onRefuse: () -> Unit) {
     Card(

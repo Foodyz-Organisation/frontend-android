@@ -42,7 +42,8 @@ import com.example.damprojectfinal.professional.common.NavTopIcon
 fun CustomProTopBarWithIcons(
     professionalId: String,
     navController: NavHostController,
-    onLogout: () -> Unit // This is the callback to trigger logout
+    currentRoute: String = "home", // Track current route
+    onLogout: () -> Unit
 ) {
     Column(modifier = Modifier.background(Color.White)) {
         Row(
@@ -102,29 +103,29 @@ fun CustomProTopBarWithIcons(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             // Home/Dashboard (Orders)
-            NavTopIcon(Icons.Filled.Dashboard, "home", true) {
-                /* Current Screen, do nothing as this is the current screen */
-                // The actual navigation back to home is better handled by popping to HOME_SCREEN_PRO route in AppNavigation
+            NavTopIcon(Icons.Filled.Dashboard, "home", currentRoute == "home") {
+                navController.navigate("HOME_SCREEN_PRO/$professionalId") {
+                    popUpTo("HOME_SCREEN_PRO/$professionalId") { inclusive = true }
+                }
             }
 
             // Add/Create New Item
-            NavTopIcon(Icons.Filled.Add, "add_item", false) {
-                // Using the specific route for item creation
+            NavTopIcon(Icons.Filled.Add, "add_item", currentRoute == "add_item") {
                 navController.navigate("create_menu_item/$professionalId")
             }
 
-            // Manage Orders (or another key list)
-            NavTopIcon(Icons.Filled.ListAlt, "manage_orders", false) {
+            // Manage Orders  
+            NavTopIcon(Icons.Filled.ListAlt, "manage_orders", currentRoute == "manage_orders") {
                 navController.navigate("orders_management_route")
             }
 
             // Chat/Messages
-            NavTopIcon(Icons.Filled.Chat, "chat", false) {
+            NavTopIcon(Icons.Filled.Chat, "chat", currentRoute == "chat") {
                 navController.navigate("chat_pro_route")
             }
 
-            // Menu Management (As requested)
-            NavTopIcon(Icons.Filled.MenuBook, "menu", false) {
+            // Menu Management
+            NavTopIcon(Icons.Filled.MenuBook, "menu", currentRoute == "menu") {
                 navController.navigate("menu_management/$professionalId")
             }
         }

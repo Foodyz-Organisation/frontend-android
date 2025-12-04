@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewModel
@@ -34,6 +35,7 @@ import com.example.damprojectfinal.core.dto.menu.MenuItemResponseDto
 import com.example.damprojectfinal.core.dto.menu.Category
 import com.airbnb.lottie.compose.*
 import com.example.damprojectfinal.R
+import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
 
 // Custom Brand Colors
 private val PrimaryBrandOrange = Color(0xFFFA4A0C)
@@ -83,7 +85,7 @@ private fun getCategoryIconRes(category: String): Int {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MenuItemManagementScreen(
-    navController: NavController,
+    navController: NavHostController,
     professionalId: String,
     viewModel: MenuViewModel
 ) {
@@ -105,14 +107,11 @@ fun MenuItemManagementScreen(
     Scaffold(
         containerColor = BackgroundLight,
         topBar = {
-            TopAppBar(
-                title = { Text("Menu Items", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundLight)
+            CustomProTopBarWithIcons(
+                professionalId = professionalId,
+                navController = navController,
+                currentRoute = "menu",
+                onLogout = { navController.navigate("login_route") }
             )
         },
         floatingActionButton = {

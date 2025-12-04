@@ -34,6 +34,10 @@ import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewMode
 import com.airbnb.lottie.compose.*
 import com.example.damprojectfinal.R
 import com.google.gson.Gson
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+
+private const val BASE_URL = "http://10.0.2.2:3000/"
 
 // ---------------- Colors ----------------
 val PrimaryRed = Color(0xFFEF4444)
@@ -91,13 +95,14 @@ fun CartItemCard(
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
+        AsyncImage(
+            model = if (item.image.isNullOrEmpty()) null else BASE_URL + item.image,
+            contentDescription = item.name,
+            contentScale = ContentScale.Crop,
             modifier = Modifier
                 .size(70.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(BackgroundLight),
-            contentAlignment = Alignment.Center
-        ) { Text("IMG", color = LightGrayIcon, fontSize = 14.sp) }
+        )
 
         Spacer(modifier = Modifier.width(12.dp))
 
