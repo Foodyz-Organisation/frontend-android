@@ -8,7 +8,11 @@ import com.example.damprojectfinal.core.dto.cart.CartResponse
 import com.example.damprojectfinal.core.dto.order.*
 import com.example.damprojectfinal.core.repository.CartRepository
 import com.example.damprojectfinal.core.repository.OrderRepository
+import com.example.damprojectfinal.core.repository.MenuItemRepository
+import com.example.damprojectfinal.core.api.TokenManager
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -29,6 +33,8 @@ sealed class CartUiState {
 class CartViewModel(
     private val repository: CartRepository,
     private val orderRepository: OrderRepository,
+    private val menuItemRepository: MenuItemRepository,
+    private val tokenManager: TokenManager,
     private val userId: String
 ) : ViewModel() {
 
@@ -42,11 +48,41 @@ class CartViewModel(
         _uiState.value = CartUiState.Loading
         viewModelScope.launch {
             val cart = repository.getUserCart(userId)
-            _uiState.value = when {
-                cart == null -> CartUiState.Error("Failed to load cart")
-                cart.items.isEmpty() -> CartUiState.Empty
-                else -> CartUiState.Success(cart)
+
+            if (cart == null) {
+                _uiState.value = CartUiState.Error("Failed to load cart")
+                return@launch
             }
+
+            if (cart.items.isEmpty()) {
+                _uiState.value = CartUiState.Empty
+                return@launch
+            }
+
+            // 🌟 FETCH IMAGES MANUALLY
+            val token = tokenManager.getAccessTokenBlocking() ?: ""
+            
+            // Fetch images in parallel
+            val updatedItems = cart.items.map { item ->
+                async {
+                    if (item.image.isNullOrEmpty()) {
+                        val result = menuItemRepository.getMenuItemDetails(item.menuItemId, token)
+                        val fetchedImage = result.getOrNull()?.image
+                        if (!fetchedImage.isNullOrEmpty()) {
+                            item.copy(image = fetchedImage)
+                        } else {
+                            item
+                        }
+                    } else {
+                        item
+                    }
+                }
+            }.awaitAll()
+
+            // Create a new cart object with updated items (assuming only items list needs update)
+            val updatedCart = cart.copy(items = updatedItems)
+            
+            _uiState.value = CartUiState.Success(updatedCart)
         }
     }
 
@@ -192,12 +228,14 @@ class CartViewModel(
 class CartViewModelFactory(
     private val repository: CartRepository,
     private val orderRepository: OrderRepository,
+    private val menuItemRepository: MenuItemRepository,
+    private val tokenManager: TokenManager,
     private val userId: String
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(CartViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return CartViewModel(repository, orderRepository, userId) as T
+            return CartViewModel(repository, orderRepository, menuItemRepository, tokenManager, userId) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

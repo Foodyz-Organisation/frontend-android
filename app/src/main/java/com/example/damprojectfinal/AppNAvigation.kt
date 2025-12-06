@@ -413,8 +413,10 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             val orderApiService = remember { RetrofitClient.orderApi }
             val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
 
+            val menuItemRepository = remember { MenuItemRepository(RetrofitClient.menuItemApi, Gson()) }
+
             val cartViewModel: CartViewModel = viewModel(
-                factory = CartViewModelFactory(cartRepository, orderRepository, userId)
+                factory = CartViewModelFactory(cartRepository, orderRepository, menuItemRepository, tokenManager, userId)
             )
 
             RestaurantMenuScreen(
@@ -497,7 +499,8 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
 
             // CartViewModel (for checkout)
-            val cartVMFactory = remember { CartViewModelFactory(cartRepository, orderRepository, userId) }
+            val menuItemRepository = remember { MenuItemRepository(RetrofitClient.menuItemApi, Gson()) }
+            val cartVMFactory = remember { CartViewModelFactory(cartRepository, orderRepository, menuItemRepository, tokenManager, userId) }
             val cartViewModel: CartViewModel = viewModel(factory = cartVMFactory)
 
             OrderConfirmationScreen(
@@ -581,7 +584,8 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
 
             // ViewModel with userId and orderRepository
-            val cartVMFactory = remember { CartViewModelFactory(cartRepository, orderRepository, userId) }
+            val menuItemRepository = remember { MenuItemRepository(RetrofitClient.menuItemApi, Gson()) }
+            val cartVMFactory = remember { CartViewModelFactory(cartRepository, orderRepository, menuItemRepository, tokenManager, userId) }
             val cartVM: CartViewModel = viewModel(factory = cartVMFactory)
 
             ShoppingCartScreen(

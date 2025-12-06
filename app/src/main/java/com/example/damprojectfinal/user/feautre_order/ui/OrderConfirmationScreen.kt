@@ -25,6 +25,12 @@ import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewMode
 import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartUiState
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.damprojectfinal.R
+
+private const val BASE_URL = "http://10.0.2.2:3000/"
 
 
 
@@ -141,7 +147,14 @@ fun CartSummaryCard(items: List<CartItemResponse>, total: Float) {
     ) {
         Row(modifier = Modifier.padding(16.dp)) {
             // Placeholder Image Box (Gray Square)
-            Box(
+            // Image Box
+            val firstItem = items.firstOrNull()
+            AsyncImage(
+                model = if (firstItem?.image.isNullOrEmpty()) null else BASE_URL + firstItem?.image,
+                contentDescription = firstItem?.name ?: "Order Item",
+                contentScale = ContentScale.Crop,
+                placeholder = painterResource(id = R.drawable.placeholder),
+                error = painterResource(id = R.drawable.placeholder),
                 modifier = Modifier
                     .size(60.dp)
                     .clip(RoundedCornerShape(8.dp))
@@ -156,7 +169,7 @@ fun CartSummaryCard(items: List<CartItemResponse>, total: Float) {
                 } ?: Text("Cart is Empty", color = AppDarkText)
             }
             Text(
-                "${String.format("%.2f", total)} DT",
+                "${String.format("%.3f", total)} TND",
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF9333EA)
             )

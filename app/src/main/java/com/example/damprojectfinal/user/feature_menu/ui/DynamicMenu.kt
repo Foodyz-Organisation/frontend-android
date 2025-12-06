@@ -12,6 +12,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +64,7 @@ data class MenuItem(
     val name: String,
     val priceDT: Float,
     val imageUrl: String?,
+    val imagePath: String?, // Raw path for backend
     val category: Category,
     val defaultIngredients: List<String> = emptyList(),
     val extraOptions: List<Option> = emptyList()
@@ -104,6 +108,7 @@ private fun MenuItemResponseDto.toUiModel(): MenuItem {
         name = this.name,
         priceDT = this.price.toFloat(),
         imageUrl = if (this.image.isNullOrEmpty()) null else BASE_URL + this.image,
+        imagePath = this.image,
         category = this.category,
         defaultIngredients = this.ingredients.toIngredientNames(),
         extraOptions = this.options.toOptionModels()
@@ -232,7 +237,7 @@ fun RestaurantMenuScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = AppCartButtonYellow)
                     }
                 }
                 errorMessage != null -> {
@@ -242,23 +247,26 @@ fun RestaurantMenuScreen(
                     ) {
                         Text(
                             text = "Error loading menu: $errorMessage",
-                            color = Color.Red
+                            color = Color.Red,
+                            style = MaterialTheme.typography.bodyLarge
                         )
                     }
                 }
                 filteredItems.isEmpty() -> {
-                    // Empty state with animation
                     EmptyCategoryState(
                         categoryName = selectedCategory?.name ?: "this category"
                     )
                 }
                 else -> {
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        item { Spacer(Modifier.height(8.dp)) }
-
+                        // Top spacer if needed, or included in padding
+                        
                         items(
                             items = filteredItems,
                             key = { item -> item.id }
@@ -268,6 +276,10 @@ fun RestaurantMenuScreen(
                                 onAddClick = { selectedItemForCustomization = item }
                             )
                         }
+                        
+                        // Bottom spacer for FAB/BottomBar
+                        item { Spacer(Modifier.height(80.dp)) }
+                        item { Spacer(Modifier.height(80.dp)) }
                     }
                 }
             }
@@ -319,6 +331,7 @@ fun RestaurantMenuScreen(
                     menuItemId = menuItemId,
                     quantity = quantity,
                     name = menuItem.name,
+                    image = menuItem.imagePath,
                     chosenIngredients = finalIngredientsDto,
                     chosenOptions = finalSelectedOptions,
                     calculatedPrice = unitPrice,
@@ -724,55 +737,74 @@ fun MenuTopAppBar(
 
 @Composable
 fun MenuItemCard(item: MenuItem, onAddClick: () -> Unit) {
-    Row(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(AppCardBackground)
-            .clickable { onAddClick() }
-            .height(120.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .height(260.dp) // Fixed height for grid uniformity
+            .clickable { onAddClick() },
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        AsyncImage(
-            model = item.imageUrl,
-            contentDescription = item.name,
-            contentScale = ContentScale.Crop,
-            placeholder = painterResource(id = R.drawable.placeholder),
-            error = painterResource(id = R.drawable.placeholder),
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(120.dp)
-                .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
-        )
         Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .fillMaxSize()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = item.name,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                color = AppDarkText
-            )
-            Text(
-                text = "${item.priceDT} DT",
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.sp,
-                color = AppDarkText
-            )
-        }
-        FloatingActionButton(
-            onClick = onAddClick,
-            modifier = Modifier
-                .padding(end = 16.dp)
-                .size(48.dp),
-            containerColor = AppCartButtonYellow,
-            contentColor = AppDarkText
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add to Cart")
+            // Image Area
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = item.imageUrl,
+                    contentDescription = item.name,
+                    contentScale = ContentScale.Crop, // Or Fit based on image type
+                    placeholder = painterResource(id = R.drawable.placeholder),
+                    error = painterResource(id = R.drawable.placeholder),
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(CircleShape) // Circular image style as seen in modern designs
+                        // .background(Color(0xFFF5F5F5)) // Optional background for transparent images
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Text Area
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = item.name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = AppDarkText,
+                    maxLines = 2,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    lineHeight = 20.sp
+                )
+                
+                Spacer(Modifier.height(4.dp))
+                
+                Text(
+                    text = "Starting From",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+                
+                Text(
+                    text = "${item.priceDT} TND",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = AppPrimaryRed // Or Orange/Yellow
+                )
+            }
         }
     }
 }
@@ -837,9 +869,9 @@ fun CategorySelector(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp)
+            .padding(vertical = 16.dp), // Increased padding
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(horizontal = 24.dp)
     ) {
         items(categories) { categoryItem ->
             CategoryChip(
@@ -854,7 +886,7 @@ fun CategorySelector(
             )
         }
     }
-    Divider(color = Color(0xFFE5E7EB), thickness = 1.dp)
+    // Removed Divider, sticking to clean white look
 }
 
 @Composable
@@ -863,38 +895,40 @@ fun CategoryChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    val backgroundColor = if (isSelected) AppCartButtonYellow else Color.White
+    // Keep it white or use a light gray for unselected if needed, but screenshot implies white with maybe shadow or border?
+    // Let's use a subtle shadow for unselected and yellow for selected.
+    
+    Card(
         modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(vertical = 4.dp)
+            .size(width = 80.dp, height = 100.dp) // Fixed size for uniformity
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp), // Squircle-ish
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 2.dp)
     ) {
-        // Icon Circle
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape)
-                .background(
-                    if (isSelected) AppPrimaryRed.copy(alpha = 0.1f)
-                    else Color(0xFFFEF3F2)
-                ),
-            contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
+            // Icon
             Text(
                 text = categoryItem.icon,
                 fontSize = 32.sp
             )
+            
+            Spacer(Modifier.height(8.dp))
+            
+            // Name
+            Text(
+                text = categoryItem.displayName,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppDarkText,
+                maxLines = 1
+            )
         }
-
-        Spacer(Modifier.height(4.dp))
-
-        // Category Name
-        Text(
-            text = categoryItem.displayName,
-            fontSize = 12.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = if (isSelected) AppPrimaryRed else AppDarkText
-        )
     }
 }
 

@@ -99,6 +99,8 @@ fun CartItemCard(
             model = if (item.image.isNullOrEmpty()) null else BASE_URL + item.image,
             contentDescription = item.name,
             contentScale = ContentScale.Crop,
+            placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.placeholder),
+            error = androidx.compose.ui.res.painterResource(id = R.drawable.placeholder),
             modifier = Modifier
                 .size(70.dp)
                 .clip(RoundedCornerShape(8.dp))
@@ -109,7 +111,7 @@ fun CartItemCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(item.name ?: "Item", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DarkText)
             Spacer(modifier = Modifier.height(4.dp))
-            Text("$${"%.2f".format(totalPrice)}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = PrimaryYellow)
+            Text("${"%.3f".format(totalPrice)} TND", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = PrimaryYellow)
         }
 
         Column(
@@ -156,7 +158,7 @@ fun CartItemCard(
             if (item.chosenOptions.isNotEmpty()) {
                 DetailsList(
                     "Options",
-                    item.chosenOptions.map { "${it.name} (+${"%.2f".format(it.price)})" }
+                    item.chosenOptions.map { "${it.name} (+${"%.3f".format(it.price)} TND)" }
                 )
             }
         }
@@ -226,7 +228,7 @@ fun ShoppingCartScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Subtotal:", color = Color.Gray, fontSize = 16.sp)
-                            Text("$${"%.2f".format(subtotal)}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("${"%.3f".format(subtotal)} TND", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
                         Button(
                             onClick = {
@@ -283,25 +285,95 @@ fun ShoppingCartScreen(
         if (showPopup && selectedItem != null) {
             AlertDialog(
                 onDismissRequest = { showPopup = false },
-                title = { Text(selectedItem!!.name ?: "Item Details") },
+                containerColor = CardBackground,
+                title = null, // Custom title inside content
                 text = {
-                    Column {
-                        DetailsList(
-                            "Ingredients",
-                            selectedItem!!.chosenIngredients.map { "${it.name} (${if (it.isDefault) "Default" else "Added"})" }
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Popup Image
+                        AsyncImage(
+                            model = if (selectedItem!!.image.isNullOrEmpty()) null else BASE_URL + selectedItem!!.image,
+                            contentDescription = selectedItem!!.name,
+                            contentScale = ContentScale.Crop,
+                            placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.placeholder),
+                            error = androidx.compose.ui.res.painterResource(id = R.drawable.placeholder),
+                            modifier = Modifier
+                                .size(120.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.LightGray)
                         )
-                        if (selectedItem!!.chosenOptions.isNotEmpty()) {
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Item Name
+                        Text(
+                            text = selectedItem!!.name ?: "Item Details",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = DarkText,
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Details scrollable area if needed, or just column
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.Start
+                        ) {
                             DetailsList(
-                                "Options",
-                                selectedItem!!.chosenOptions.map { "${it.name} (+${"%.2f".format(it.price)})" }
+                                "Ingredients",
+                                selectedItem!!.chosenIngredients.map { "${it.name} (${if (it.isDefault) "Default" else "Added"})" }
                             )
+                            if (selectedItem!!.chosenOptions.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                DetailsList(
+                                    "Options",
+                                    selectedItem!!.chosenOptions.map { "${it.name} (+${"%.3f".format(it.price)} TND)" }
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Divider(color = Color.LightGray.copy(alpha = 0.5f))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Quantity:", fontWeight = FontWeight.SemiBold, color = DarkText)
+                                Text("${selectedItem!!.quantity}", fontWeight = FontWeight.Bold, color = DarkText)
+                            }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Total Price:", fontWeight = FontWeight.SemiBold, color = DarkText)
+                                Text(
+                                    "${"%.3f".format(selectedItem!!.calculatedPrice)} TND", 
+                                    fontWeight = FontWeight.Bold, 
+                                    color = PrimaryYellow,
+                                    fontSize = 18.sp
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Quantity: ${selectedItem!!.quantity}", fontWeight = FontWeight.Bold)
-                        Text("Price: $${"%.2f".format(selectedItem!!.calculatedPrice)}", fontWeight = FontWeight.Bold)
                     }
                 },
-                confirmButton = { TextButton(onClick = { showPopup = false }) { Text("Close") } }
+                confirmButton = {
+                    Button(
+                        onClick = { showPopup = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryYellow, contentColor = DarkText),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Close", fontWeight = FontWeight.Bold)
+                    }
+                }
             )
         }
     }
