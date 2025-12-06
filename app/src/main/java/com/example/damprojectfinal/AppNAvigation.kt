@@ -2,8 +2,6 @@ package com.example.damprojectfinal
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -15,7 +13,6 @@ import androidx.navigation.compose.rememberNavController
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.api.posts.RetrofitClient
-import com.example.damprojectfinal.core.api.posts.RetrofitClient.postsApiService
 import com.example.damprojectfinal.feature_auth.ui.ForgetPasswordScreen
 import com.example.damprojectfinal.feature_auth.ui.LoginScreen
 import com.example.damprojectfinal.feature_auth.ui.SignupScreen
@@ -26,7 +23,7 @@ import com.example.damprojectfinal.professional.common.HomeScreenPro
 // ADJUSTED IMPORT for CreateContentScreen to match your provided path
 import com.example.damprojectfinal.professional.feature_posts.CreateContentScreen
 import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileScreen
-import com.example.damprojectfinal.professional.viewmodel.ProfessionalProfileViewModel
+import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileViewModel
 import com.example.damprojectfinal.user.common.HomeScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.CreatePostScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.CaptionAndPublishScreen
@@ -34,7 +31,6 @@ import com.example.damprojectfinal.user.feature_posts.ui.post_management.EditPos
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostDetailsScreen
 import com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsScreen
 import com.example.damprojectfinal.user.feature_posts.ui.trends.TrendsScreen
-import com.example.damprojectfinal.core.api.posts.PostsApiService // <--- ADD THIS IMPORT
 
 /**
  * Define all the routes for the authentication flow
@@ -245,7 +241,7 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 navController = navController,
                 professionalId = professionalId,
                 viewModel = viewModel(
-                    factory = ProfessionalProfileViewModel.Factory(tokenManager, postsApiService) // CHANGED: Pass postsApiService
+                    factory = ProfessionalProfileViewModel.Factory(tokenManager)
                 )
             )
         }

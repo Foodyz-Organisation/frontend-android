@@ -22,10 +22,9 @@ data class PostResponse(
     @SerializedName("__v") // For Mongoose's version key
     val version: Int,
 
-    val ownerId: PostOwnerDetails?, // Changed name from userId to ownerId
+    val ownerId: UserProfile?, // Changed name from userId to ownerId
     val ownerModel: String, // NEW: Added to map the "ownerModel" field from backend
 
-    // --- NEW FIELDS FOR REELS ---
     val viewsCount: Int = 0, // Added for reel analytics, default to 0
     val thumbnailUrl: String? = null, // Added for reel thumbnail, nullable as not all posts have it
     val duration: Double? = null, // Added for reel duration, nullable

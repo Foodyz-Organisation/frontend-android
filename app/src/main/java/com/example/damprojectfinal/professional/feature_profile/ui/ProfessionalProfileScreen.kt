@@ -1,5 +1,3 @@
-// File: com.example.damprojectfinal.professional.feature_profile.ui/ProfessionalProfileScreen.kt
-
 package com.example.damprojectfinal.professional.feature_profile.ui
 
 import android.net.Uri
@@ -37,14 +35,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.damprojectfinal.professional.viewmodel.ProfessionalProfileViewModel
-import com.example.damprojectfinal.core.dto.professionalUser.ProfessionalProfile
 import android.util.Log
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-import com.example.damprojectfinal.UserRoutes
-import com.example.damprojectfinal.professional.feature_posts.PostGrid
-
-// 🆕 NEW IMPORT: For PostGrid
 
 
 enum class ProfessionalProfileTab { ABOUT, REELS, PHOTOS }
@@ -62,15 +54,14 @@ fun ProfessionalProfileScreen(
     LaunchedEffect(professionalId) {
         Log.d("ProfileScreen", "LaunchedEffect triggered for ID: $professionalId")
         viewModel.loadProfessionalProfile(professionalId)
-        viewModel.loadProfessionalPosts(professionalId) // Load posts for this professional
+        // Removed: viewModel.loadProfessionalPosts(professionalId)
     }
 
     val profile by viewModel.profile.collectAsState()
     val selectedProfileImageUri by viewModel.selectedProfileImageUri.collectAsState()
-    val photoPosts by viewModel.photoPosts.collectAsState()
-    val reelPosts by viewModel.reelPosts.collectAsState()
+    // Removed: photoPosts and reelPosts collection
 
-    var selectedTab by remember { mutableStateOf(ProfessionalProfileTab.PHOTOS) }
+    var selectedTab by remember { mutableStateOf(ProfessionalProfileTab.REELS) } // Default to Reels as in your screenshot
 
     val context = LocalContext.current
 
@@ -80,7 +71,7 @@ fun ProfessionalProfileScreen(
             Log.d("ProfileScreen", "Gallery result: $uri")
             viewModel.setSelectedProfileImageUri(uri)
             if (uri != null) {
-                // TODO: Initiate profile image upload
+                // TODO: Initiate profile image upload (e.g., call viewModel.uploadProfileImage)
             }
         }
     )
@@ -116,82 +107,58 @@ fun ProfessionalProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
         ) {
-            // --- Profile Header Section with Background Image ---
+            // --- UPDATED: Profile Header Section with LARGE Profile Picture and Name ---
             item {
                 Log.d("ProfileScreen", "Rendering Header item. Profile name: ${profile?.name}")
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(250.dp)
-                        .background(Color.Black),
-                    contentAlignment = Alignment.TopStart
+                        .height(250.dp) // Height for the top 1/3 section
+                        .background(Color.Black) // Default background if no image
+                        .clickable { // Making the entire top section clickable to pick image
+                            Log.d("ProfileScreen", "Large profile area clicked, launching gallery.")
+                            galleryLauncher.launch("image/*")
+                        },
+                    contentAlignment = Alignment.BottomStart // Align content (name) to bottom-start
                 ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data("https://www.foodies.com/images/chilis_bg.jpg") // Replace with actual background image URL
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Restaurant Background Image",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                    // Large Profile Image
+                    val profileImageModel = selectedProfileImageUri ?: profile?.imageUrl // Use selected URI first, then fetched URL
+                    if (profileImageModel != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(profileImageModel)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Professional Profile Picture",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop // Crop to fill the entire Box
+                        )
+                    } else {
+                        // Default icon if no image selected or fetched
+                        Icon(
+                            imageVector = Icons.Filled.Person,
+                            contentDescription = "Default Profile Icon",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(64.dp) // Pad icon to not fill completely
+                        )
+                    }
 
+                    // Overlay for TopAppBar padding to avoid content clash
                     Spacer(modifier = Modifier
                         .fillMaxWidth()
                         .height(paddingValues.calculateTopPadding())
-                        .background(Color.Black.copy(alpha = 0.3f)))
+                        .background(Color.Black.copy(alpha = 0.3f))) // Semi-transparent overlay for readability
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 100.dp)
-                            .align(Alignment.BottomStart)
-                            .padding(horizontal = 16.dp),
-                        horizontalAlignment = Alignment.Start,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(Color.DarkGray)
-                                .clickable {
-                                    Log.d("ProfileScreen", "Profile image placeholder clicked, launching gallery.")
-                                    galleryLauncher.launch("image/*")
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (selectedProfileImageUri != null) {
-                                AsyncImage(
-                                    model = selectedProfileImageUri,
-                                    contentDescription = "Profile Picture",
-                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else if (profile?.imageUrl != null) {
-                                AsyncImage(
-                                    model = profile?.imageUrl,
-                                    contentDescription = "Profile Picture",
-                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Filled.Person,
-                                    contentDescription = "Default Profile Icon",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(40.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = profile?.name ?: "Loading...",
-                            color = Color.White,
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    // Business Name (Chili's) - positioned directly under the large profile image
+                    Text(
+                        text = profile?.name ?: "Loading...",
+                        color = Color.White,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 16.dp, bottom = 8.dp) // Pad from bottom/left of the Box
+                    )
                 }
             }
 
@@ -201,10 +168,10 @@ fun ProfessionalProfileScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset(y = (-32).dp)
-                        .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(bottom = paddingValues.calculateBottomPadding())
+                        .offset(y = (-32).dp) // Pull this section up to overlap the top section
+                        .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) // Rounded top corners
+                        .background(MaterialTheme.colorScheme.surface) // White background for the entire card
+                        .padding(bottom = paddingValues.calculateBottomPadding()) // Apply bottom padding for Scaffold
                 ) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
                         profile?.let { currentProfile ->
@@ -343,15 +310,17 @@ fun ProfessionalProfileScreen(
                         )
                     }
 
-                    // --- NEW: Tab Content Area using PostGrid ---
+                    // Placeholder for tab content
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(200.dp) // Placeholder height for content
                             .background(MaterialTheme.colorScheme.surface) // White background for content area
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         when (selectedTab) {
                             ProfessionalProfileTab.ABOUT -> {
-                                // Enhanced About content
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text(
                                         text = "About ${profile?.name ?: "this business"}:",
@@ -371,24 +340,10 @@ fun ProfessionalProfileScreen(
                                 }
                             }
                             ProfessionalProfileTab.REELS -> {
-                                // Display reels using PostGrid
-                                PostGrid(
-                                    posts = reelPosts,
-                                    onPostClick = { postId ->
-                                        Log.d("ProfileScreen", "Reel clicked: $postId")
-                                        navController.navigate("${UserRoutes.POST_DETAILS_SCREEN}/$postId")
-                                    }
-                                )
+                                Text("Reels content placeholder", color = Color.Gray)
                             }
                             ProfessionalProfileTab.PHOTOS -> {
-                                // Display photos using PostGrid
-                                PostGrid(
-                                    posts = photoPosts,
-                                    onPostClick = { postId ->
-                                        Log.d("ProfileScreen", "Photo clicked: $postId")
-                                        navController.navigate("${UserRoutes.POST_DETAILS_SCREEN}/$postId")
-                                    }
-                                )
+                                Text("Photos content placeholder", color = Color.Gray)
                             }
                         }
                     }
