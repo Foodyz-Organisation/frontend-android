@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.navigation.compose.rememberNavController
+import com.example.damprojectfinal.UserRoutes
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,7 +32,9 @@ fun TopAppBar(
     currentRoute: String,
     openDrawer: () -> Unit,
     onSearchClick: () -> Unit,
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    onReelsClick: () -> Unit // <--- NEW: Add onReelsClick parameter
+
 ) {
     var showAddOptions by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) } // State for the dropdown
@@ -53,7 +56,7 @@ fun TopAppBar(
                     .size(44.dp)
                     .clip(CircleShape)
                     .background(Color(0xFFEFF4FB))
-                    .clickable { navController.navigate("profile") },
+                    .clickable { onProfileClick() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -102,7 +105,10 @@ fun TopAppBar(
         }
 
         // Secondary Nav Bar (Unchanged)
-        SecondaryNavBar(navController = navController, currentRoute = currentRoute)
+        SecondaryNavBar(
+            navController = navController,
+            currentRoute = currentRoute,
+            onReelsClick = onReelsClick)
 
         // Add Options Popup (Unchanged)
         if (showAddOptions) {
@@ -159,7 +165,10 @@ fun TopAppBar(
 // -----------------------------------------------------------------------------
 
 @Composable
-fun SecondaryNavBar(navController: NavController, currentRoute: String) {
+fun SecondaryNavBar(
+    navController: NavController,
+    currentRoute: String,
+    onReelsClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -167,10 +176,12 @@ fun SecondaryNavBar(navController: NavController, currentRoute: String) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         NavIcon(Icons.Filled.Home, currentRoute == "home") { navController.navigate("home") }
-        NavIcon(Icons.Filled.TrendingUp, currentRoute == "trends") { navController.navigate("trends") }
-        NavIcon(Icons.Filled.PlayArrow, currentRoute == "reels") { navController.navigate("reels") }
+        NavIcon(Icons.Filled.TrendingUp, currentRoute == UserRoutes.TRENDS_SCREEN) { navController.navigate(UserRoutes.TRENDS_SCREEN) }
+        //NavIcon(Icons.Filled.PlayArrow, currentRoute == "reels") { navController.navigate("reels") }
+        NavIcon(Icons.Filled.PlayArrow, currentRoute == UserRoutes.REELS_SCREEN) { onReelsClick() }
         NavIcon(Icons.Filled.Chat, currentRoute == "chat") { navController.navigate("chat") }
         NavIcon(Icons.Filled.AttachMoney, currentRoute == "orders") { navController.navigate("orders") }
+
     }
 }
 
@@ -320,6 +331,8 @@ fun TopAppBarPreview() {
         // FIX 1: Pass an empty lambda for onSearchClick (already correct)
         onSearchClick = {},
         // *** FIX 2: Add the missing onProfileClick parameter! ***
-        onProfileClick = {}
+        onProfileClick = {},
+        onReelsClick = {} // <--- NEW: Add onReelsClick for Preview
+
     )
 }

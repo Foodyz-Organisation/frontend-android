@@ -1,7 +1,5 @@
 package com.example.damprojectfinal.feature_auth.ui
 
-// --- CRITICAL NOTE: ENSURE THIS IS THE ONLY DEFINITION OF LoginScreen IN YOUR PROJECT ---
-
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -38,7 +37,8 @@ import com.example.damprojectfinal.core.utils.ViewModelFactory
 import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
 import com.example.damprojectfinal.R
 import com.example.damprojectfinal.UserRoutes
-import com.example.damprojectfinal.AuthRoutes // <-- New Import for Login Route
+import com.example.damprojectfinal.AuthRoutes
+import android.app.Application // <-- NEW IMPORT
 import kotlinx.coroutines.launch
 
 @Composable
@@ -50,59 +50,63 @@ fun LoginScreen(
     onFacebookSignIn: () -> Unit = {},
     onNavigateToSignup: () -> Unit = {}
 ) {
+    // Get Application context needed for AndroidViewModel
+    val context = LocalContext.current
+    val application = context.applicationContext as Application
+
+    // Instantiate ViewModel with the correct factory for AndroidViewModel
     val viewModel: LoginViewModel = viewModel(
-        factory = ViewModelFactory { LoginViewModel(authApiService) }
+        factory = ViewModelFactory { LoginViewModel(application, authApiService) } // <--- MODIFIED: Pass application
     )
 
-    val uiState = viewModel.uiState
-    val userRole by viewModel.userRole.collectAsState(initial = null)
+    val uiState = viewModel.uiState // Observe uiState directly
     var showPassword by remember { mutableStateOf(false) }
     var rememberMeChecked by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     // --- Handle Login Navigation & Feedback ---
-    LaunchedEffect(uiState.loginSuccess, uiState.error, userRole) {
-        val role = userRole // Capture the current role value
+    // Now observes uiState.loginSuccess, uiState.error, and uiState.role (which is the formatted role)
+    LaunchedEffect(uiState.loginSuccess, uiState.error, uiState.role) {
+        val role = uiState.role // Capture the formatted role value from uiState
 
         if (uiState.loginSuccess && !uiState.userId.isNullOrEmpty()) {
+            // TokenManager.saveTokens is now handled inside LoginViewModel after login success.
+            // This LaunchedEffect only needs to handle navigation and UI feedback.
 
-            // --- Navigation Logic Using UserRoutes Constants ---
+            // --- Navigation Logic Using UserRoutes Constants (uses formatted roles) ---
             val destinationRoute: String? = when (role) {
-                "professional" -> "${UserRoutes.HOME_SCREEN_PRO}/${uiState.userId}"
-                "user" -> UserRoutes.HOME_SCREEN
-                else -> null
-            }
-
-            if (destinationRoute == null) {
-                // Handle unknown role: show error message and prevent navigation
-                scope.launch {
-                    snackbarHostState.showSnackbar(
-                        message = "Login failed: User role '$role' is unsupported for navigation.",
-                        actionLabel = "Error",
-                        duration = SnackbarDuration.Long
-                    )
+                "ProfessionalAccount" -> "${UserRoutes.HOME_SCREEN_PRO}/${uiState.userId}"
+                "UserAccount" -> UserRoutes.HOME_SCREEN
+                else -> {
+                    // This case should ideally be handled by ViewModel before reaching here,
+                    // but as a fallback, show error.
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            message = "Login failed: User role '$role' is unsupported for navigation.",
+                            actionLabel = "Error",
+                            duration = SnackbarDuration.Long
+                        )
+                    }
+                    viewModel.resetState()
+                    null // Prevent navigation
                 }
-                viewModel.resetState()
-                return@LaunchedEffect // Stop execution here
             }
 
             // Show success snackbar only if navigation proceeds
-            scope.launch {
-                snackbarHostState.showSnackbar(
-                    message = "Login Successful! Welcome ${role?.replaceFirstChar { it.uppercase() } ?: "User"}",
-                    actionLabel = "Continue",
-                    duration = SnackbarDuration.Short
-                )
-            }
-
             if (destinationRoute != null) {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = "Login Successful! Welcome ${role?.replaceFirstChar { it.uppercase() } ?: "User"}",
+                        actionLabel = "Continue",
+                        duration = SnackbarDuration.Short
+                    )
+                }
                 navController.navigate(destinationRoute) {
                     popUpTo(AuthRoutes.LOGIN) { inclusive = true }
                 }
+                viewModel.resetState() // Reset ViewModel state after navigation
             }
-            viewModel.resetState()
-
         } else if (uiState.error != null) {
             scope.launch {
                 snackbarHostState.showSnackbar(
@@ -114,6 +118,11 @@ fun LoginScreen(
             viewModel.resetState()
         }
     }
+
+    // ... (rest of your UI composables, starting from val gradient = Brush.verticalGradient(...) ) ...
+    // Your existing UI code from here onwards is fine. Just ensure the code below this comment
+    // is placed after the LaunchedEffect block within the LoginScreen Composable function.
+
 
     val gradient = Brush.verticalGradient(
         colors = listOf(Color(0xFFFFFBEA), Color(0xFFFFF8D6), Color(0xFFFFF6C1))
@@ -259,7 +268,6 @@ fun LoginScreen(
 
                 // --- Login Button ---
                 Button(
-                    // Call login without the onSuccess callback here, rely on LaunchedEffect
                     onClick = viewModel::login,
                     enabled = !uiState.isLoading,
                     modifier = Modifier

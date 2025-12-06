@@ -4,33 +4,35 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.LocalMall
 import androidx.compose.material.icons.filled.Redeem
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import com.example.damprojectfinal.user.common._component.AppDrawer
 import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
-import com.example.damprojectfinal.user.feature_posts.ui.PostsScreen
-// 🔑 Import the TopAppBar component from the common components package
 import com.example.damprojectfinal.user.common._component.TopAppBar
+
+import com.example.damprojectfinal.user.common._component.AddButton
+import com.example.damprojectfinal.UserRoutes // <--- Ensure this imports the UserRoutes object correctly
+import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsScreen
+
+// REMOVED: import androidx.compose.foundation.rememberScrollState // This import is no longer needed here
+// REMOVED: import androidx.compose.foundation.verticalScroll // This import is no longer needed here
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,14 +42,9 @@ fun HomeScreen(navController: NavHostController, currentRoute: String = "home") 
 
     var isSearchActive by remember { mutableStateOf(false) }
 
-    // Define navigation action for the drawer
     val navigateTo: (String) -> Unit = { route ->
         navController.navigate(route) {
-            // Optional: Pop up to the start destination to avoid building up a large stack
-            // popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-            // Launch the new item as a single copy to avoid duplicate destinations
             launchSingleTop = true
-            // Restore state when reselecting a previously selected item
             restoreState = true
         }
     }
@@ -63,70 +60,86 @@ fun HomeScreen(navController: NavHostController, currentRoute: String = "home") 
             )
         },
         content = {
-            Box(modifier = Modifier.fillMaxSize()) {
-
-                // --- 1. Main Scrollable Content ---
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                listOf(Color(0xFFF9FAFB), Color(0xFFF3F4F6))
-                            )
-                        )
-                        .verticalScroll(rememberScrollState(), enabled = !isSearchActive)
-                        .padding(bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp)
-                ) {
-                    // 🎯 Cleaned up call: Using the imported name 'TopAppBar'
+            Scaffold(
+                topBar = {
                     TopAppBar(
                         navController = navController,
                         currentRoute = currentRoute,
-                        openDrawer = {
-                            // The click on the drawer icon opens the drawer
-                            scope.launch { drawerState.open() }
-                        },
-                        onSearchClick = {
-                            isSearchActive = true
-                        },
-                        onProfileClick = { navController.navigate("user_profile_route") }
+                        openDrawer = { scope.launch { drawerState.open() } },
+                        onSearchClick = { isSearchActive = true },
+                        onProfileClick = { navController.navigate(UserRoutes.PROFILE_SCREEN) }, // Assuming you have this route
+                        onReelsClick = { // <--- ADD THIS LINE
+                            navController.navigate(UserRoutes.REELS_SCREEN) // <--- ADD THIS LINE
+                        } // <--- ADD THIS LINE
                     )
+                },
+                floatingActionButton = {
+                    AddButton(onClick = {
+                        navController.navigate(UserRoutes.CREATE_POST) // <-- Corrected route name based on AppNavigation
+                    })
+                },
+                floatingActionButtonPosition = FabPosition.End
+            ) { paddingValues ->
+                Box(modifier = Modifier.fillMaxSize()) {
 
-                    HighlightCard()
-
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.padding(horizontal = 20.dp)
+                    Column( // This Column now contains PostsScreen and DynamicSearchOverlay
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    listOf(Color(0xFFF9FAFB), Color(0xFFF3F4F6))
+                                )
+                            )
+                            .padding(bottom = 0.dp) // <--- MODIFIED: Adjust bottom padding
                     ) {
-                        item { FilterChipItem("All", selected = true) }
-                        item { FilterChipItem("🔥 Spicy") }
-                        item { FilterChipItem("🥗 Healthy") }
-                        item { FilterChipItem("🍰 Sweet") }
-                    }
+                        // --- MODIFIED: PostsScreen now receives the header content as a lambda ---
+                        PostsScreen(
+                            navController = navController, // <--- CRITICAL FIX: Pass navController
+                            modifier = Modifier.weight(1f), // <--- MODIFIED: Use weight to fill remaining space
+                            headerContent = { // <--- NEW: Pass header content here
+                                HighlightCard()
+                                Spacer(Modifier.height(24.dp)) // Spacing between sections
 
-                    Box(modifier = Modifier.padding(horizontal = 2.dp)) {
-                        PostsScreen()
-                    }
-                }
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.padding(horizontal = 20.dp)
+                                ) {
+                                    item { FilterChipItem("All", selected = true) }
+                                    item { FilterChipItem("🔥 Spicy") }
+                                    item { FilterChipItem("🥗 Healthy") }
+                                    item { FilterChipItem("🍰 Sweet") }
+                                }
+                                Spacer(Modifier.height(24.dp)) // Spacing before the "Pour vous" title
 
-                // --- 2. Dynamic Search Overlay (Placed on top of content) ---
-                if (isSearchActive) {
-                    DynamicSearchOverlay(
-                        onNavigateToProfile = { profileId ->
-                            isSearchActive = false
-                            // Assuming 'restaurant_profile_route/{profileId}' needs a concrete ID for navigation
-                            if (profileId != null) {
-                                // Simple string check to prevent navigation error if 'null' is passed from HistoryItem closure
-                                navController.navigate("restaurant_profile_route/${profileId}")
+                                Text(
+                                    text = "Pour vous 🍽️", // This title will now scroll
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 22.sp,
+                                    color = Color(0xFF1F2937),
+                                    modifier = Modifier.padding(horizontal = 16.dp, 8.dp)
+                                )
                             }
-                        }
-                        // ❌ Removed the erroneous onCloseSearch parameter here
-                    )
+                        )
+                    }
+
+                    // --- 2. Dynamic Search Overlay (Remains outside the main scrollable content) ---
+                    if (isSearchActive) {
+                        DynamicSearchOverlay(
+                            onNavigateToProfile = { profileId ->
+                                isSearchActive = false
+                                if (profileId != null) {
+                                    navController.navigate("restaurant_profile_route/${profileId}")
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
     )
 }
+
 @Composable
 fun HighlightCard() {
     Row(
@@ -168,8 +181,6 @@ fun HighlightCard() {
         )
     }
 }
-
-// --- Helper Data Class and Composable for Reusability ---
 
 private data class HighlightCardData(
     val startColor: Color,
@@ -216,7 +227,7 @@ private fun HighlightCardItem(
                     tint = data.iconTint,
                     modifier = Modifier.size(36.dp)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(Modifier.height(8.dp))
 
                 Column {
                     Text(
@@ -225,7 +236,7 @@ private fun HighlightCardItem(
                         fontSize = 18.sp,
                         color = Color(0xFF1F2937)
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(Modifier.height(2.dp))
                     Text(
                         text = data.subtitle,
                         fontSize = 13.sp,
@@ -261,145 +272,12 @@ fun FilterChipItem(text: String, selected: Boolean = false) {
     }
 }
 
-@Composable
-fun FoodCard(name: String, place: String, tags: List<String>, price: String, image: Int) {
-    Column(
-        modifier = Modifier
-            .width(270.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White)
-            .shadow(10.dp, RoundedCornerShape(24.dp))
-    ) {
-        Box {
-            // NOTE: painterResource(id = image) requires an actual resource ID (R.drawable.xxx)
-            // which is not defined here, but the composable structure is correct.
-            Image(
-                painter = painterResource(id = image),
-                contentDescription = name,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(170.dp)
-                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
-                contentScale = ContentScale.Crop
-            )
-
-            // Prep time chip
-            Box(
-                modifier = Modifier
-                    .padding(12.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.85f))
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.AccessTime,
-                        contentDescription = "Time",
-                        tint = Color(0xFFF97316),
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text = "  Prepare 8 min",
-                        fontSize = 12.sp,
-                        color = Color(0xFF1F2937)
-                    )
-                }
-            }
-
-            // Favorite button
-            IconButton(
-                onClick = { },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .background(Color.White, CircleShape)
-            ) {
-                Icon(
-                    Icons.Filled.FavoriteBorder,
-                    contentDescription = "Favorite",
-                    tint = Color(0xFF9CA3AF)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = name,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = Color(0xFF111827),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        Text(
-            text = place,
-            fontSize = 13.sp,
-            color = Color(0xFF9CA3AF),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        ) {
-            tags.forEach { TagItem(it) }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = price,
-                color = Color(0xFFF97316),
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
-
-            Button(
-                onClick = { },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFF8E1)),
-                shape = RoundedCornerShape(14.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text(text = "🛍️ Order", color = Color(0xFF1F2937), fontSize = 14.sp)
-            }
-        }
-    }
-}
-
-@Composable
-fun TagItem(text: String) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFFFFF7ED))
-            .padding(horizontal = 12.dp, vertical = 5.dp)
-    ) {
-        Text(
-            text = text,
-            fontSize = 12.sp,
-            color = Color(0xFFF97316),
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
+// REMOVED: FoodCard composable (its functionality will be replaced by RecipeCard directly in PostsScreen)
+// REMOVED: TagItem composable (its usage was in FoodCard which is removed)
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun HomeScreenPreview() {
-// You need a dummy NavController for preview
     val navController = rememberNavController()
     HomeScreen(navController = navController)
 }

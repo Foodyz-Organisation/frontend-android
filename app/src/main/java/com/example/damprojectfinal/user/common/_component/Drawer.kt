@@ -19,9 +19,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.damprojectfinal.R
+import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
+import androidx.navigation.compose.rememberNavController
 
 // Define the items for the drawer
 data class DrawerItem(
@@ -190,3 +193,33 @@ fun DrawerFooter(onClickLogout: () -> Unit) {
         )
     }
 }
+
+
+// user/common/_component/AppDrawer.kt
+
+// ... (existing code for AppDrawer, DrawerHeader, DrawerMenuItem, DrawerFooter) ...
+
+// --- NEW PREVIEW COMPOSABLE ---
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun AppDrawerPreview() {
+    // For previews, we provide mock implementations of NavController and callbacks
+    val dummyNavController = rememberNavController() // Provides a mock NavController
+    val dummyCurrentRoute = drawerItems.first().route // Simulate being on the first home route
+    val dummyOnCloseDrawer: () -> Unit = {} // Empty lambda for closing drawer
+    val dummyNavigateTo: (String) -> Unit = { route -> println("Navigating to $route") } // Log navigation
+
+    DamProjectFinalTheme { // Wrap in your app's theme for accurate rendering
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            // Because AppDrawer expects to be inside a ModalNavigationDrawer,
+            // we'll call it directly for preview purposes.
+            // In a real app, it would be passed as drawerContent to ModalNavigationDrawer.
+            AppDrawer(
+                onCloseDrawer = dummyOnCloseDrawer,
+                navigateTo = dummyNavigateTo,
+                currentRoute = dummyCurrentRoute
+            )
+        }
+    }
+}
+// --- END NEW PREVIEW COMPOSABLE ---
