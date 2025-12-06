@@ -114,7 +114,8 @@ data class OrderResponse(
 
 data class OrderItemResponse(
     @SerializedName("menuItemId") val menuItemId: String,
-    @SerializedName("name") val name: String,  // ⭐ ADDED for consistency
+    @SerializedName("name") val name: String,
+    @SerializedName("image") val image: String?,  // Add image field
     @SerializedName("quantity") val quantity: Int,
     @SerializedName("chosenIngredients") val chosenIngredients: List<ChosenIngredientResponse>?,
     @SerializedName("chosenOptions") val chosenOptions: List<ChosenOptionResponse>?,

@@ -247,18 +247,3 @@ fun ConfirmationBottomBar(
     }
 }
 
-/*
-@Preview(showBackground = true)
-@Composable
-fun OrderConfirmationPreview() {
-    val mockItems = listOf(
-        OrderItem("1", "Cheese Burger", 1, 38.0f),
-        OrderItem("2", "Pizza", 1, 40.0f)
-    )
-    OrderConfirmationScreen(
-        orderItems = mockItems,
-        onBackClick = {},
-        onConfirmOrder = {}
-    )
-}
-*/

@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +70,62 @@ private val InputBackground = Color(0xFFEFEEEE) // Soft filled input background
 private val ErrorColor = Color(0xFFD32F2F) // Dedicated Error Color
 private val EmptyStateGray = Color(0xFFBDBDBD) // Color for empty state background
 
+// ---------- RANDOM ICON UTILITIES ----------
+// Huge list of 30+ food-related Icons
+private val FoodIcons = listOf(
+    // Fast Food & General
+    Icons.Default.Fastfood,
+    Icons.Default.LocalPizza,
+    Icons.Default.KebabDining,
+    Icons.Default.LunchDining,
+    Icons.Default.DinnerDining,
+    Icons.Default.BreakfastDining,
+    Icons.Default.BrunchDining,
+    Icons.Default.TakeoutDining,
+    Icons.Default.RamenDining,
+    Icons.Default.Bento,
+    Icons.Default.Tapas,
+    Icons.Default.SetMeal,
+
+    // Drinks
+    Icons.Default.LocalCafe,
+    Icons.Default.EmojiFoodBeverage,
+    Icons.Default.LocalBar,
+    Icons.Default.Liquor,
+    Icons.Default.LocalDrink,
+    Icons.Default.SportsBar,
+    Icons.Default.Nightlife,
+    Icons.Default.WineBar,
+
+    // Sweets & Baking
+    Icons.Default.Cake,
+    Icons.Default.Cookie,
+    Icons.Default.Icecream,
+    Icons.Default.BakeryDining,
+    Icons.Default.Kitchen,
+
+    // Ingredients & Nature
+    Icons.Default.Egg,
+    Icons.Default.RiceBowl,
+    Icons.Default.SoupKitchen,
+    Icons.Default.Grass, // Veggie
+    Icons.Default.WaterDrop,
+
+    // Utensils & Places
+    Icons.Default.LocalDining,
+    Icons.Default.Restaurant,
+    Icons.Default.RestaurantMenu,
+    Icons.Default.Storefront
+)
+
+// Randomly selects one icon from the list
+@Composable
+fun rememberRandomFoodIcon(): State<ImageVector> {
+    return remember {
+        mutableStateOf(FoodIcons.random())
+    }
+}
+
 // --------------------------------------------------------------------------------------
 // SCREEN: CreateMenuItemScreen
 // --------------------------------------------------------------------------------------
@@ -96,6 +153,11 @@ fun CreateMenuItemScreen(
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var localError by remember { mutableStateOf<String?>(null) }
     val isCategoryDropdownExpanded = remember { mutableStateOf(false) }
+
+    // ---------- Random Icons State ----------
+    // We generate these once when the screen loads so they don't change on every recomposition
+    val ingredientAddIcon by rememberRandomFoodIcon()
+    val optionAddIcon by rememberRandomFoodIcon()
 
     // ---------- Image Picker ----------
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -423,7 +485,7 @@ fun CreateMenuItemScreen(
                             )
                         }
                         Spacer(Modifier.width(8.dp))
-                        // Enhanced 'Add' Button Style
+                        // Enhanced 'Add' Button Style with Random Icon
                         IconButton(
                             onClick = {
                                 if (newIngredient.isNotBlank() && !ingredients.contains(newIngredient.trim())) {
@@ -436,7 +498,8 @@ fun CreateMenuItemScreen(
                                 .background(PrimaryBrand) // Solid Yellow background
                                 .size(48.dp)
                         ) {
-                            Icon(Icons.Default.Add, null, tint = TextPrimary) // Black icon on yellow
+                            // CHANGED: Tint set to Color.White
+                            Icon(ingredientAddIcon, "Add Ingredient", tint = Color.White)
                         }
                     }
 
@@ -518,7 +581,7 @@ fun CreateMenuItemScreen(
                             )
                         }
                         Spacer(Modifier.width(8.dp))
-                        // Enhanced 'Add' Button Style
+                        // Enhanced 'Add' Button Style with Random Icon
                         IconButton(
                             onClick = {
                                 val price = newOptionPrice.toDoubleOrNull()
@@ -533,7 +596,8 @@ fun CreateMenuItemScreen(
                                 .background(PrimaryBrand) // Solid Yellow background
                                 .size(48.dp)
                         ) {
-                            Icon(Icons.Default.Add, null, tint = TextPrimary) // Black icon on yellow
+                            // CHANGED: Tint set to Color.White
+                            Icon(optionAddIcon, "Add Option", tint = Color.White)
                         }
                     }
 

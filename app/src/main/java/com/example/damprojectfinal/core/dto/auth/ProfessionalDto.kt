@@ -21,7 +21,7 @@ data class ProfessionalDto(
     val email: String,
     val fullName: String? = null,
     val licenseNumber: String? = null,
-    val documents: List<ProfessionalDocumentDto> = emptyList(),
+    val documents: List<String> = emptyList(), // changed
     val role: String? = null,
     val isActive: Boolean = true,
     val linkedUserId: String? = null

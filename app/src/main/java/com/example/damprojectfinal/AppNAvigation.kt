@@ -24,6 +24,7 @@ import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.repository.OrderRepository
 import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
 import com.example.damprojectfinal.user.feautre_order.ui.OrderHistoryScreen
+import com.example.damprojectfinal.user.feautre_order.ui.OrderDetailsScreen
 import com.example.damprojectfinal.core.utils.LogoutViewModelFactory
 import com.example.damprojectfinal.feature_auth.ui.*
 import com.example.damprojectfinal.feature_auth.viewmodels.LogoutViewModel
@@ -530,11 +531,34 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 orderViewModel = orderViewModel,
                 userId = userId,
                 onOrderClick = { orderId ->
-                    // Navigate to order details if needed
+                    navController.navigate("order_details/$orderId")
                 },
                 onLogout = {
                     // Perform logout logic here if needed
                 }
+            )
+        }
+
+        // Order Details Route
+        composable(
+            route = "order_details/{orderId}",
+            arguments = listOf(navArgument("orderId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+            val context = LocalContext.current
+            val tokenManager = remember { TokenManager(context) }
+            val userId = remember { tokenManager.getUserIdBlocking() ?: "" }
+            val orderApiService = remember { RetrofitClient.orderApi }
+            val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
+            val orderViewModel: OrderViewModel = viewModel(
+                factory = OrderViewModel.Factory(orderRepository)
+            )
+
+            OrderDetailsScreen(
+                orderId = orderId,
+                navController = navController,
+                orderViewModel = orderViewModel,
+                userId = userId
             )
         }
 

@@ -10,7 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Delete // Kept for reference, but not used in the new card design
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,7 +39,7 @@ import com.example.damprojectfinal.professional.common._component.CustomProTopBa
 
 // Custom Brand Colors
 private val PrimaryBrandOrange = Color(0xFFFA4A0C)
-private val BrandYellow = Color(0xFFFFC107)
+private val BrandYellow = Color(0xFFFFC107) // Yellow for the active background color
 private val BackgroundLight = Color(0xFFF6F6F9)
 private val CategoryBackgroundGray = Color(0xFFF0F0F0)
 private val TextPrimary = Color(0xFF000000)
@@ -197,7 +197,7 @@ fun MenuItemManagementScreen(
 }
 
 // --------------------------------------------------
-// COMPONENT: Empty States
+// COMPONENT: Empty States (No changes needed)
 // --------------------------------------------------
 @Composable
 fun EmptyMenuIllustration(navController: NavController, professionalId: String) {
@@ -272,7 +272,7 @@ fun NoItemsForCategoryIllustration(categoryName: String) {
 }
 
 // --------------------------------------------------
-// COMPONENT: Horizontal Scrolling Category Icons
+// COMPONENT: Horizontal Scrolling Category Icons (No changes needed)
 // --------------------------------------------------
 @Composable
 fun CategoryFilterRow(
@@ -283,9 +283,9 @@ fun CategoryFilterRow(
     LazyRow(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 16.dp), // Increased vertical padding for space
         contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         items(categories) { categoryName ->
             CategoryIconChip(
@@ -299,7 +299,7 @@ fun CategoryFilterRow(
 }
 
 // --------------------------------------------------
-// COMPONENT: The individual Category Icon Chip
+// COMPONENT: The individual Category Icon Chip (No changes needed)
 // --------------------------------------------------
 @Composable
 fun CategoryIconChip(
@@ -308,45 +308,64 @@ fun CategoryIconChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Column(
+    // New structure uses a wide, rounded Surface for the pill shape
+    val activeColor = BrandYellow // Use BrandYellow for the active background
+    val inactiveColor = Color.White // White background for inactive chips
+
+    val backgroundColor = if (isSelected) activeColor else inactiveColor
+    val contentColor = if (isSelected) TextPrimary else TextSecondary // Text color
+
+    val chipShape = RoundedCornerShape(32.dp) // Deep rounding for the pill shape
+
+    Surface(
+        shape = chipShape,
         modifier = Modifier
-            .clickable(onClick = onClick)
-            .width(80.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .height(110.dp) // Tall chip height
+            .width(80.dp) // Fixed width
+            .clickable(onClick = onClick),
+        color = backgroundColor,
+        shadowElevation = 4.dp // Subtle elevation
     ) {
-        Surface(
-            shape = CircleShape,
-            modifier = Modifier.size(64.dp),
-            color = if (isSelected) PrimaryBrandOrange.copy(alpha = 0.2f) else CategoryBackgroundGray
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceAround
         ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+            // Icon Background: Smaller, slightly elevated circle on top
+            Surface(
+                shape = CircleShape,
+                modifier = Modifier.size(50.dp),
+                color = if (isSelected) Color.White else Color.White, // Icon background is always white
+                shadowElevation = 2.dp
             ) {
-                Icon(
-                    painter = rememberAsyncImagePainter(model = iconResId),
-                    contentDescription = categoryName.replace("_", " "),
-                    modifier = Modifier.size(40.dp),
-                    tint = Color.Unspecified
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = rememberAsyncImagePainter(model = iconResId),
+                        contentDescription = categoryName.replace("_", " "),
+                        modifier = Modifier.size(36.dp),
+                        tint = Color.Unspecified
+                    )
+                }
             }
+
+            // Text at the bottom
+            Text(
+                text = categoryName.replace("_", " "),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                color = contentColor,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = categoryName.replace("_", " "),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) PrimaryBrandOrange else TextPrimary,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 
 // --------------------------------------------------
-// COMPONENT: Renders the Grouped Menu List
+// COMPONENT: Renders the Grouped Menu List (REVERTED TO STANDARD GRID)
 // --------------------------------------------------
 @Composable
 fun MenuSectionList(
@@ -355,133 +374,124 @@ fun MenuSectionList(
     groupedMenu: Map<String, List<MenuItemResponseDto>>,
     onDelete: (MenuItemResponseDto) -> Unit
 ) {
-    // Adjusted vertical padding to reduce space between categories
-    LazyColumn(contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        groupedMenu.forEach { (category, items) ->
-            item {
-                Text(
-                    text = category.uppercase().replace("_", " "),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = TextPrimary,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                )
-                // Divider after category title, before items
-                Divider(color = Color.LightGray.copy(alpha = 0.5f), thickness = 1.dp)
-            }
+    // Flatten the filtered menu items list
+    val items = groupedMenu.flatMap { it.value }
 
-            // Using items() directly inside LazyColumn, keeping the vertical list layout
-            items(items) { item ->
-                MenuItemCard(
-                    item = item,
-                    onEditClick = {
-                        navController.navigate("edit_menu_item/${item.id}/$professionalId")
-                    },
-                    onDeleteClick = { onDelete(item) }
-                )
-                // ADDED THINNER DIVIDER AFTER EACH ITEM FOR FLAT LIST LOOK
-                Divider(color = Color.LightGray.copy(alpha = 0.2f), thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 0.dp))
+    // Chunk the list into pairs for the two-column layout
+    val chunkedItems = items.chunked(2)
+
+    LazyColumn(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        chunkedItems.forEach { rowItems ->
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    rowItems.forEach { item ->
+                        // Each item takes half the available width
+                        Box(modifier = Modifier.weight(1f)) {
+                            // Use fixed aspect ratio for consistent height across the row
+                            MenuItemGridCard(
+                                item = item,
+                                aspectRatio = 0.6f, // Default, consistent height
+                                onCardClick = {
+                                    navController.navigate("edit_menu_item/${item.id}/$professionalId")
+                                }
+                            )
+                        }
+                    }
+                    // If the last row has only one item, add an empty Box to fill the space
+                    if (rowItems.size < 2) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
             }
         }
     }
 }
 
 // --------------------------------------------------
-// COMPONENT: Renders an individual Menu Item (Seamless Look)
+// COMPONENT: Renders an individual Menu Item (FIXED PRICE VISIBILITY)
 // --------------------------------------------------
 @Composable
-fun MenuItemCard(
+fun MenuItemGridCard(
     item: MenuItemResponseDto,
-    onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    aspectRatio: Float,
+    onCardClick: () -> Unit
 ) {
-    Row(
+    // Matches the visual style of the grid cards in the image
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .background(BackgroundLight) // Match Scaffold background for seamless look
-            .padding(horizontal = 0.dp, vertical = 12.dp), // Overall item padding
-        verticalAlignment = Alignment.CenterVertically // Vertically align content within the row
+            .aspectRatio(aspectRatio) // Use consistent aspect ratio
+            .clip(RoundedCornerShape(24.dp))
+            .clickable(onClick = onCardClick),
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White,
+        shadowElevation = 6.dp
     ) {
-        // 1. Prominent Image on the left
-        AsyncImage(
-            model = BASE_URL + item.image,
-            contentDescription = item.name,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(80.dp) // Fixed size for image
-                .clip(RoundedCornerShape(8.dp)) // Kept image corner rounding
-                .aspectRatio(1f) // Ensure image is square
-        )
-
-        Spacer(modifier = Modifier.width(16.dp))
-
         Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center // Center content vertically
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            // ⭐ FIX: Ensure SpaceBetween is applied to the main column
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // 2. Name and Price (Top Section)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically // Align text and price vertically
-            ) {
+            // 1. Image (Centered and Circular)
+            AsyncImage(
+                model = BASE_URL + item.image,
+                contentDescription = item.name,
+                contentScale = ContentScale.Crop,
+                placeholder = rememberAsyncImagePainter(R.drawable.restaurantmenu),
+                error = rememberAsyncImagePainter(R.drawable.restaurantmenu),
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .aspectRatio(1f)
+                    .clip(CircleShape)
+                    .padding(top = 8.dp)
+            )
+
+            // 2. Text and Price Block (Pushed to the bottom by SpaceBetween)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(modifier = Modifier.height(8.dp)) // Space between image and text
+
+                // Name
                 Text(
                     text = item.name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = TextPrimary,
+                    textAlign = TextAlign.Center,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false) // Don't let name push price too far
+                    overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+
+                // Starting From Text
                 Text(
-                    text = "$${String.format("%.2f", item.price)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = PrimaryBrandOrange,
-                    fontWeight = FontWeight.ExtraBold
+                    text = "Starting From",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center
                 )
-            }
 
-            // 3. Description
-            Text(
-                text = item.description ?: "No description provided.",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp) // Adjusted padding
-            )
-
-            // 4. Action Buttons (Aligned to end, no extra padding around them)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(
-                    onClick = onEditClick,
-                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp), // Remove internal padding
-                    modifier = Modifier.height(26.dp).defaultMinSize(minWidth = 1.dp) // Smaller min width
-                ) {
-                    Text("EDIT", color = PrimaryBrandOrange, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
-                }
-                Spacer(modifier = Modifier.width(8.dp)) // Space between buttons
-                TextButton(
-                    onClick = onDeleteClick,
-                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp), // Remove internal padding
-                    modifier = Modifier.height(26.dp).defaultMinSize(minWidth = 1.dp), // Smaller min width
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("DELETE", fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
-                }
+                // Price (Primary Brand Orange) - In TND
+                Text(
+                    // ⭐ CONFIRMATION: Price in TND, 3 decimal places
+                    text = "${String.format("%.3f", item.price)} TND",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = PrimaryBrandOrange,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
             }
         }
     }
 }
 
 // --------------------------------------------------
-// COMPONENT: Snackbar Host
+// COMPONENT: Snackbar Host (No changes needed)
 // --------------------------------------------------
 @Composable
 fun SnackbarHostForActions(state: MenuItemUiState) {

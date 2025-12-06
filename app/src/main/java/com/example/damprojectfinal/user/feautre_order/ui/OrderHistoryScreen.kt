@@ -20,11 +20,17 @@ import com.example.damprojectfinal.core.dto.order.OrderResponse
 import com.example.damprojectfinal.core.dto.order.OrderStatus
 import com.example.damprojectfinal.user.common._component.TopAppBar
 import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+
+private const val BASE_URL = "http://10.0.2.2:3000/"
 
 // ----------- COLORS -----------
-val BackgroundLight = Color(0xFFF9FAFB)
-val AppDarkText = Color(0xFF1F2937)
-val LightBackground = Color.White // Consistent component color
+private val BackgroundLight = Color(0xFFF9FAFB)
+private val AppDarkText = Color(0xFF1F2937)
+private val LightBackground = Color.White // Consistent component color
 
 // ===============================================================
 // ORDER HISTORY SCREEN WITH TopAppBar
@@ -198,6 +204,16 @@ fun OrderItemCard(order: OrderResponse, onClick: (String) -> Unit) {
                         )
                     }
                 }
+
+                // Item Image
+                AsyncImage(
+                    model = order.items.firstOrNull()?.image?.let { BASE_URL + it },
+                    contentDescription = "Order item",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
 
                 Text(
                     text = order.createdAt.take(10),
