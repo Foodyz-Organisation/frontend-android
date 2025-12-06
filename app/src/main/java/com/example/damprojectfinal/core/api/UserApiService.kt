@@ -1,8 +1,9 @@
 package com.example.damprojectfinal.core.api
 
-import com.example.damprojectfinal.core.dto.auth.SimpleMessageResponse
 import com.example.damprojectfinal.core.dto.user.UpdateUserRequest
 import com.example.damprojectfinal.core.dto.user.UserResponse
+import com.example.damprojectfinal.core.dto.auth.UserInfoResponse
+import com.example.damprojectfinal.core.dto.auth.OrderResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.android.Android
@@ -16,17 +17,19 @@ import io.ktor.client.request.patch
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
-import io.ktor.http.HttpHeaders // Import for file headers
 import io.ktor.http.contentType
+import io.ktor.client.request.header
+import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import java.io.File // Required for handling the file object
 
-class UserApiService {
+class UserApiService(private val tokenManager: TokenManager) {
 
     private val BASE_URL = "http://10.0.2.2:3000"
 
     private val client = HttpClient(Android) {
+        // Conversion JSON automatique
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
@@ -34,6 +37,8 @@ class UserApiService {
                 isLenient = true
             })
         }
+
+        // Timeout des requêtes
         install(HttpTimeout) {
             requestTimeoutMillis = 15000
         }
@@ -55,10 +60,13 @@ class UserApiService {
         return response.body()
     }
 
-    /**
-     * Toggle / deactivate the logged-in user's account
-     * PATCH /users/me/toggle
-     */
+    private suspend fun addAuthHeader(builder: io.ktor.client.request.HttpRequestBuilder) {
+        val token = tokenManager.getAccessTokenAsync()
+        if (!token.isNullOrEmpty()) {
+            builder.header(HttpHeaders.Authorization, "Bearer $token")
+        }
+    }
+
     suspend fun toggleActive(token: String): UserResponse {
         val url = "$BASE_URL/users/me/toggle"
         val response = client.patch(url) {
@@ -77,6 +85,13 @@ class UserApiService {
             }
         }
         return response.body()
+
+    }
+
+    suspend fun getUserInfo(userId: String): UserInfoResponse {
+        return client.get("$BASE_URL/users/$userId") {
+            addAuthHeader(this)
+        }.body()
     }
 
     // ⭐ NEW FUNCTION: Upload Profile Image via Multipart ⭐
@@ -89,7 +104,8 @@ class UserApiService {
             url = url,
             formData = formData {
                 // 'file' must match the key used in NestJS FileInterceptor('file', ...)
-                append(key = "file",
+                append(
+                    key = "file",
                     value = file.readBytes(),
                     headers = Headers.build {
                         // Set correct ContentType and filename header for the part
@@ -103,9 +119,12 @@ class UserApiService {
                 append("Authorization", "Bearer $token")
             }
         }
-
-        // Return the updated UserResponse, assuming NestJS sends it back
         return response.body()
     }
 
+    suspend fun getUserOrders(userId: String): List<OrderResponse> {
+        return client.get("$BASE_URL/users/$userId/orders") {
+            addAuthHeader(this)
+        }.body()
+    }
 }

@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -35,32 +36,28 @@ import com.example.damprojectfinal.R
 import com.example.damprojectfinal.UserRoutes
 import com.example.damprojectfinal.AuthRoutes
 import com.example.damprojectfinal.core.api.AuthApiService
-import com.example.damprojectfinal.core.utils.ViewModelFactory
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
 import kotlinx.coroutines.launch
-import androidx.compose.ui.platform.LocalContext
-import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.utils.ViewModelFactory
 
 @Composable
 fun LoginScreen(
     navController: NavController,
     authApiService: AuthApiService,
-    tokenManager: TokenManager,
+    tokenManager: TokenManager,  // ✅ Reçoit TokenManager depuis AppNavigation
     onNavigateToForgetPassword: () -> Unit = {},
     onGoogleSignIn: () -> Unit = {},
     onFacebookSignIn: () -> Unit = {},
     onNavigateToSignup: () -> Unit = {}
 ) {
-    // ✅ FIX — TokenManager is passed in, so we don't need LocalContext here.
-
-    // ✅ FIX — Inject TokenManager into ViewModel
+    // ✅ Utilise le tokenManager passé en paramètre
     val viewModel: LoginViewModel = viewModel(
         factory = ViewModelFactory { // Assuming ViewModelFactory is your generic factory
             LoginViewModel(authApiService, tokenManager)
         }
     )
 
-    // ✅ FIX — We ONLY observe uiState. All data is in here.
     val uiState = viewModel.uiState
     val userRole by viewModel.userRole.collectAsState(initial = null)
     val context = LocalContext.current
@@ -70,84 +67,70 @@ fun LoginScreen(
     val scope = rememberCoroutineScope()
 
     // --- Handle Login Navigation & Feedback ---
-    // ✅ FIX — Updated LaunchedEffect to read from uiState
     LaunchedEffect(uiState.loginSuccess, uiState.error) {
-
         if (uiState.loginSuccess) {
-            // ✅ Read role and ID *directly from the uiState*
             val role = uiState.role
             val userId = uiState.userId
 
-            // Safety check for user ID
             if (userId.isNullOrEmpty()) {
-                scope.launch {
-                    snackbarHostState.showSnackbar(
-                        message = "Login failed: User ID not found.",
-                        duration = SnackbarDuration.Long
-                    )
-                }
-                viewModel.resetState() // Reset to allow another attempt
+                snackbarHostState.showSnackbar(
+                    message = "Login failed: User ID not found.",
+                    duration = SnackbarDuration.Long
+                )
+                viewModel.resetState()
                 return@LaunchedEffect
             }
 
-            // Determine destination based on role
-            val destinationRoute: String? = when (role?.lowercase()) {
+            val destinationRoute = when (role?.lowercase()) {
                 "professional" -> "${UserRoutes.HOME_SCREEN_PRO}/$userId"
                 "user" -> UserRoutes.HOME_SCREEN
-                else -> null // Handle unknown roles
+                else -> null
             }
 
             if (destinationRoute == null) {
-                scope.launch {
-                    snackbarHostState.showSnackbar(
-                        message = "Login failed: Unsupported role '$role'",
-                        actionLabel = "Error",
-                        duration = SnackbarDuration.Long
-                    )
-                }
-                viewModel.resetState() // Reset
+                snackbarHostState.showSnackbar(
+                    message = "Login failed: Unsupported role '$role'",
+                    actionLabel = "Error",
+                    duration = SnackbarDuration.Long
+                )
+                viewModel.resetState()
                 return@LaunchedEffect
             }
 
-            // --- SUCCESS ---
-            scope.launch {
-                snackbarHostState.showSnackbar(
-                    message = "Login Successful! Welcome $role",
-                    actionLabel = "Continue"
-                )
-            }
+            // Show success snackbar
+            snackbarHostState.showSnackbar(
+                message = "Login Successful! Welcome $role",
+                actionLabel = "Continue"
+            )
 
-            if (destinationRoute != null) {
-                // Save tokens to DataStore for future authenticated requests
-                // Use the tokens provided by the ViewModel (set on successful login)
-                val access = uiState.accessToken
-                val refresh = uiState.refreshToken
-                if (!access.isNullOrEmpty() && !refresh.isNullOrEmpty() && !uiState.userId.isNullOrEmpty() && !uiState.role.isNullOrEmpty()) {
-                    // Persist tokens asynchronously
-                    scope.launch {
-                        try {
-                            TokenManager(context).saveTokens(access, refresh, uiState.userId!!, uiState.role!!)
-                        } catch (e: Exception) {
-                            // Non-blocking: log or ignore for now - navigation can proceed
-                            println("Failed to save tokens: ${e.message}")
-                        }
-                    }
-                }
-                navController.navigate(destinationRoute) {
-                    popUpTo(AuthRoutes.LOGIN) { inclusive = true }
+            // Save tokens
+            val access = uiState.accessToken
+            val refresh = uiState.refreshToken
+            if (!access.isNullOrEmpty() && !refresh.isNullOrEmpty() && !uiState.userId.isNullOrEmpty() && !uiState.role.isNullOrEmpty()) {
+                try {
+                    TokenManager(context).saveTokens(
+                        access,
+                        refresh,
+                        uiState.userId!!,
+                        uiState.role!!
+                    )
+                } catch (e: Exception) {
+                    println("Failed to save tokens: ${e.message}")
                 }
             }
 
-            viewModel.resetState() // Reset state *after* navigation
+            navController.navigate(destinationRoute) {
+                popUpTo(AuthRoutes.LOGIN) { inclusive = true }
+            }
+
+            viewModel.resetState()
 
         } else if (uiState.error != null) {
-            scope.launch {
-                snackbarHostState.showSnackbar(
-                    message = uiState.error ?: "Unknown error",
-                    actionLabel = "Dismiss"
-                )
-            }
-            viewModel.resetState() // Reset error so snackbar doesn't re-show
+            snackbarHostState.showSnackbar(
+                message = uiState.error ?: "Unknown error",
+                actionLabel = "Dismiss"
+            )
+            viewModel.resetState()
         }
     }
 
@@ -191,7 +174,12 @@ fun LoginScreen(
                         .size(120.dp)
                         .clip(CircleShape)
                         .background(
-                            Brush.radialGradient(listOf(Color(0xFFFFECB3), Color(0xFFFFC107)))
+                            Brush.radialGradient(
+                                listOf(
+                                    Color(0xFFFFECB3),
+                                    Color(0xFFFFC107)
+                                )
+                            )
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -225,7 +213,7 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Email Field
+                // --- Email Field ---
                 OutlinedTextField(
                     value = uiState.email,
                     onValueChange = viewModel::updateEmail,
@@ -293,7 +281,6 @@ fun LoginScreen(
 
                 // --- Login Button ---
                 Button(
-                    // Call login without the onSuccess callback here, rely on LaunchedEffect
                     onClick = viewModel::login,
                     enabled = !uiState.isLoading,
                     modifier = Modifier
@@ -329,17 +316,18 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                // Social Login Section
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Divider(modifier = Modifier.weight(1f))
+                    Divider(modifier = Modifier.weight(1f), color = Color(0xFFE5E7EB))
                     Text(
                         "  Or continue with  ",
                         color = Color(0xFF6B7280),
                         style = MaterialTheme.typography.bodyLarge
                     )
-                    Divider(modifier = Modifier.weight(1f))
+                    Divider(modifier = Modifier.weight(1f), color = Color(0xFFE5E7EB))
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -374,7 +362,7 @@ fun LoginScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(32.dp))
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

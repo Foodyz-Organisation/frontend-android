@@ -15,6 +15,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import android.util.Log
+import android.widget.Toast
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import com.example.damprojectfinal.feature_auth.ui.*
+import com.example.damprojectfinal.core.repository.AuthRepository
+import com.example.damprojectfinal.feature_auth.viewmodels.*
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.api.DebugUserLogger
 import com.example.damprojectfinal.core.api.UserApiService
@@ -27,7 +38,6 @@ import com.example.damprojectfinal.user.feautre_order.ui.OrderHistoryScreen
 import com.example.damprojectfinal.user.feautre_order.ui.OrderDetailsScreen
 import com.example.damprojectfinal.core.utils.LogoutViewModelFactory
 import com.example.damprojectfinal.feature_auth.viewmodels.LogoutViewModel
-import com.example.damprojectfinal.feature_auth.ui.ForgetPasswordScreen
 import com.example.damprojectfinal.feature_auth.ui.LoginScreen
 import com.example.damprojectfinal.feature_auth.ui.SignupScreen
 import com.example.damprojectfinal.feature_auth.ui.SplashScreen
@@ -38,9 +48,22 @@ import com.example.damprojectfinal.professional.feature_menu.ui.MenuItemManageme
 import com.example.damprojectfinal.professional.feature_menu.ui.components.CreateMenuItemScreen
 import com.example.damprojectfinal.professional.feature_menu.ui.components.ItemDetailsScreen
 import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewModel
-import com.example.damprojectfinal.user.common.HomeScreen
-import com.example.damprojectfinal.user.feature_chat.ui.ChatManagementScreen
 import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.utils.ForgotPasswordViewModelFactory
+import com.example.damprojectfinal.core.utils.ResetPasswordViewModelFactory
+import com.example.damprojectfinal.core.utils.VerifyOtpViewModelFactory
+import com.example.damprojectfinal.feature_deals.AddEditDealScreen
+import com.example.damprojectfinal.feature_deals.DealsViewModel
+import com.example.damprojectfinal.feature_relamation.ReclamationsRestaurantViewModel
+import com.example.damprojectfinal.feature_relamation.ReclamationsRestaurantViewModelFactory
+import com.example.damprojectfinal.feature_relamation.ReclamationViewModelFactory
+import com.example.damprojectfinal.professional.feature_relamation.ReclamationDetailRestaurantScreen
+import com.example.damprojectfinal.user.common.HomeScreen
+import com.example.damprojectfinal.professional.feature_deals.ProDealsManagementScreen
+import com.example.damprojectfinal.professional.feature_event.EventDetailScreen
+import com.example.damprojectfinal.user.feature_deals.DealDetailScreen
+import com.example.damprojectfinal.user.feature_deals.DealsListScreen
+import com.example.damprojectfinal.user.feature_chat.ui.ChatManagementScreen
 import com.example.damprojectfinal.user.feature_profile.ui.UserProfileScreen
 import com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel
 import com.example.damprojectfinal.core.`object`.KtorClient
@@ -54,13 +77,26 @@ import com.example.damprojectfinal.core.repository.CartRepository
 import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewModel
 import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewModelFactory
 import com.google.gson.Gson
+import com.example.damprojectfinal.user.feature_relamation.ReclamationTemplateScreen
+import com.example.damprojectfinal.professional.feature_event.CreateEventScreen
+import com.example.damprojectfinal.user.feature_event.EventListScreen
+import com.example.damprojectfinal.feature_event.EventStatus
+import com.example.damprojectfinal.feature_event.EventViewModel
+import com.example.damprojectfinal.feature_relamation.ReclamationDetailScreen
+import com.example.damprojectfinal.core.repository.ReclamationRepository
+import com.example.damprojectfinal.feature_relamation.ReclamationViewModel
+import com.example.damprojectfinal.professional.feature_relamation.ReclamationListRestaurantScreen
+import com.example.damprojectfinal.user.feature_relamation.ReclamationListUserScreen
 
 object AuthRoutes {
     const val SPLASH = "splash_route"
     const val LOGIN = "login_route"
     const val SIGNUP = "signup_route"
-    const val FORGET_PASSWORD = "forget_password_route"
+    const val FORGOT_PASSWORD = "forgot_password_route"
+    const val VERIFY_OTP = "verify_otp_route"
+    const val RESET_PASSWORD = "reset_password_route"
     const val PRO_SIGNUP = "pro_signup_route"
+    const val FORGET_PASSWORD = "forget_password_route"
 }
 
 object UserRoutes {
@@ -87,17 +123,24 @@ object ProRoutes {
 object ProfileRoutes {
     const val PROFESSIONAL_PROFILE_EDIT = "pro_profile_edit/{professionalId}"
     const val CLIENT_PROFILE_VIEW = "client_profile_view/{professionalId}"
+    const val HOME_SCREEN_PRO = "home_screen_pro"
 }
 
 @Composable
-fun AppNavigation(modifier: Modifier = Modifier) {
+fun AppNavigation(
+    modifier: Modifier = Modifier,
+    initialDeepLinkToken: String? = null
+) {
     val navController = rememberNavController()
     val authApiService = AuthApiService()
+    val authRepository = AuthRepository(authApiService)
 
+    // ✅ IMPORTANT: Créer le ViewModel UNE SEULE FOIS
+    val dealsViewModel: DealsViewModel = viewModel()
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
     // Initialize User API Service and Repository for ProfileViewModel
-    val userApiService = remember { UserApiService() }
+    val userApiService = remember { UserApiService(tokenManager) }
     val userRepository = remember { UserRepository(userApiService) }
 
     // Order Repository
@@ -114,6 +157,7 @@ fun AppNavigation(modifier: Modifier = Modifier) {
         startDestination = AuthRoutes.SPLASH,
         modifier = modifier
     ) {
+        // 1️⃣ Splash
         // Splash
         composable(AuthRoutes.SPLASH) {
             val context = LocalContext.current
@@ -157,8 +201,11 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             )
         }
 
-        // Login
+        // 2️⃣ Login Screen
         composable(AuthRoutes.LOGIN) {
+            val context = LocalContext.current
+            val tokenManager = TokenManager(context)
+
             LoginScreen(
                 navController = navController,
                 authApiService = authApiService,
@@ -168,9 +215,7 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             )
         }
 
-
-
-        // Signup
+        // 3️⃣ Signup Screen
         composable(AuthRoutes.SIGNUP) {
             SignupScreen(
                 navController = navController,
@@ -178,14 +223,44 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             )
         }
 
-        // Forget Password
-        composable(AuthRoutes.FORGET_PASSWORD) {
-            ForgetPasswordScreen(
+        // 4️⃣ Forgot Password
+        composable(AuthRoutes.FORGOT_PASSWORD) {
+            val vm: ForgotPasswordViewModel = viewModel(
+                factory = ForgotPasswordViewModelFactory(authRepository)
+            )
+            ForgotPasswordScreen(navController = navController, viewModel = vm)
+        }
+
+        // 5️⃣ Verify OTP
+        composable(
+            route = "${AuthRoutes.VERIFY_OTP}/{email}",
+            arguments = listOf(navArgument("email") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val email = backStackEntry.arguments?.getString("email") ?: ""
+            val vm: VerifyOtpViewModel = viewModel(
+                factory = VerifyOtpViewModelFactory(authRepository)
+            )
+            VerifyOtpScreen(email = email, navController = navController, viewModel = vm)
+        }
+
+        // 6️⃣ Reset Password
+        composable(
+            route = "${AuthRoutes.RESET_PASSWORD}/{email}/{resetToken}",
+            arguments = listOf(
+                navArgument("email") { type = NavType.StringType },
+                navArgument("resetToken") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val email = backStackEntry.arguments?.getString("email") ?: ""
+            val resetToken = backStackEntry.arguments?.getString("resetToken") ?: ""
+            val vm: ResetPasswordViewModel = viewModel(
+                factory = ResetPasswordViewModelFactory(authRepository)
+            )
+            ResetPasswordScreen(
+                email = email,
+                resetToken = resetToken,
                 navController = navController,
-                onNavigateBack = { navController.popBackStack() },
-                onStartReset = { email ->
-                    println("Sending reset email to: $email")
-                }
+                viewModel = vm
             )
         }
 
@@ -436,6 +511,240 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             )
         }
 
+        // 🔟 Liste réclamations (CLIENT)
+        composable("list_reclamation_route") {
+            val context = LocalContext.current
+            val tokenManager = TokenManager(context)
+            val userApiService = UserApiService(tokenManager)
+            val vm: ReclamationViewModel = viewModel(
+                factory = ReclamationViewModelFactory(userApiService, tokenManager, context)
+            )
+            val reclamations by vm.reclamations.collectAsState()
+            val error by vm.errorMessage.collectAsState()
+
+            LaunchedEffect(Unit) { vm.loadReclamations() }
+
+            ReclamationListUserScreen(
+                reclamations = reclamations,
+                onReclamationClick = fun(reclamation) {
+                    val reclamationId = reclamation.id ?: return
+                    navController.navigate("reclamation_detail/$reclamationId")
+                },
+                onBackClick = { navController.popBackStack() }
+            )
+            error?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+        }
+
+        // 1️⃣1️⃣ Détail réclamation (CLIENT)
+        composable(
+            route = "reclamation_detail/{reclamationId}",
+            arguments = listOf(navArgument("reclamationId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val reclamationId = backStackEntry.arguments?.getString("reclamationId") ?: return@composable
+            val context = LocalContext.current
+            val tokenManager = TokenManager(context)
+            val userApiService = UserApiService(tokenManager)
+            val vm: ReclamationViewModel = viewModel(
+                factory = ReclamationViewModelFactory(userApiService, tokenManager, context)
+            )
+
+            LaunchedEffect(reclamationId) { vm.loadReclamationById(reclamationId) }
+            val selectedReclamation by vm.selectedReclamation.collectAsState()
+
+            if (selectedReclamation != null) {
+                ReclamationDetailScreen(
+                    reclamation = selectedReclamation!!,
+                    onBackClick = { navController.popBackStack() }
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize())
+            }
+        }
+
+        // 1️⃣2️⃣ Créer réclamation (CLIENT)
+        composable("create_reclamation") {
+            val context = LocalContext.current
+            val tokenManager = TokenManager(context)
+            val userApiService = UserApiService(tokenManager)
+            val vm: ReclamationViewModel = viewModel(
+                factory = ReclamationViewModelFactory(userApiService, tokenManager, context)
+            )
+
+            ReclamationTemplateScreen(
+                complaintTypes = listOf("Livraison en retard", "Article manquant", "Problème de qualité", "Autre"),
+                commandeconcernees = listOf("Commande #12345", "Commande #12346", "Commande #12347", "Commande #12348"),
+                onSubmit = { commandeConcernee, complaintType, description, photos ->
+                    vm.createReclamation(
+                        commandeConcernee = commandeConcernee,
+                        complaintType = complaintType,
+                        description = description,
+                        photoUris = photos
+                    ) { reclamation ->
+                        Toast.makeText(context, "Réclamation créée avec succès !", Toast.LENGTH_LONG).show()
+                        navController.popBackStack()
+                    }
+                }
+            )
+        }
+
+        // 1️⃣3️⃣ Liste événements
+        composable("event_list") {
+            val eventViewModel: EventViewModel = viewModel()
+            val events by eventViewModel.events.collectAsState()
+            val context = LocalContext.current
+
+            LaunchedEffect(Unit) { eventViewModel.loadEvents() }
+
+            EventListScreen(
+                events = events,
+                onEventClick = { event -> navController.navigate("event_detail/${event._id}") },
+                onAddEventClick = {},
+                onEditClick = { event -> },
+                onDeleteClick = { eventId -> eventViewModel.deleteEvent(eventId) },
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        // 1️⃣4️⃣ Détail événement
+        composable(
+            route = "event_detail/{eventId}",
+            arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
+            val eventViewModel: EventViewModel = viewModel()
+            val events by eventViewModel.events.collectAsState()
+            val selectedEvent = events.find { it._id == eventId }
+
+            if (selectedEvent != null) {
+                EventDetailScreen(event = selectedEvent, onBackClick = { navController.popBackStack() })
+            }
+        }
+
+        // 1️⃣5️⃣ Créer événement
+        composable("create_event") {
+            val context = LocalContext.current
+            val eventViewModel: EventViewModel = viewModel()
+
+            CreateEventScreen(
+                navController = navController,
+                onSubmit = { nom, description, dateDebut, dateFin, image, lieu, categorie, statut ->
+                    eventViewModel.createEvent(nom, description, dateDebut, dateFin, image, lieu, categorie, statut)
+                    Toast.makeText(context, "Événement créé avec succès!", Toast.LENGTH_SHORT).show()
+                    navController.navigate("event_list") { popUpTo("create_event") { inclusive = true } }
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // 1️⃣6️⃣ Liste réclamations (RESTAURANT)
+        composable("restaurant_reclamations") {
+            val context = LocalContext.current
+            val tokenManager = TokenManager(context)
+            val repository = ReclamationRepository(tokenManager, context)
+            val vm: ReclamationsRestaurantViewModel = viewModel(
+                factory = ReclamationsRestaurantViewModelFactory(repository)
+            )
+            val reclamations by vm.reclamations.collectAsState()
+            val isLoading by vm.isLoading.collectAsState()
+
+            LaunchedEffect(Unit) { vm.loadMyRestaurantReclamations() }
+
+            ReclamationListRestaurantScreen(
+                reclamations = reclamations,
+                isLoading = isLoading,
+                onReclamationClick = { rec ->
+                    vm.selectReclamation(rec)
+                    navController.navigate("restaurant_reclamation_detail/${rec.id}")
+                },
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        // 1️⃣7️⃣ Détail réclamation (RESTAURANT)
+        composable(
+            route = "restaurant_reclamation_detail/{reclamationId}",
+            arguments = listOf(navArgument("reclamationId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val reclamationId = backStackEntry.arguments?.getString("reclamationId") ?: return@composable
+            val context = LocalContext.current
+            val tokenManager = TokenManager(context)
+            val repository = ReclamationRepository(tokenManager, context)
+            val vm: ReclamationsRestaurantViewModel = viewModel(
+                factory = ReclamationsRestaurantViewModelFactory(repository)
+            )
+            val reclamations by vm.reclamations.collectAsState()
+            val selectedReclamation by vm.selected.collectAsState()
+
+            LaunchedEffect(reclamationId) {
+                if (reclamations.isEmpty()) vm.loadMyRestaurantReclamations()
+            }
+
+            LaunchedEffect(reclamations) {
+                if (reclamations.isNotEmpty() && selectedReclamation == null) {
+                    reclamations.find { it.id == reclamationId }?.let { vm.selectReclamation(it) }
+                }
+            }
+
+            if (selectedReclamation != null) {
+                ReclamationDetailRestaurantScreen(
+                    reclamation = selectedReclamation!!,
+                    onBackClick = {
+                        vm.clearSelected()
+                        navController.popBackStack()
+                    },
+                    onRespond = { responseMessage ->
+                        vm.respond(reclamationId, responseMessage) {
+                            Toast.makeText(context, "Réponse envoyée!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+        }
+
+        // ============================================
+        // 📌 SECTION DEALS - ROUTES PROFESSIONNELLES
+        // ============================================
+
+        // 1️⃣8️⃣ Gestion PRO des deals
+        composable("pro_deals") {
+            val context = LocalContext.current
+
+            LaunchedEffect(Unit) {
+                Log.d("AppNavigation", "📊 Chargement écran pro_deals")
+                dealsViewModel.loadDeals()
+            }
+
+            ProDealsManagementScreen(
+                viewModel = dealsViewModel,
+                onAddDealClick = {
+                    Log.d("AppNavigation", "➕ Navigation vers deal_add")
+                    navController.navigate("deal_add")
+                },
+                onEditDealClick = { dealId ->
+                    Log.d("AppNavigation", "✏️ Navigation vers deal_edit/$dealId")
+                    navController.navigate("deal_edit/$dealId")
+                }
+            )
+        }
+
+        // 1️⃣9️⃣ Ajouter un deal
+        composable("deal_add") {
+            Log.d("AppNavigation", "➕ Écran d'ajout de deal")
+
+            AddEditDealScreen(
+                dealId = null,
+                viewModel = dealsViewModel,
+                onBackClick = {
+                    Log.d("AppNavigation", "⬅️ Retour depuis deal_add")
+                    navController.popBackStack()
+                }
+            )
+        }
+
 
 
         composable(
@@ -634,5 +943,75 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 professionalId = professionalId
             )
         }
+
+
+
+        // 2️⃣0️⃣ Modifier un deal
+        composable(
+            route = "deal_edit/{dealId}",
+            arguments = listOf(navArgument("dealId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val dealId = backStackEntry.arguments?.getString("dealId")
+
+            Log.d("AppNavigation", "✏️ Écran d'édition de deal: $dealId")
+
+            AddEditDealScreen(
+                dealId = dealId,
+                viewModel = dealsViewModel,
+                onBackClick = {
+                    Log.d("AppNavigation", "⬅️ Retour depuis deal_edit")
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // 2️⃣1️⃣ Liste des deals (pour les clients)
+        composable("deals") {
+            LaunchedEffect(Unit) {
+                Log.d("AppNavigation", "📋 Chargement liste des deals")
+                dealsViewModel.loadDeals()
+            }
+
+            DealsListScreen(
+                viewModel = dealsViewModel,
+                onDealClick = { dealId ->
+                    Log.d("AppNavigation", "🔍 Navigation vers dealDetail/$dealId")
+                    navController.navigate("dealDetail/$dealId")
+                }
+            )
+        }
+
+        // 2️⃣2️⃣ Détail d'un deal
+        composable(
+            route = "dealDetail/{dealId}",
+            arguments = listOf(navArgument("dealId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val dealId = backStackEntry.arguments?.getString("dealId") ?: ""
+
+            Log.d("AppNavigation", "🔍 Détail du deal: $dealId")
+
+            DealDetailScreen(
+                dealId = dealId,
+                viewModel = dealsViewModel,
+                onBackClick = {
+                    Log.d("AppNavigation", "⬅️ Retour depuis dealDetail")
+                    navController.popBackStack()
+                }
+            )
+        }
     }
+}
+
+// Extension function pour EventViewModel
+private fun EventViewModel.createEvent(
+    nom: String,
+    description: String,
+    dateDebut: String,
+    dateFin: String,
+    image: String?,
+    lieu: String,
+    categorie: String,
+    statut: EventStatus
+) {
+    // La logique métier est dans EventViewModel
 }

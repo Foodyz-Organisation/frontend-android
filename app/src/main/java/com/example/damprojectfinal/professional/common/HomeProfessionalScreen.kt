@@ -1,7 +1,7 @@
 package com.example.damprojectfinal.professional.common
 
+import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,30 +17,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavHostController
-import androidx.compose.material.icons.filled.TableBar
-import androidx.compose.material.icons.filled.LocalShipping
-import androidx.compose.material.icons.filled.ShoppingBag
-import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
-import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
-import com.example.damprojectfinal.core.repository.OrderRepository
-import com.example.damprojectfinal.core.retro.RetrofitClient
+import androidx.navigation.NavHostController
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.order.OrderResponse
-import com.example.damprojectfinal.core.dto.order.OrderType as BackendOrderType
 import com.example.damprojectfinal.core.dto.order.OrderStatus
+import com.example.damprojectfinal.core.dto.order.OrderType as BackendOrderType
 import com.example.damprojectfinal.core.dto.order.UpdateOrderStatusRequest
-import android.widget.Toast
-import java.time.Instant
+import com.example.damprojectfinal.core.repository.OrderRepository
+import com.example.damprojectfinal.core.retro.RetrofitClient
+import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
+import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
 import java.time.Duration
-import kotlinx.coroutines.launch
+import java.time.Instant
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // --- Mock Data Structures (Kept for screen content) ---
 data class Order(
@@ -62,7 +57,7 @@ private fun OrderResponse.toUiOrder(): Order {
         BackendOrderType.EAT_IN -> OrderType.DINE_IN
         BackendOrderType.DELIVERY -> OrderType.DELIVERY
     }
-    
+
     // Calculate time ago
     val timeAgo = try {
         val instant = Instant.parse(this.createdAt)
@@ -75,11 +70,11 @@ private fun OrderResponse.toUiOrder(): Order {
     } catch (e: Exception) {
         "Received recently"
     }
-    
+
     // Create summary from items
     val summary = this.items.take(2).joinToString(", ") { "${it.name} (x${it.quantity})" } +
-                  if (this.items.size > 2) "," else ""
-    
+            if (this.items.size > 2) "," else ""
+
     return Order(
         id = this._id,
         customerName = this.getUserName(),
@@ -121,16 +116,19 @@ private fun getValidStatusTransitions(currentStatus: OrderStatus): List<OrderSta
             OrderStatus.REFUSED,
             OrderStatus.CANCELLED
         )
+
         OrderStatus.CONFIRMED -> listOf(
             OrderStatus.COMPLETED,
             OrderStatus.CANCELLED
         )
+
         OrderStatus.COMPLETED -> emptyList() // Final state - no transitions
         OrderStatus.CANCELLED -> emptyList() // Final state - no transitions
         OrderStatus.REFUSED -> emptyList() // Final state - no transitions
     }
 }
 // -----------------------------------------------------------
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,28 +145,29 @@ fun HomeScreenPro(
     val orderViewModel: OrderViewModel = viewModel(
         factory = OrderViewModel.Factory(orderRepository)
     )
-    
+
     // Coroutine scope for async operations
     val scope = rememberCoroutineScope()
-    
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
     // State for filter
     var selectedFilter by remember { mutableStateOf<OrderType?>(null) }
-    
+
     // Load orders on start
     LaunchedEffect(professionalId) {
         orderViewModel.loadOrdersByProfessional(professionalId)
     }
-    
+
     // Observe ViewModel states
     val ordersFromBackend by orderViewModel.orders.collectAsState()
     val isLoading by orderViewModel.loading.collectAsState()
     val errorMessage by orderViewModel.error.collectAsState()
-    
+
     // Convert to UI models
     val allOrders = remember(ordersFromBackend) {
         ordersFromBackend?.map { it.toUiOrder() } ?: emptyList()
     }
-    
+
     // Filter by selected type
     val filteredOrders = remember(allOrders, selectedFilter) {
         allOrders.filter { order ->
@@ -176,129 +175,215 @@ fun HomeScreenPro(
         }
     }
 
-    Scaffold(
-        topBar = {
-            CustomProTopBarWithIcons(
-                professionalId = professionalId,
-                navController = navController,
-                onLogout = onLogout
-            )
-        },
-        bottomBar = {
-            OrderFilterBottomBar(
-                selectedFilter = selectedFilter,
-                onFilterSelected = { selectedFilter = it }
-            )
-        }
-    ) { paddingValues ->
-        when {
-            isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = Color(0xFFFFC107))
-                }
-            }
-            errorMessage != null -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Error loading orders",
-                            color = Color.Red,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = errorMessage ?: "Unknown error",
-                            color = Color.Gray,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-            }
-            else -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFFF7F7F7))
-                        .padding(paddingValues)
-                        .padding(horizontal = 16.dp),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Header
-                    item {
-                        Text(
-                            text = "Pending Orders",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1F2A37),
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                        Text(
-                            text = "${filteredOrders.size} orders waiting for confirmation",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                    }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    text = "Professional Menu",
+                    modifier = Modifier.padding(start = 24.dp, bottom = 12.dp),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
 
-                    // Order List
-                    if (filteredOrders.isEmpty()) {
+                NavigationDrawerItem(
+                    label = { Text("Deals Management") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        navController.navigate("pro_deals")
+                    },
+                    icon = { Icon(Icons.Default.LocalOffer, null) },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                NavigationDrawerItem(
+                    label = { Text("Reclamations") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        navController.navigate("restaurant_reclamations")
+                    },
+                    icon = { Icon(Icons.Default.Report, null) },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                // Menu Management (routed to existing add_meal as requested wrapper for menu buttons)
+                // Assuming "get the routes of the existing buttons" refers to Menu Management button.
+                // Button 1: "Manage Orders" -> menu_management
+                // Button 2: "Menu Management" -> add_meal
+                NavigationDrawerItem(
+                    label = { Text("Menu Management") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        navController.navigate("add_meal/$professionalId")
+                    },
+                    icon = { Icon(Icons.Default.MenuBook, null) },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                NavigationDrawerItem(
+                    label = { Text("Event Management") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        // Static onClick as requested
+                    },
+                    icon = { Icon(Icons.Default.Event, null) },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                Spacer(Modifier.weight(1f))
+                HorizontalDivider()
+                
+                NavigationDrawerItem(
+                    label = { Text("Logout", color = Color.Red, fontWeight = FontWeight.Bold) },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onLogout()
+                    },
+                    icon = { Icon(Icons.Default.ExitToApp, null, tint = Color.Red) },
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                CustomProTopBarWithIcons(
+                    professionalId = professionalId,
+                    navController = navController,
+                    onLogout = onLogout,
+                    onMenuClick = { scope.launch { drawerState.open() } }
+                )
+            },
+            bottomBar = {
+                OrderFilterBottomBar(
+                    selectedFilter = selectedFilter,
+                    onFilterSelected = { selectedFilter = it }
+                )
+            }
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
+            ) {
+                // --- 1. Top Metrics Cards & Quick Actions Header REMOVED ---
+                when {
+                    isLoading -> {
                         item {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 48.dp),
+                                    .fillMaxSize()
+                                    .height(200.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "No orders matching the selected filter.",
-                                    color = Color.Gray,
-                                    fontSize = 16.sp
+                                CircularProgressIndicator(color = Color(0xFFFFC107))
+                            }
+                        }
+                    }
+
+                    errorMessage != null -> {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "Error loading orders",
+                                        color = Color.Red,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        text = errorMessage ?: "Unknown error",
+                                        color = Color.Gray,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    else -> {
+                        // Header
+                        item {
+                            Text(
+                                text = "Pending Orders",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1F2A37),
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                            Text(
+                                text = "${filteredOrders.size} orders waiting for confirmation",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+
+                        // Order List
+                        if (filteredOrders.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 48.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No orders matching the selected filter.",
+                                        color = Color.Gray,
+                                        fontSize = 16.sp
+                                    )
+                                }
+                            }
+                        } else {
+                            items(filteredOrders, key = { it.id }) { order ->
+                                // Get original OrderResponse to access current status
+                                val originalOrder = ordersFromBackend?.find { it._id == order.id }
+                                val currentStatus = originalOrder?.status ?: OrderStatus.PENDING
+
+                                OrderCardWithStatusDropdown(
+                                    order = order,
+                                    currentStatus = currentStatus,
+                                    onStatusChange = { newStatus ->
+                                        // Update order status using coroutine
+                                        scope.launch {
+                                            orderViewModel.updateOrderStatus(
+                                                order.id,
+                                                UpdateOrderStatusRequest(newStatus)
+                                            )
+                                            // Wait briefly for update to complete
+                                            delay(300)
+                                            // Reload orders
+                                            orderViewModel.loadOrdersByProfessional(professionalId)
+                                            Toast.makeText(
+                                                context,
+                                                "Order #${order.id.takeLast(6)} updated to ${getStatusDisplayName(newStatus)}",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
                                 )
                             }
                         }
-                    } else {
-                        items(filteredOrders, key = { it.id }) { order ->
-                            // Get original OrderResponse to access current status
-                            val originalOrder = ordersFromBackend?.find { it._id == order.id }
-                            val currentStatus = originalOrder?.status ?: OrderStatus.PENDING
-                            
-                            OrderCardWithStatusDropdown(
-                                order = order,
-                                currentStatus = currentStatus,
-                                onStatusChange = { newStatus ->
-                                    // Update order status using coroutine
-                                    scope.launch {
-                                        orderViewModel.updateOrderStatus(
-                                            order.id,
-                                            UpdateOrderStatusRequest(newStatus)
-                                        )
-                                        // Wait briefly for update to complete
-                                        delay(300)
-                                        // Reload orders
-                                        orderViewModel.loadOrdersByProfessional(professionalId)
-                                        Toast.makeText(
-                                            context,
-                                            "Order #${order.id.takeLast(6)} updated to ${getStatusDisplayName(newStatus)}",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
-                            )
-                        }
                     }
                 }
+                // --- 3. Navigation Cards & Recent Activity REMOVED ---
+
             }
         }
     }
@@ -413,12 +498,13 @@ fun OrderCardWithStatusDropdown(
     onStatusChange: (OrderStatus) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(2.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp)),
+        elevation = CardDefaults.cardElevation(1.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
@@ -480,11 +566,11 @@ fun OrderCardWithStatusDropdown(
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF1F2A37)
                 )
-                
+
                 // Check if status can be changed
                 val validStatuses = getValidStatusTransitions(currentStatus)
                 val canChangeStatus = validStatuses.isNotEmpty()
-                
+
                 // Status Dropdown
                 ExposedDropdownMenuBox(
                     expanded = expanded,
@@ -527,7 +613,7 @@ fun OrderCardWithStatusDropdown(
                             color = getStatusColor(currentStatus)
                         )
                     )
-                    
+
                     ExposedDropdownMenu(
                         expanded = expanded,
                         onDismissRequest = { expanded = false }
@@ -576,7 +662,141 @@ fun OrderCardWithStatusDropdown(
     }
 }
 
-// --- OrderCard and OrderTypeChip components (OLD - kept for backward compatibility) ---
+// ---------------------------------------------------
+// --- Component: Metric Card ---
+// ---------------------------------------------------
+
+@Composable
+fun MetricCard(
+    title: String,
+    value: String,
+    change: String,
+    icon: ImageVector,
+    backgroundColor: Color,
+    valueColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(backgroundColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = valueColor, modifier = Modifier.size(24.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(change, style = MaterialTheme.typography.labelSmall, color = Color(0xFF4CAF50))
+        }
+    }
+}
+
+// ---------------------------------------------------
+// --- Component: Action Card ---
+// ---------------------------------------------------
+
+@Composable
+fun ActionCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    badge: String? = null,
+    indicator: Boolean = false,
+    iconBackground: Color,
+    iconColor: Color,
+    isEnabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick, enabled = isEnabled),
+        elevation = CardDefaults.cardElevation(2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isEnabled) Color.White else Color(0xFFF5F5F5)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isEnabled) iconBackground else Color.LightGray),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isEnabled) iconColor else Color.Gray,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isEnabled) Color.Black else Color.Gray
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
+            if (badge != null) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.error),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        badge,
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            } else if (indicator && isEnabled) {
+                Icon(
+                    Icons.Default.ArrowForward,
+                    contentDescription = null,
+                    tint = Color.Gray
+                )
+            }
+        }
+    }
+}
+
+// --- OrderCard (Legacy) - Fixed for compilation safety ---
 @Composable
 fun OrderCard(order: Order, onAccept: () -> Unit, onRefuse: () -> Unit) {
     Card(
@@ -658,17 +878,6 @@ fun OrderCard(order: Order, onAccept: () -> Unit, onRefuse: () -> Unit) {
                     Icon(Icons.Default.Close, contentDescription = "Refuse", modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(4.dp))
                     Text("Refuse", fontWeight = FontWeight.SemiBold)
-                }
-
-                IconButton(
-                    onClick = { /* Flag */ },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFF0F0F0))
-                        .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(12.dp))
-                ) {
-                    Icon(Icons.Default.Flag, contentDescription = "Flag", tint = Color.Gray)
                 }
             }
         }

@@ -4,24 +4,42 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.DeliveryDining
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.LocalMall
 import androidx.compose.material.icons.filled.Redeem
 import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.*
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.launch
 import com.example.damprojectfinal.user.common._component.AppDrawer
 import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
 import com.example.damprojectfinal.user.common._component.TopAppBar
@@ -107,7 +125,8 @@ fun HomeScreen(
                     onLogoutClick = onLogout
                 )
 
-                    HighlightCard()
+                    // 🔹 Passer le NavController ici
+                    HighlightCard(navController = navController)
 
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -123,6 +142,7 @@ fun HomeScreen(
                     PostsScreen()
                 }
             }
+
 
                 // --- 2. Dynamic Search Overlay (Placed on top of content) ---
                 if (isSearchActive) {
@@ -143,7 +163,7 @@ fun HomeScreen(
 
 }
 @Composable
-fun HighlightCard() {
+fun HighlightCard(navController: NavHostController) {
     val dynamicHighlights = listOf(
         HighlightCardData(
             startColor = Color(0xFFE0E7FF),
@@ -195,6 +215,16 @@ fun HighlightCard() {
         contentDescription = "Daily Deals"
     )
 
+    val takeawayCardData = HighlightCardData(
+        startColor = Color(0xFFE0E7FF),
+        endColor = Color(0xFFC7D2FE),
+        iconTint = Color(0xFF4F46E5),
+        title = "Takeaway",
+        subtitle = "Grab & Go",
+        iconPainter = rememberVectorPainter(Icons.Filled.LocalMall),
+        contentDescription = "Takeaway"
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -206,7 +236,11 @@ fun HighlightCard() {
                 modifier = Modifier
                     .weight(1f)
                     .height(120.dp)
-                    .clickable { /* handle click */ },
+                    .clickable {
+                        if (data.title == "Daily Deals") {
+                            navController.navigate("deals")
+                        }
+                    },
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
@@ -247,8 +281,11 @@ fun HighlightCard() {
                 }
             }
         }
+
     }
 }
+
+
 
 // --- Helper Data Class and Composable for Reusability ---
 
@@ -320,14 +357,168 @@ fun FilterChipItem(text: String, selected: Boolean) {
             .background(backgroundColor)
             .padding(horizontal = 18.dp, vertical = 10.dp)
     ) {
-        Text(text = text, color = textColor, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 14.sp)
+        Text(
+            text = text,
+            color = textColor,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            fontSize = 14.sp
+        )
     }
 }
+
+@Composable
+fun FoodCard(name: String, place: String, tags: List<String>, price: String, image: Int) {
+    Column(
+        modifier = Modifier
+            .width(270.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color.White)
+            .shadow(10.dp, RoundedCornerShape(24.dp))
+    ) {
+        Box {
+            // NOTE: painterResource(id = image) requires an actual resource ID (R.drawable.xxx)
+            // which is not defined here, but the composable structure is correct.
+            Image(
+                painter = painterResource(id = image),
+                contentDescription = name,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(170.dp)
+                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+                contentScale = ContentScale.Crop
+            )
+
+            // Prep time chip
+            Box(
+                modifier = Modifier
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.85f))
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.AccessTime,
+                        contentDescription = "Time",
+                        tint = Color(0xFFF97316),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "  Prepare 8 min",
+                        fontSize = 12.sp,
+                        color = Color(0xFF1F2937)
+                    )
+                }
+            }
+
+            // Favorite button
+            IconButton(
+                onClick = { },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .background(Color.White, CircleShape)
+            ) {
+                Icon(
+                    Icons.Filled.FavoriteBorder,
+                    contentDescription = "Favorite",
+                    tint = Color(0xFF9CA3AF)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = name,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            color = Color(0xFF111827),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        Text(
+            text = place,
+            fontSize = 13.sp,
+            color = Color(0xFF9CA3AF),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        ) {
+            tags.forEach { TagItem(it) }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = price,
+                color = Color(0xFFF97316),
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            )
+
+            Button(
+                onClick = { },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFF8E1)),
+                shape = RoundedCornerShape(14.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(text = "🛍️ Order", color = Color(0xFF1F2937), fontSize = 14.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun TagItem(text: String) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFFFFF7ED))
+            .padding(horizontal = 12.dp, vertical = 5.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            color = Color(0xFFF97316),
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun HomeScreenPreview() {
+// You need a dummy NavController for preview
+    val navController = rememberNavController()
+    val fakeLogoutState = MutableStateFlow(false)
+    HomeScreen(
+        navController = navController,
+        onLogout = {},
+        logoutSuccess = fakeLogoutState
+    )
+}
 
+@Preview(showBackground = true)
+@Composable
+fun HighlightCardPreview() {
+    val navController = rememberNavController() // Dummy NavController pour la preview
+    HighlightCard(navController = navController)
     // Fake logout state so preview doesn't crash
     val fakeLogoutState = MutableStateFlow(false)
 

@@ -2,8 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- ✅ Add INTERNET permission -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 🔥 AJOUTER CES PERMISSIONS -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 
     <application
         android:allowBackup="true"
@@ -15,13 +21,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.DamProjectFinal"
         android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+
         tools:targetApi="31">
 
-        <!-- ✅ AdMob meta-data -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-3940256099942544~3347511713" />
-        <!-- ⚠️ Replace the value with your real AdMob App ID later -->
 
         <activity
             android:name=".MainActivity"
@@ -32,6 +38,62 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Deep link avec custom scheme (pas de autoVerify) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="myapp"
+                    android:host="reset-password"
+                    android:pathPrefix="/" />
+            </intent-filter>
+
+            <!-- ✅ App Link HTTPS avec autoVerify (VRAI DOMAINE UNIQUEMENT) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="yourapp.com"
+                    android:pathPrefix="/reset-password" />
+            </intent-filter>
+
+            <!-- Deep links HTTP pour développement (SANS autoVerify) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="http"
+                    android:host="yourapp.com"
+                    android:pathPrefix="/reset-password" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="http"
+                    android:host="localhost"
+                    android:port="3000"
+                    android:pathPrefix="/reset-password" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="http"
+                    android:host="10.0.2.2"
+                    android:port="3000"
+                    android:pathPrefix="/reset-password" />
+            </intent-filter>
+
         </activity>
 
     </application>

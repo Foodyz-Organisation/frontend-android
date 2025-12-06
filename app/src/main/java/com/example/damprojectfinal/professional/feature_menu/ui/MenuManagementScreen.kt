@@ -111,7 +111,8 @@ fun MenuItemManagementScreen(
                 professionalId = professionalId,
                 navController = navController,
                 currentRoute = "menu",
-                onLogout = { navController.navigate("login_route") }
+                onLogout = { navController.navigate("login_route") },
+                onMenuClick = { /* Drawer not implemented in this screen yet */ }
             )
         },
         floatingActionButton = {

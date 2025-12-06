@@ -73,9 +73,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
 
-    // ===== Navigation =====
-    // Removed duplicate navigation-compose:2.7.7
-
+    // Compose BOM manages all Compose versions automatically
+    implementation(platform(libs.androidx.compose.bom))
 
     // ===== Images =====
     implementation("io.coil-kt:coil-compose:2.5.0")
@@ -83,8 +82,11 @@ dependencies {
     // ===== Ktor =====
     implementation("io.ktor:ktor-client-core:2.3.6")
     implementation("io.ktor:ktor-client-android:2.3.6")
-    // duplicate removed
-
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.ui:ui")
+    implementation("io.coil-kt:coil-compose:2.5.0") // Check for the latest version
+    // Ktor JSON Serialization (Your Existing)
+    implementation("androidx.compose.ui:ui-text") // <--- THIS ONE
     implementation("io.ktor:ktor-client-content-negotiation:2.3.6")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.6")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
@@ -113,7 +115,7 @@ dependencies {
     implementation("javax.inject:javax.inject:1")
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    // ===== Icons =====
+    implementation("com.squareup.okhttp3:logging-interceptor:4.10.0")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     // Socket.IO dependency removed (websockets not used)
     // Font Awesome icons (Your Existing)
@@ -125,8 +127,26 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.05.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+/////
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation(libs.androidx.compose.runtime)
+    implementation("io.coil-kt:coil-compose:2.5.0")
 
-    // ===== Debug =====
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    // OkHttp (requis par Coil pour le réseau)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+
+
+    // Testing (Your Existing)
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+
+    // Debug tools (Your Existing)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

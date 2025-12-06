@@ -1,6 +1,6 @@
 package com.example.damprojectfinal.feature_auth.viewmodels
 
-import android.util.Log // ⬅️ ADD THIS IMPORT for debugging
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -9,6 +9,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.auth.LoginRequest
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.IOException
 private const val TAG = "LoginViewModel"
@@ -30,10 +33,14 @@ class LoginViewModel(
     private val tokenManager: TokenManager
 ) : ViewModel() {
 
+    private val TAG = "LoginViewModel"
+
     var uiState by mutableStateOf(LoginUiState())
         private set
 
-    val userRole = tokenManager.getUserRole()
+    // --- Expose role for composable to observe ---
+    private val _userRole = MutableStateFlow<String?>(null)
+    val userRole: StateFlow<String?> = _userRole.asStateFlow()
 
     fun updateEmail(input: String) {
         uiState = uiState.copy(email = input, error = null)
@@ -62,9 +69,16 @@ class LoginViewModel(
 
         viewModelScope.launch {
             try {
-                val request = LoginRequest(uiState.email, uiState.password)
-                Log.d(TAG, "Sending API request...") // ⬅️ DEBUG
+                val request = LoginRequest(
+                    email = uiState.email,
+                    password = uiState.password,
+                )
+
+                Log.d(TAG, "Attempting login for: ${uiState.email}")
                 val response = authApiService.login(request)
+                Log.d(TAG, "Login successful - UserId: ${response.id}, Role: ${response.role}")
+
+
 
                 // 🛑 FIX: Extract required non-null fields or throw if API contract is violated
                 val accessToken = response.access_token
@@ -107,6 +121,7 @@ class LoginViewModel(
                 )
 
             } catch (e: Exception) {
+                Log.e(TAG, "Login failed", e)
                 val errorMessage = when (e) {
                     is IOException -> {
                         Log.e(TAG, "Login FAILED: Network Error. ${e.message}") // ⬅️ DEBUG

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -43,9 +44,10 @@ fun CustomProTopBarWithIcons(
     professionalId: String,
     navController: NavHostController,
     currentRoute: String = "home", // Track current route
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onMenuClick: () -> Unit
 ) {
-    Column(modifier = Modifier.background(Color.White)) {
+    Column(modifier = Modifier.background(Color.White).statusBarsPadding()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -77,13 +79,8 @@ fun CustomProTopBarWithIcons(
                 modifier = Modifier.weight(1f).padding(start = 8.dp)
             )
 
-            // Actions (Logout, Menu, Notifications)
-            // ⭐ REPLACED: Search icon with Logout icon
-            IconButton(onClick = onLogout) { // Call the onLogout callback directly
-                Icon(Icons.Filled.ExitToApp, contentDescription = "Logout", tint = Color.Red)
-            }
-
-            IconButton(onClick = { /* TODO: Open Drawer or Settings */ }) {
+            // Menu Icon (trigger drawer)
+            IconButton(onClick = onMenuClick) {
                 Icon(Icons.Filled.Menu, contentDescription = "Menu")
             }
 

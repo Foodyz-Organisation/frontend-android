@@ -2,7 +2,6 @@ package com.example.damprojectfinal.core.api
 
 import com.example.damprojectfinal.core.dto.order.CreateOrderRequest
 import com.example.damprojectfinal.core.dto.order.OrderResponse
-import com.example.damprojectfinal.core.dto.order.UpdateOrderRequest
 import com.example.damprojectfinal.core.dto.order.UpdateOrderStatusRequest
 import retrofit2.Response
 import retrofit2.http.*

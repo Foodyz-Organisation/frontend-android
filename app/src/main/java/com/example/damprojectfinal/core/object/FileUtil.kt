@@ -6,15 +6,9 @@ import android.provider.OpenableColumns
 import java.io.File
 import java.io.FileOutputStream
 
-// Wrapper to hold File and MIME type
 data class FileWithMime(val file: File, val mimeType: String)
 
 object FileUtil {
-
-    /**
-     * Converts a Uri to a physical File with MIME type.
-     * Returns null if something goes wrong.
-     */
     fun getFileWithMime(context: Context, uri: Uri): FileWithMime? {
         return try {
             // Get MIME type

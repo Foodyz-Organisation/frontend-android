@@ -1,128 +1,152 @@
 package com.example.damprojectfinal.feature_auth.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.damprojectfinal.AuthRoutes
+import com.example.damprojectfinal.feature_auth.viewmodels.ForgotPasswordUiState
+import com.example.damprojectfinal.feature_auth.viewmodels.ForgotPasswordViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ForgetPasswordScreen(
+fun ForgotPasswordScreen(
     navController: NavController,
-    onNavigateBack: () -> Unit = { navController.popBackStack() },
-    onStartReset: (String) -> Unit = { /* Placeholder for triggering email API call */ }
+    viewModel: ForgotPasswordViewModel
 ) {
-    // --- State for the Email Input ---
-    var emailInput by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
-    // --- Design Variables (Consistent with SignupScreen) ---
-    val primaryLightYellow = Color(0xFFFFD60A).copy(alpha = 0.6f)
-    val secondaryDarkText = Color(0xFF6B7280)
-    val placeholderText = Color(0xFFAAAAAA)
+    LaunchedEffect(uiState) {
+        when (val state = uiState) {
+            is ForgotPasswordUiState.OtpSent -> {
+                Toast.makeText(context, "OTP sent to ${state.email}", Toast.LENGTH_SHORT).show()
+                navController.navigate("${AuthRoutes.VERIFY_OTP}/${state.email}") {
+                    // popUpTo(AuthRoutes.FORGOT_PASSWORD) { inclusive = false }
+                }
+                viewModel.resetState()
+            }
+            is ForgotPasswordUiState.Error -> {
+                Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
+                viewModel.resetState()
+            }
+            else -> {}
+        }
+    }
 
-    val textFieldColors = OutlinedTextFieldDefaults.colors(
-        focusedContainerColor = Color.White,
-        unfocusedContainerColor = Color.White,
-        focusedBorderColor = primaryLightYellow,
-        unfocusedBorderColor = Color(0xFFE0E0E0),
-        cursorColor = primaryLightYellow,
-        focusedLabelColor = secondaryDarkText,
-        unfocusedLabelColor = secondaryDarkText,
-        unfocusedTextColor = secondaryDarkText,
-        focusedTextColor = secondaryDarkText,
-        unfocusedPlaceholderColor = placeholderText,
-        focusedPlaceholderColor = placeholderText
+    val gradient = Brush.verticalGradient(
+        colors = listOf(Color(0xFFFFFBEA), Color(0xFFFFF8D6), Color(0xFFFFF6C1))
     )
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Forgot Password", color = secondaryDarkText) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Go back", tint = secondaryDarkText)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
-            )
-        },
+    val textFieldColors = TextFieldDefaults.colors(
+        focusedContainerColor = Color.White.copy(alpha = 0.5f),
+        unfocusedContainerColor = Color.White.copy(alpha = 0.5f),
+        disabledContainerColor = Color.White.copy(alpha = 0.3f),
+        focusedIndicatorColor = Color(0xFFF59E0B),
+        unfocusedIndicatorColor = Color.Transparent,
+        cursorColor = Color(0xFFB87300),
+        focusedLabelColor = Color(0xFFB87300),
+        unfocusedLabelColor = Color(0xFF6B7280)
+    )
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
-    ) { paddingValues ->
+            .background(gradient)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
                 .padding(horizontal = 24.dp)
+                .padding(top = 48.dp, bottom = 24.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
-            Spacer(Modifier.height(48.dp))
+            // --- App Logo ---
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(listOf(Color(0xFFFFECB3), Color(0xFFFFC107)))
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Fastfood,
+                    contentDescription = "App Logo",
+                    tint = Color(0xFF5F370E),
+                    modifier = Modifier.size(48.dp)
+                )
+            }
 
-            // --- Header ---
+            Spacer(modifier = Modifier.height(24.dp))
+
             Text(
-                text = "You Forget Your Password",
-                fontSize = 28.sp,
+                text = "Forgot Password?",
+                fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
-                color = secondaryDarkText
+                color = Color(0xFFB87300),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Enter your email address and we'll send you instructions to reset your password.",
-                color = secondaryDarkText,
+                text = "Don't worry! Enter your email address and we'll send you a verification code to reset your password",
+                color = Color(0xFF6B7280),
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
-            // --- 1. EMAIL INPUT FIELD ---
-
-            // Reusing the CategoryHeader for structure, though less necessary here
-            CategoryHeader("Account Email")
-
+            // --- Email Field ---
             OutlinedTextField(
-                value = emailInput,
-                onValueChange = { emailInput = it },
-                label = { Text("Email Address") },
-                leadingIcon = { Icon(Icons.Filled.Email, null) },
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email") },
+                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                 placeholder = { Text("your.email@example.com") },
-                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
+                enabled = uiState !is ForgotPasswordUiState.Loading,
+                shape = RoundedCornerShape(16.dp),
                 colors = textFieldColors
             )
 
-            Spacer(Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            // 🟨 SEND RESET LINK BUTTON
+            // --- Send Code Button ---
             Button(
-                onClick = { onStartReset(emailInput) },
-                enabled = emailInput.isNotBlank(), // Enable when email is typed
+                onClick = { viewModel.sendOtp(email) },
+                enabled = uiState !is ForgotPasswordUiState.Loading && email.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
@@ -141,28 +165,42 @@ fun ForgetPasswordScreen(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Send Reset Link", color = Color.White, fontWeight = FontWeight.Bold)
+                    if (uiState is ForgotPasswordUiState.Loading) {
+                        CircularProgressIndicator(
+                            color = Color(0xFF111827),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Text(
+                            text = "Send Code",
+                            color = Color(0xFF111827),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                    }
                 }
             }
 
-            // You can add a link back to login if needed
-            Spacer(Modifier.height(24.dp))
-            TextButton(onClick = onNavigateBack) {
-                Text("Back to Login", color = secondaryDarkText, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.weight(1f))
+
+            // --- Back to Login ---
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "Remember your password? ", color = Color(0xFF6B7280))
+                TextButton(
+                    onClick = { navController.popBackStack() },
+                    enabled = uiState !is ForgotPasswordUiState.Loading
+                ) {
+                    Text(
+                        text = "Back to Login",
+                        color = Color(0xFFF59E0B),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
-}
-
-// Reusing helper function from SignupScreen for consistent header styling
-@Composable
-private fun CategoryHeader(text: String) {
-    Text(
-        text = text,
-        fontSize = 18.sp,
-        fontWeight = FontWeight.Bold,
-        color = Color(0xFFB87300),
-        modifier = Modifier.fillMaxWidth()
-    )
-    Spacer(Modifier.height(12.dp))
 }
