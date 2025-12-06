@@ -22,18 +22,17 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.*
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.user.common._component.AppDrawer
 import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
 import com.example.damprojectfinal.user.common._component.TopAppBar
 import com.example.damprojectfinal.user.feature_posts.ui.PostsScreen
 import com.example.damprojectfinal.UserRoutes
+import com.example.damprojectfinal.ProfileRoutes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-
-// Placeholder Composable for HighlightCard/FilterChipItem (ensure they exist in your project)
+import com.example.damprojectfinal.core.api.TokenManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +54,6 @@ fun HomeScreen(
         mutableStateOf(tokenManager.getUserIdBlocking() ?: "placeholder_user_id_123")
     }
 
-    // Automatically navigate to login after logout
     LaunchedEffect(logoutSuccess) {
         logoutSuccess.collect { success ->
             if (success) {
@@ -72,7 +70,6 @@ fun HomeScreen(
         }
     }
 
-    // ------------------------- UI -------------------------
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = !isSearchActive,
@@ -110,10 +107,8 @@ fun HomeScreen(
                     onLogoutClick = onLogout
                 )
 
-                // ----------------- HIGHLIGHT CARD -----------------
-                HighlightCard()
+                    HighlightCard()
 
-                // ----------------- FILTER CHIPS -----------------
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.padding(horizontal = 20.dp)
@@ -124,25 +119,29 @@ fun HomeScreen(
                     item { FilterChipItem("🍰 Sweet", selected = false) }
                 }
 
-                // ----------------- POSTS -----------------
                 Box(modifier = Modifier.padding(horizontal = 2.dp)) {
                     PostsScreen()
                 }
             }
 
-            // ----------------- DYNAMIC SEARCH OVERLAY -----------------
-            if (isSearchActive) {
-                DynamicSearchOverlay(
-                    navController = navController,
-                    onDismiss = { isSearchActive = false }
-                )
+                // --- 2. Dynamic Search Overlay (Placed on top of content) ---
+                if (isSearchActive) {
+                    DynamicSearchOverlay(
+                        onDismiss = { isSearchActive = false },
+                        onNavigateToProfile = { profileId ->
+                            isSearchActive = false
+                            // Assuming 'restaurant_profile_route/{profileId}' needs a concrete ID for navigation
+                            if (profileId.isNotEmpty()) {
+                                // Use the correct route from ProfileRoutes
+                                navController.navigate("${ProfileRoutes.CLIENT_PROFILE_VIEW.substringBefore("/")}/${profileId}")
+                            }
+                        }
+                    )
+                }
             }
         }
-    }
+
 }
-
-// -------------------------- Helpers (unchanged) --------------------------
-
 @Composable
 fun HighlightCard() {
     val dynamicHighlights = listOf(
@@ -251,6 +250,7 @@ fun HighlightCard() {
     }
 }
 
+// --- Helper Data Class and Composable for Reusability ---
 
 private data class HighlightCardData(
     val startColor: Color,
@@ -289,16 +289,26 @@ private fun HighlightCardItem(
                     tint = data.iconTint,
                     modifier = Modifier.size(36.dp)
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Column {
-                    Text(data.title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
-                    Text(data.subtitle, fontSize = 13.sp, color = Color(0xFF6B7280))
+                    Text(
+                        text = data.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color(0xFF1F2937)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = data.subtitle,
+                        fontSize = 13.sp,
+                        color = Color(0xFF6B7280)
+                    )
                 }
             }
         }
     }
 }
-
 @Composable
 fun FilterChipItem(text: String, selected: Boolean) {
     val backgroundColor by animateColorAsState(if (selected) Color(0xFF111827) else Color(0xFFF3F4F6))

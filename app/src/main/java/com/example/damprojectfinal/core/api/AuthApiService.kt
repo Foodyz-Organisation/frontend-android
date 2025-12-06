@@ -17,6 +17,9 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.ServerResponseException
+import io.ktor.client.plugins.HttpResponseValidator
 
 
 class AuthApiService {
@@ -33,6 +36,12 @@ class AuthApiService {
         }
         install(HttpTimeout) {
             requestTimeoutMillis = 15000
+        }
+        // Don't throw exceptions for non-2xx responses
+        HttpResponseValidator {
+            handleResponseExceptionWithRequest { cause, _ ->
+                throw cause
+            }
         }
     }
 
@@ -56,11 +65,10 @@ class AuthApiService {
 
     suspend fun login(request: LoginRequest): LoginResponse {
         val url = "$BASE_URL/auth/login"
-        val response = client.post(url) {
+        return client.post(url) {
             contentType(ContentType.Application.Json)
             setBody(request)
-        }
-        return response.body()
+        }.body()
     }
 
     suspend fun logout(): SimpleMessageResponse {

@@ -2,21 +2,21 @@ package com.example.damprojectfinal
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.api.DebugUserLogger
-import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.repository.MenuItemRepository
 import com.example.damprojectfinal.core.repository.UserRepository
@@ -26,17 +26,23 @@ import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
 import com.example.damprojectfinal.user.feautre_order.ui.OrderHistoryScreen
 import com.example.damprojectfinal.user.feautre_order.ui.OrderDetailsScreen
 import com.example.damprojectfinal.core.utils.LogoutViewModelFactory
-import com.example.damprojectfinal.feature_auth.ui.*
 import com.example.damprojectfinal.feature_auth.viewmodels.LogoutViewModel
+import com.example.damprojectfinal.feature_auth.ui.ForgetPasswordScreen
+import com.example.damprojectfinal.feature_auth.ui.LoginScreen
+import com.example.damprojectfinal.feature_auth.ui.SignupScreen
+import com.example.damprojectfinal.feature_auth.ui.SplashScreen
+import com.example.damprojectfinal.feature_auth.ui.ProSignupScreen
 import com.example.damprojectfinal.professional.common.HomeScreenPro
+import com.example.damprojectfinal.user.feature_chat.ui.ChatDetailScreen
 import com.example.damprojectfinal.professional.feature_menu.ui.MenuItemManagementScreen
 import com.example.damprojectfinal.professional.feature_menu.ui.components.CreateMenuItemScreen
 import com.example.damprojectfinal.professional.feature_menu.ui.components.ItemDetailsScreen
 import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewModel
 import com.example.damprojectfinal.user.common.HomeScreen
+import com.example.damprojectfinal.user.feature_chat.ui.ChatManagementScreen
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.user.feature_profile.ui.UserProfileScreen
 import com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel
-import com.google.gson.Gson
 import com.example.damprojectfinal.core.`object`.KtorClient
 import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileScreen
 import com.example.damprojectfinal.professional.feature_profile.ui.mockChilis
@@ -47,6 +53,7 @@ import com.example.damprojectfinal.user.feautre_order.ui.OrderConfirmationScreen
 import com.example.damprojectfinal.core.repository.CartRepository
 import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewModel
 import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewModelFactory
+import com.google.gson.Gson
 
 object AuthRoutes {
     const val SPLASH = "splash_route"
@@ -92,11 +99,11 @@ fun AppNavigation(modifier: Modifier = Modifier) {
     // Initialize User API Service and Repository for ProfileViewModel
     val userApiService = remember { UserApiService() }
     val userRepository = remember { UserRepository(userApiService) }
-    
+
     // Order Repository
     val orderApiService = remember { RetrofitClient.orderApi }
     val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
-    
+
     // Debugger runs at the highest level
     DebugUserLogger(tokenManager = tokenManager)
 
@@ -109,6 +116,18 @@ fun AppNavigation(modifier: Modifier = Modifier) {
     ) {
         // Splash
         composable(AuthRoutes.SPLASH) {
+            val context = LocalContext.current
+            val nextRoute = remember { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(Unit) {
+                val authState = TokenManager(context).getAuthState()
+                nextRoute.value = when (authState?.role) {
+                    "professional" -> "${UserRoutes.HOME_SCREEN_PRO}/${authState.userId}"
+                    "user" -> UserRoutes.HOME_SCREEN
+                    else -> null
+                } ?: AuthRoutes.LOGIN
+            }
+
             SplashScreen(
                 durationMs = 1600,
                 // ✅ FIX: Using the correct single callback function signature and adding explicit types
@@ -275,6 +294,27 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             )
         }
 
+        // Chat management (copied from other project, minimal integration)
+        composable("chatList") {
+            ChatManagementScreen(navController = navController)
+        }
+
+        composable("chatDetail/{conversationId}/{chatName}/{currentUserId}") { backStackEntry ->
+            val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
+            val chatName = backStackEntry.arguments?.getString("chatName") ?: ""
+            // On récupère le currentUserId passé dans la route si disponible,
+            // sinon on peut tomber sur une valeur par défaut récupérée depuis l'auth
+            val currentUserId = backStackEntry.arguments?.getString("currentUserId") ?: "USER_ID_DEPuis_AUTH"
+
+            ChatDetailScreen(
+                chatName = chatName,
+                conversationId = conversationId,
+                currentUserId = currentUserId,
+                navController = navController
+            )
+        }
+
+
 
         // Professional Signup
         composable(AuthRoutes.PRO_SIGNUP) {
@@ -440,10 +480,10 @@ fun AppNavigation(modifier: Modifier = Modifier) {
 // ⭐ 1. PROFESSIONAL PROFILE EDIT SCREEN (Editable) ⭐
 // ----------------------------------------------------
         composable(
-            route = ProfileRoutes.PROFESSIONAL_PROFILE_EDIT, // e.g., "pro_profile_edit/{restaurantId}"
-            arguments = listOf(navArgument("restaurantId") { type = NavType.StringType })
+            route = ProfileRoutes.PROFESSIONAL_PROFILE_EDIT, // e.g., "pro_profile_edit/{professionalId}"
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val restaurantId = backStackEntry.arguments?.getString("restaurantId")
+            val professionalId = backStackEntry.arguments?.getString("professionalId")
                 ?: throw IllegalStateException("Restaurant ID is required for Pro profile edit.")
 
             // TODO: Fetch the specific restaurant details for editing
@@ -524,7 +564,7 @@ fun AppNavigation(modifier: Modifier = Modifier) {
 
             val orderApiService = remember { RetrofitClient.orderApi }
             val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
-            
+
             val orderViewModel: OrderViewModel = viewModel(
                 factory = OrderViewModel.Factory(orderRepository)
             )

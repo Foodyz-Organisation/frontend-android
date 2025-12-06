@@ -35,10 +35,11 @@ import com.example.damprojectfinal.R
 import com.example.damprojectfinal.UserRoutes
 import com.example.damprojectfinal.AuthRoutes
 import com.example.damprojectfinal.core.api.AuthApiService
-import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.utils.ViewModelFactory
 import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalContext
+import com.example.damprojectfinal.core.api.TokenManager
 
 @Composable
 fun LoginScreen(
@@ -61,8 +62,8 @@ fun LoginScreen(
 
     // ✅ FIX — We ONLY observe uiState. All data is in here.
     val uiState = viewModel.uiState
-    // ❌ BUGGY LINE REMOVED: val userRole by viewModel.userRole.collectAsState(initial = null)
-
+    val userRole by viewModel.userRole.collectAsState(initial = null)
+    val context = LocalContext.current
     var showPassword by remember { mutableStateOf(false) }
     var rememberMeChecked by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -96,7 +97,6 @@ fun LoginScreen(
                 else -> null // Handle unknown roles
             }
 
-            // Handle unknown/unsupported roles
             if (destinationRoute == null) {
                 scope.launch {
                     snackbarHostState.showSnackbar(
@@ -112,21 +112,35 @@ fun LoginScreen(
             // --- SUCCESS ---
             scope.launch {
                 snackbarHostState.showSnackbar(
-                    message = "Login Successful! Welcome ${role?.replaceFirstChar { it.uppercase() }}",
+                    message = "Login Successful! Welcome $role",
                     actionLabel = "Continue"
                 )
             }
 
-            navController.navigate(destinationRoute) {
-                // Clear the auth stack
-                popUpTo(AuthRoutes.LOGIN) { inclusive = true }
-                // or popUpTo(0) to clear everything
+            if (destinationRoute != null) {
+                // Save tokens to DataStore for future authenticated requests
+                // Use the tokens provided by the ViewModel (set on successful login)
+                val access = uiState.accessToken
+                val refresh = uiState.refreshToken
+                if (!access.isNullOrEmpty() && !refresh.isNullOrEmpty() && !uiState.userId.isNullOrEmpty() && !uiState.role.isNullOrEmpty()) {
+                    // Persist tokens asynchronously
+                    scope.launch {
+                        try {
+                            TokenManager(context).saveTokens(access, refresh, uiState.userId!!, uiState.role!!)
+                        } catch (e: Exception) {
+                            // Non-blocking: log or ignore for now - navigation can proceed
+                            println("Failed to save tokens: ${e.message}")
+                        }
+                    }
+                }
+                navController.navigate(destinationRoute) {
+                    popUpTo(AuthRoutes.LOGIN) { inclusive = true }
+                }
             }
 
             viewModel.resetState() // Reset state *after* navigation
 
         } else if (uiState.error != null) {
-            // --- ERROR ---
             scope.launch {
                 snackbarHostState.showSnackbar(
                     message = uiState.error ?: "Unknown error",
@@ -136,8 +150,6 @@ fun LoginScreen(
             viewModel.resetState() // Reset error so snackbar doesn't re-show
         }
     }
-
-    // --- UI (No Changes Below) ---
 
     val gradient = Brush.verticalGradient(
         colors = listOf(Color(0xFFFFFBEA), Color(0xFFFFF8D6), Color(0xFFFFF6C1))
@@ -173,8 +185,7 @@ fun LoginScreen(
                     .padding(top = 48.dp, bottom = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-
-                // --- Logo ---
+                // --- App Logo ---
                 Box(
                     modifier = Modifier
                         .size(120.dp)
@@ -254,7 +265,7 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Remember Me & Forgot Password Row
+                // --- Remember Me & Forgot Password ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -280,8 +291,9 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Login Button
+                // --- Login Button ---
                 Button(
+                    // Call login without the onSuccess callback here, rely on LaunchedEffect
                     onClick = viewModel::login,
                     enabled = !uiState.isLoading,
                     modifier = Modifier

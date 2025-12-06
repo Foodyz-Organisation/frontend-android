@@ -406,7 +406,7 @@ fun CreateMenuItemScreen(
                             // Category Dropdown
                             Box(modifier = Modifier.weight(1f)) {
                                 FoodAppTextField(
-                                    value = category.lowercase().capitalize(),
+                                    value = category.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() },
                                     onValueChange = {},
                                     placeholder = "Select",
                                     label = "Category",
@@ -767,8 +767,3 @@ fun Modifier.dashedBorder(strokeWidth: Dp, color: Color, cornerRadiusDp: Dp) = c
         )
     }
 )
-
-// Extension for String capitalization
-fun String.capitalize(): String {
-    return this.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-}

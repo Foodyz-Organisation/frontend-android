@@ -11,11 +11,8 @@ import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.auth.LoginRequest
 import kotlinx.coroutines.launch
 import java.io.IOException
-
-// Use a consistent tag for filtering logs
 private const val TAG = "LoginViewModel"
 
-// --- UI State for Login Screen ---
 data class LoginUiState(
     val email: String = "",
     val password: String = "",
@@ -23,6 +20,8 @@ data class LoginUiState(
     val loginSuccess: Boolean = false,
     val userId: String? = null,
     val role: String? = null,
+    val accessToken: String? = null,
+    val refreshToken: String? = null,
     val error: String? = null
 )
 
@@ -33,6 +32,8 @@ class LoginViewModel(
 
     var uiState by mutableStateOf(LoginUiState())
         private set
+
+    val userRole = tokenManager.getUserRole()
 
     fun updateEmail(input: String) {
         uiState = uiState.copy(email = input, error = null)
@@ -99,7 +100,10 @@ class LoginViewModel(
                     isLoading = false,
                     loginSuccess = true,
                     userId = userId,
-                    role = prioritizedRole
+                    role = prioritizedRole,
+                    accessToken = response.access_token,
+                    refreshToken = response.refresh_token,
+                    error = null
                 )
 
             } catch (e: Exception) {
@@ -129,10 +133,6 @@ class LoginViewModel(
         }
     }
 
-    /**
-     * Call this from your UI after navigation is complete
-     * to prevent re-triggering navigation on config change.
-     */
     fun resetState() {
         uiState = uiState.copy(
             loginSuccess = false,

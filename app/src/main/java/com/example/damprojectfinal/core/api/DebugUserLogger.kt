@@ -9,7 +9,7 @@ import com.example.damprojectfinal.core.api.TokenManager
 @Composable
 fun DebugUserLogger(tokenManager: TokenManager) {
     // 1. Collect the stored data as state
-    val userId by tokenManager.getUserId().collectAsState(initial = null)
+    val userId by tokenManager.getUserIdFlow().collectAsState(initial = null)
     val userRole by tokenManager.getUserRole().collectAsState(initial = null)
 
     // 2. Log the data whenever it changes

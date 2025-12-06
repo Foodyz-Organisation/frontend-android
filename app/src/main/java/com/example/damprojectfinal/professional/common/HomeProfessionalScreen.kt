@@ -509,8 +509,10 @@ fun OrderCardWithStatusDropdown(
                                 )
                             }
                         },
-                        colors = TextFieldDefaults.outlinedTextFieldColors(
-                            containerColor = getStatusColor(currentStatus).copy(alpha = 0.1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = getStatusColor(currentStatus).copy(alpha = 0.1f),
+                            unfocusedContainerColor = getStatusColor(currentStatus).copy(alpha = 0.1f),
+                            disabledContainerColor = getStatusColor(currentStatus).copy(alpha = 0.1f),
                             unfocusedBorderColor = getStatusColor(currentStatus),
                             focusedBorderColor = getStatusColor(currentStatus),
                             disabledBorderColor = getStatusColor(currentStatus).copy(alpha = 0.5f),

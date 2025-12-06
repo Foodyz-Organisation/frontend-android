@@ -179,7 +179,7 @@ fun SecondaryNavBar(navController: NavController, currentRoute: String) {
         }
         NavIcon(Icons.Filled.TrendingUp, currentRoute == "trends") { navController.navigate("trends") }
         NavIcon(Icons.Filled.PlayArrow, currentRoute == "reels") { navController.navigate("reels") }
-        NavIcon(Icons.Filled.Chat, currentRoute == "chat") { navController.navigate("chat") }
+        NavIcon(Icons.Filled.Chat, currentRoute == "chatList") { navController.navigate("chatList") }
         NavIcon(
             Icons.Filled.AttachMoney,
             currentRoute == UserRoutes.ORDERS_ROUTE // highlight if current route is orders_history_route
@@ -300,8 +300,8 @@ fun RestaurantListItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DynamicSearchOverlay(
-    navController: NavController,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onNavigateToProfile: (String) -> Unit
 ) {
     // --- Dependencies & ViewModel Setup ---
     val client = remember { HttpClient() }
@@ -322,8 +322,8 @@ fun DynamicSearchOverlay(
 
     // --- Navigation ---
     val navigateToProfessionalProfile: (professionalId: String) -> Unit = { professionalId ->
-        onDismiss()
-        navController.navigate("client_profile_view/$professionalId")
+        onDismiss() // Close the overlay first
+        onNavigateToProfile(professionalId)
     }
 
     Scaffold(
@@ -539,7 +539,7 @@ fun TopAppBarPreview() {
 @Composable
 fun DynamicSearchOverlayPreview() {
     DynamicSearchOverlay(
-        navController = rememberNavController(),
         onDismiss = {},
+        onNavigateToProfile = {}
     )
 }

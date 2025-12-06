@@ -13,9 +13,11 @@ data class LoginRequest(
 @OptIn(InternalSerializationApi::class)
 @Serializable
 data class LoginResponse(
-    val access_token: String? = null,
-    val refresh_token: String? = null,
-    val role: String? = null,
-    val email: String? = null,
-    val id: String? = null
+    val access_token: String,
+    val refresh_token: String,
+    val role: String,
+    val email: String,
+    val id: String,
+    val username: String? = null,
+    val avatarUrl: String? = null,
 )
