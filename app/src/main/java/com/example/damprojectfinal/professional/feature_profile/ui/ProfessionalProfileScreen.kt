@@ -43,6 +43,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.api.posts.RetrofitClient
+import com.example.damprojectfinal.ProRoutes
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 
 enum class ProfessionalProfileTab { ABOUT, REELS, PHOTOS }
@@ -319,14 +320,14 @@ fun ProfessionalProfileScreen(
                             }
                             ProfessionalProfileTab.REELS -> {
                                 if (reelPosts.isNotEmpty()) {
-                                    PostsGrid(reelPosts)
+                                    PostsGrid(reelPosts, professionalId, navController)
                                 } else {
                                     Text("No Reels available.", color = Color.Gray)
                                 }
                             }
                             ProfessionalProfileTab.PHOTOS -> {
                                 if (photoPosts.isNotEmpty()) {
-                                    PostsGrid(photoPosts)
+                                    PostsGrid(photoPosts, professionalId, navController)
                                 } else {
                                     Text("No Photos available.", color = Color.Gray)
                                 }
@@ -338,6 +339,7 @@ fun ProfessionalProfileScreen(
         }
     }
 }
+
 
 // --- Helper Composables (No changes) ---
 
@@ -374,7 +376,11 @@ fun ContactInfoRow(icon: ImageVector, text: String, iconTint: Color) {
 
 @OptIn(ExperimentalMaterial3Api::class) // For LazyVerticalGrid
 @Composable
-fun PostsGrid(posts: List<PostResponse>) {
+fun PostsGrid(
+    posts: List<PostResponse>,
+    professionalId: String,
+    navController: NavHostController
+) {
     if (posts.isEmpty()) {
         Box(
             modifier = Modifier
@@ -400,8 +406,8 @@ fun PostsGrid(posts: List<PostResponse>) {
                     modifier = Modifier
                         .aspectRatio(1f) // Ensures items are square
                         .clickable {
-                            // TODO: Handle post click (e.g., navigate to PostDetailsScreen)
-                            println("Post clicked: ${post._id}")
+                            // Navigate to AllProfilePosts screen
+                            navController.navigate("${ProRoutes.ALL_PROFILE_POSTS}/$professionalId")
                         }
                 ) {
                     AsyncImage(

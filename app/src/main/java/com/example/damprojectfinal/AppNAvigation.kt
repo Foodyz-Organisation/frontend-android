@@ -24,6 +24,7 @@ import com.example.damprojectfinal.professional.common.HomeScreenPro
 import com.example.damprojectfinal.professional.feature_posts.CreateContentScreen
 import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileScreen
 import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileViewModel
+import com.example.damprojectfinal.professional.feature_profile.ui.AllProfilePosts
 import com.example.damprojectfinal.user.common.HomeScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.CreatePostScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.CaptionAndPublishScreen
@@ -69,7 +70,8 @@ object ProRoutes {
     const val CREATE_CONTENT_SCREEN = "create_content_screen"
 
     const val PROFESSIONAL_PROFILE_SCREEN = "professional_profile_screen/{professionalId}"
-
+    
+    const val ALL_PROFILE_POSTS = "all_profile_posts"
 }
 
 
@@ -170,6 +172,15 @@ fun AppNavigation(modifier: Modifier = Modifier) {
         // 🆕 Create Content Screen (for professional users to choose what to create)
         composable(ProRoutes.CREATE_CONTENT_SCREEN) {
             CreateContentScreen(navController = navController)
+        }
+
+        // 🆕 All Profile Posts Screen (for professional users to view all their posts)
+        composable("${ProRoutes.ALL_PROFILE_POSTS}/{professionalId}") { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: ""
+            AllProfilePosts(
+                navController = navController,
+                professionalId = professionalId
+            )
         }
 
         // 🆕 Add Post Screen (Your existing media selection screen)
