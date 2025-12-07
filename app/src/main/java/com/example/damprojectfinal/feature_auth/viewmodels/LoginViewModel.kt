@@ -25,9 +25,13 @@ data class LoginUiState(
     val role: String? = null,
     val accessToken: String? = null,
     val refreshToken: String? = null,
-    val error: String? = null
+    val error: String? = null,
 )
 
+// Callback type for navigation (Typealias is kept but unused for now)
+typealias OnLoginSuccess = (userId: String, role: String) -> Unit
+
+// --- CHANGE: Extend AndroidViewModel to get access to Application context ---
 class LoginViewModel(
     private val authApiService: AuthApiService,
     private val tokenManager: TokenManager
@@ -38,7 +42,6 @@ class LoginViewModel(
     var uiState by mutableStateOf(LoginUiState())
         private set
 
-    // --- Expose role for composable to observe ---
     private val _userRole = MutableStateFlow<String?>(null)
     val userRole: StateFlow<String?> = _userRole.asStateFlow()
 
@@ -88,7 +91,8 @@ class LoginViewModel(
                 val userId = response.id
                     ?: throw IllegalStateException("User ID missing from successful response.")
 
-                Log.d(TAG, "API Success! Received Role: ${response.role}, ID: $userId") // ⬅️ DEBUG
+                // --- Save role for LaunchedEffect to observe ---
+                _userRole.value = response.role
 
                 // Your priority logic is good
                 val prioritizedRole =
@@ -113,12 +117,22 @@ class LoginViewModel(
                 uiState = uiState.copy(
                     isLoading = false,
                     loginSuccess = true,
-                    userId = userId,
+                    userId = response.id,
                     role = prioritizedRole,
                     accessToken = response.access_token,
                     refreshToken = response.refresh_token,
                     error = null
                 )
+                // --- END MODIFIED ---
+
+                // --- NEW: Save tokens and formatted role to TokenManager ---
+                tokenManager.saveTokens(
+                    accessToken = response.access_token,
+                    refreshToken = response.refresh_token,
+                    userId = response.id,
+                    role = formattedOwnerType // <--- Save the formatted role here
+                )
+                // --- END NEW ---
 
             } catch (e: Exception) {
                 Log.e(TAG, "Login failed", e)
@@ -141,6 +155,9 @@ class LoginViewModel(
                         Log.e(TAG, "Login FAILED: Unknown Error.", e) // ⬅️ DEBUG
                         "An unknown error occurred: ${e.message}"
                     }
+                    is IOException -> "Network error. Server may be down or URL incorrect."
+                    is ClientRequestException -> "Invalid credentials. Please check your email and password."
+                    else -> "An unknown error occurred: ${e.message}"
                 }
 
                 uiState = uiState.copy(isLoading = false, error = errorMessage)

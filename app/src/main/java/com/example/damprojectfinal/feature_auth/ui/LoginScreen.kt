@@ -51,14 +51,19 @@ fun LoginScreen(
     onFacebookSignIn: () -> Unit = {},
     onNavigateToSignup: () -> Unit = {}
 ) {
-    // ✅ Utilise le tokenManager passé en paramètre
+    // Get Application context needed for AndroidViewModel
+    val context = LocalContext.current
+    val application = context.applicationContext as Application
+
+    // Instantiate ViewModel with the correct factory for AndroidViewModel
     val viewModel: LoginViewModel = viewModel(
         factory = ViewModelFactory { // Assuming ViewModelFactory is your generic factory
             LoginViewModel(authApiService, tokenManager)
         }
+        factory = ViewModelFactory { LoginViewModel(application, authApiService) } // <--- MODIFIED: Pass application
     )
 
-    val uiState = viewModel.uiState
+    val uiState = viewModel.uiState // Observe uiState directly
     val userRole by viewModel.userRole.collectAsState(initial = null)
     val context = LocalContext.current
     var showPassword by remember { mutableStateOf(false) }
@@ -67,6 +72,8 @@ fun LoginScreen(
     val scope = rememberCoroutineScope()
 
     // --- Handle Login Navigation & Feedback ---
+    // Now observes uiState.loginSuccess, uiState.error, and uiState.role (which is the formatted role)
+
     LaunchedEffect(uiState.loginSuccess, uiState.error) {
         if (uiState.loginSuccess) {
             val role = uiState.role
@@ -80,21 +87,27 @@ fun LoginScreen(
                 viewModel.resetState()
                 return@LaunchedEffect
             }
+        if (uiState.loginSuccess && !uiState.userId.isNullOrEmpty()) {
+            // TokenManager.saveTokens is now handled inside LoginViewModel after login success.
+            // This LaunchedEffect only needs to handle navigation and UI feedback.
 
-            val destinationRoute = when (role?.lowercase()) {
-                "professional" -> "${UserRoutes.HOME_SCREEN_PRO}/$userId"
-                "user" -> UserRoutes.HOME_SCREEN
-                else -> null
-            }
-
-            if (destinationRoute == null) {
-                snackbarHostState.showSnackbar(
-                    message = "Login failed: Unsupported role '$role'",
-                    actionLabel = "Error",
-                    duration = SnackbarDuration.Long
-                )
-                viewModel.resetState()
-                return@LaunchedEffect
+            // --- Navigation Logic Using UserRoutes Constants (uses formatted roles) ---
+            val destinationRoute: String? = when (role) {
+                "ProfessionalAccount" -> "${UserRoutes.HOME_SCREEN_PRO}/${uiState.userId}"
+                "UserAccount" -> UserRoutes.HOME_SCREEN
+                else -> {
+                    // This case should ideally be handled by ViewModel before reaching here,
+                    // but as a fallback, show error.
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            message = "Login failed: User role '$role' is unsupported for navigation.",
+                            actionLabel = "Error",
+                            duration = SnackbarDuration.Long
+                        )
+                    }
+                    viewModel.resetState()
+                    null // Prevent navigation
+                }
             }
 
             // Show success snackbar
@@ -133,6 +146,11 @@ fun LoginScreen(
             viewModel.resetState()
         }
     }
+
+    // ... (rest of your UI composables, starting from val gradient = Brush.verticalGradient(...) ) ...
+    // Your existing UI code from here onwards is fine. Just ensure the code below this comment
+    // is placed after the LaunchedEffect block within the LoginScreen Composable function.
+
 
     val gradient = Brush.verticalGradient(
         colors = listOf(Color(0xFFFFFBEA), Color(0xFFFFF8D6), Color(0xFFFFF6C1))

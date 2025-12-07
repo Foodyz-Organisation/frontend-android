@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
 import com.example.damprojectfinal.UserRoutes
+import com.example.damprojectfinal.UserRoutes
 import com.example.damprojectfinal.core.api.ProfessionalApiService
 import com.example.damprojectfinal.core.dto.auth.ProfessionalDto
 import com.example.damprojectfinal.core.`object`.KtorClient
@@ -70,8 +71,9 @@ fun TopAppBar(
     currentRoute: String,
     openDrawer: () -> Unit,
     onSearchClick: () -> Unit,
+    onProfileClick: () -> Unit,
+    onReelsClick: () -> Unit,
     currentUserId: String,
-    onProfileClick: (userId: String) -> Unit,
     onLogoutClick: () -> Unit
 ) {
     var showAddOptions by remember { mutableStateOf(false) }
@@ -89,7 +91,7 @@ fun TopAppBar(
                 .fillMaxWidth()
                 .padding(top = 48.dp, bottom = 12.dp, start = 16.dp, end = 16.dp)
         ) {
-            // Profile Avatar Button (Simplified Styling and size)
+            // Profile Avatar Button (Unchanged)
             Box(
                 modifier = Modifier
                     .size(40.dp) // Smaller size
@@ -106,7 +108,7 @@ fun TopAppBar(
                 )
             }
 
-            // App title
+            // App title (Unchanged)
             Text(
                 text = "Foodies",
                 fontWeight = FontWeight.ExtraBold,
@@ -148,23 +150,92 @@ fun TopAppBar(
         }
     }
 
-    // Notification Dropdown logic remains here for compatibility
-    if (showNotifications) {
-        // Your original logic for DropdownMenu
-        NotificationIconWithDropdown(
-            showNotifications = showNotifications,
-            onToggle = { showNotifications = it },
-            navController = navController
-        )
+            // --- Notifications Icon (NEW ENHANCED VERSION) ---
+            NotificationIconWithDropdown(
+                showNotifications = showNotifications,
+                onToggle = { showNotifications = it }, // This updates the local state
+                navController = navController
+            )
+            // ----------------------------------------------------
+
+            // Drawer Button (Unchanged)
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFEFF4FB))
+                    .clickable { openDrawer() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.Menu, contentDescription = "Drawer", tint = Color(0xFF334155))
+            }
+        }
+
+        // Secondary Nav Bar (Unchanged)
+        SecondaryNavBar(
+            navController = navController,
+            currentRoute = currentRoute,
+            onReelsClick = onReelsClick)
+
+        // Add Options Popup (Unchanged)
+        if (showAddOptions) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0x88000000))
+                    .clickable { showAddOptions = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    modifier = Modifier
+                        .width(280.dp)
+                        .wrapContentHeight()
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Create New", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                IconButton(onClick = { /* Add Post */ }) {
+                                    Icon(Icons.Filled.Edit, contentDescription = "Post", tint = Color(0xFF2563EB))
+                                }
+                                Text("Post", fontWeight = FontWeight.Medium)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                IconButton(onClick = { /* Add Photo */ }) {
+                                    Icon(Icons.Filled.PhotoCamera, contentDescription = "Photo", tint = Color(0xFF10B981))
+                                }
+                                Text("Photo", fontWeight = FontWeight.Medium)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                IconButton(onClick = { /* Add Video */ }) {
+                                    Icon(Icons.Filled.Videocam, contentDescription = "Video", tint = Color(0xFFF59E0B))
+                                }
+                                Text("Video", fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 // -----------------------------------------------------------------------------
-// SECONDARY NAVBAR COMPOSABLES (DESIGN IMPROVED)
+// SECONDARY NAVBAR COMPOSABLES (Unchanged)
 // -----------------------------------------------------------------------------
 
 @Composable
-fun SecondaryNavBar(navController: NavController, currentRoute: String) {
+fun SecondaryNavBar(
+    navController: NavController,
+    currentRoute: String,
+    onReelsClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -178,7 +249,7 @@ fun SecondaryNavBar(navController: NavController, currentRoute: String) {
             }
         }
         NavIcon(Icons.Filled.TrendingUp, currentRoute == "trends") { navController.navigate("trends") }
-        NavIcon(Icons.Filled.PlayArrow, currentRoute == "reels") { navController.navigate("reels") }
+        NavIcon(Icons.Filled.TrendingUp, currentRoute == UserRoutes.TRENDS_SCREEN) { navController.navigate(UserRoutes.TRENDS_SCREEN) }
         NavIcon(Icons.Filled.Chat, currentRoute == "chatList") { navController.navigate("chatList") }
         NavIcon(
             Icons.Filled.AttachMoney,
@@ -190,8 +261,6 @@ fun SecondaryNavBar(navController: NavController, currentRoute: String) {
             }
         }
 
-    }
-}
 
 
 
@@ -295,7 +364,7 @@ fun RestaurantListItem(
 }
 
 // -----------------------------------------------------------------------------
-// DYNAMIC SEARCH OVERLAY COMPOSABLES (DESIGN IMPROVED)
+// DYNAMIC SEARCH OVERLAY COMPOSABLES (FIXED)
 // -----------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -368,7 +437,7 @@ fun DynamicSearchOverlay(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             )
-
+        }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -514,7 +583,6 @@ fun NotificationButton(
     }
 }
 
-
 // -----------------------------------------------------------------------------
 // PREVIEW
 // -----------------------------------------------------------------------------
@@ -531,15 +599,9 @@ fun TopAppBarPreview() {
         onSearchClick = {},
         currentUserId = "MOCK_USER_ID",
         onProfileClick = {},
-        onLogoutClick = {}
+        onNavigateToProfile = {},
+        onReelsClick = {},
+        LogoutClick = {}
     )
 }
 
-@Preview(showBackground = true)
-@Composable
-fun DynamicSearchOverlayPreview() {
-    DynamicSearchOverlay(
-        onDismiss = {},
-        onNavigateToProfile = {}
-    )
-}

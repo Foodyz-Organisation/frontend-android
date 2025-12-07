@@ -28,8 +28,14 @@ class TokenManager(private val context: Context) {
     private val ACCESS_TOKEN_KEY = stringPreferencesKey("access_token")
     private val REFRESH_TOKEN_KEY = stringPreferencesKey("refresh_token")
     private val USER_ID_KEY = stringPreferencesKey("user_id")
-    private val USER_ROLE_KEY = stringPreferencesKey("user_role")
+    private val USER_ROLE_KEY = stringPreferencesKey("user_role") // This holds the user's type
 
+    suspend fun saveTokens(accessToken: String, refreshToken: String, userId: String, role: String) {
+        context.dataStore.edit { prefs ->
+            prefs[ACCESS_TOKEN_KEY] = accessToken
+            prefs[REFRESH_TOKEN_KEY] = refreshToken
+            prefs[USER_ID_KEY] = userId
+            prefs[USER_ROLE_KEY] = role // Saving the role (which is our ownerType)
     suspend fun saveTokens(
         accessToken: String,
         refreshToken: String,
@@ -62,6 +68,7 @@ class TokenManager(private val context: Context) {
         Log.d(TAG, "===================================")
     }
 
+    fun getAccessToken(): String? = runBlocking {
     fun getAccessToken(): Flow<String?> = context.dataStore.data.map { it[ACCESS_TOKEN_KEY] }
 
     fun getAccessTokenBlocking(): String? = runBlocking {
@@ -183,6 +190,15 @@ class TokenManager(private val context: Context) {
         return isLogged
     }
 
+    fun getUserId(): String? = runBlocking {
+        context.dataStore.data.map { it[USER_ID_KEY] }.first()
+    }
+
+    // --- MODIFIED METHOD: Renamed to getUserType and made blocking ---
+    fun getUserType(): String? = runBlocking {
+        context.dataStore.data.map { it[USER_ROLE_KEY] }.first()
+    }
+    // --- END MODIFIED METHOD ---
     suspend fun debugPrintAll() {
         Log.d(TAG, "========== DEBUG ALL TOKENS ==========")
         try {

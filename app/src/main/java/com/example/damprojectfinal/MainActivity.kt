@@ -21,6 +21,8 @@ class MainActivity : ComponentActivity() {
         deepLinkToken = extractTokenFromIntent(intent)
 
         enableEdgeToEdge() // Keep your edge-to-edge setup
+        RetrofitClient.appContext = applicationContext
+        enableEdgeToEdge()
         setContent {
             DamProjectFinalTheme {
                 AppNavigation(initialDeepLinkToken = deepLinkToken)

@@ -1,13 +1,23 @@
-package com.example.damprojectfinal.user.feature_profile.ui
+// src/main/java/com/example/damprojectfinal/feature_profile.ui/ProfileScreen.kt
+package com.example.damprojectfinal.feature_profile.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable // <-- NEW IMPORT
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells // <-- NEW IMPORT
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid // <-- NEW IMPORT
+import androidx.compose.foundation.lazy.grid.items // <-- NEW IMPORT
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.BrokenImage
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Person // <-- Ensure this is imported for placeholder
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.* // Using Material 3 for Composables
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -15,358 +25,347 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter // <-- Ensure this is imported for placeholder
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.rememberAsyncImagePainter
-import coil.request.ImageRequest
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.example.damprojectfinal.R // Assuming you have a default profile pic drawable
+import com.example.damprojectfinal.core.dto.normalUser.ProfileUiState
+import com.example.damprojectfinal.core.dto.normalUser.UserProfile
+import com.example.damprojectfinal.core.dto.posts.PostResponse
+import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme // Assuming your app's theme
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import androidx.compose.material.icons.filled.ArrowBack // <-- NEW IMPORT
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
-import com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel
-
-// --- Custom Colors for Food App Vibe ---
-val FoodPrimary = Color(0xFFFF5722) // Vibrant Orange-Red for food app primary (e.g., brand color)
-val FoodAccent = Color(0xFFFF9800) // Orange Accent (e.g., placeholder or secondary highlight)
-val FoodBackground = Color(0xFFF9F9F9) // Light grey background
-val FoodCard = Color.White
-val FoodTextPrimary = Color(0xFF212121) // Darker text for readability
-val FoodTextSecondary = Color(0xFF757575) // Grey text
-
-// --- UI Data Model (Used for display) ---
-data class UserProfile(
-    val name: String,
-    val email: String,
-    val joinDate: String = "",
-    val role: String,
-    val profilePictureUrl: String? = null // Nullable for icon logic
-)
+import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.UserRoutes
+import androidx.compose.runtime.setValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UserProfileScreen(
-    onBackClick: () -> Unit,
-    viewModel: ProfileViewModel,
-    // Note: If you want to use the ViewModel's uploadImage function,
-    // you should change this signature to:
-    // onImagePickerRequest: (userId: String) -> Unit,
-    onEditProfileClick: () -> Unit = {},
+fun ProfileScreen(
+    navController: NavController, // If you plan to use NavController for navigation
+    viewModel: UserViewModel = viewModel() // ViewModel provided by Hilt or default
 ) {
-    val userResponse by viewModel.userState.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
-
-    val userProfile: UserProfile = if (isLoading) {
-        UserProfile(name = "Loading...", email = "", joinDate = "Loading...", role = "...")
-    } else if (userResponse != null) {
-        val rawProfilePictureUrl = userResponse!!.profilePictureUrl
-
-        // ⭐ Prepend BASE_URL if the URL is a relative path (e.g., /uploads/image.jpg) ⭐
-        val fullProfilePictureUrl = if (!rawProfilePictureUrl.isNullOrBlank()) {
-            "http://10.0.2.2:3000" + rawProfilePictureUrl
-        } else {
-            null
-        }
-
-        UserProfile(
-            name = userResponse!!.username,
-            email = userResponse!!.email,
-            // ⭐ FIX: Removed reference to 'createdAt' which caused an error ⭐
-            joinDate = "Member since Unknown Date",
-            // ⭐ FIX: Assuming the DTO property is 'role' (lowercase) ⭐
-            role = userResponse!!.role,
-            profilePictureUrl = fullProfilePictureUrl
-        )
-    } else {
-        UserProfile(name = "User Not Found", email = "Error", joinDate = "N/A", role = "Guest")
-    }
-
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val userId = remember { TokenManager(context).getUserId() ?: "" }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("My Profile", fontWeight = FontWeight.ExtraBold, color = FoodTextPrimary) }, // Bolder text
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = FoodBackground), // Use light background
-                // ⭐ ADDED NAVIGATION ICON HERE ⭐
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) { // Calls the navigation action
-                        Icon(
-                            imageVector = Icons.Filled.ArrowBack,
-                            contentDescription = "Return to Home Screen",
-                            tint = FoodTextPrimary
-                        )
+            CenterAlignedTopAppBar(
+                title = { Text(text = uiState.userProfile?.username ?: "Profile") },
+                navigationIcon = { // <-- NEW: Back button
+                    IconButton(onClick = { navController.popBackStack() }) { // <-- Navigate back
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
+                // No back button directly on the profile as per your last clarification
+                // actions = { /* Settings or other actions could go here */ }
             )
-        },
-        modifier = Modifier
-            .fillMaxSize()
-            .background(FoodBackground) // Apply Food Background
-    ){ paddingValues ->
-
-        if (isLoading) {
-            Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = FoodPrimary)
-            }
-        } else if (errorMessage != null) {
-            Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                Text("Error: ${errorMessage!!}", color = MaterialTheme.colorScheme.error)
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(horizontal = 16.dp), // Use horizontal padding on the column
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // --- 1. Profile Header (Image and Name) ---
-                ProfileHeader(user = userProfile, onEditProfileClick = onEditProfileClick)
-
-                Spacer(modifier = Modifier.height(24.dp)) // Reduced spacing
-
-                // --- 2. Profile Details Card (Used for metrics/quick info in food app style) ---
-                ProfileDetailsCard(user = userProfile)
-
-                Spacer(modifier = Modifier.height(24.dp)) // Reduced spacing
-
-                // --- 3. Action Menu ---
-                // Reorganized for better grouping
-                ActionMenu(
-                    onSettingsClick = onEditProfileClick,
-                )
-            }
         }
-    }
-}
-
-@Composable
-fun ProfileHeader(user: UserProfile, onEditProfileClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        Box(contentAlignment = Alignment.BottomEnd) {
-            val imageModifier = Modifier
-                .size(120.dp)
-                .clip(CircleShape)
-                .background(FoodAccent) // Use Accent color as placeholder background
-
-            // ⭐ CONDITIONAL DISPLAY: Image or Icon ⭐
-            if (!user.profilePictureUrl.isNullOrBlank()) {
-                // If URL is present, try to load the image
-                Image(
-                    painter = rememberAsyncImagePainter(
-                        ImageRequest.Builder(LocalContext.current)
-                            .data(user.profilePictureUrl)
-                            .crossfade(true)
-                            .build()
-                    ),
-                    contentDescription = "Profile Picture",
-                    contentScale = ContentScale.Crop,
-                    modifier = imageModifier
-                )
-            } else {
-                // If URL is null or blank, show a default icon
-                Icon(
-                    imageVector = Icons.Filled.Person, // Default person icon
-                    contentDescription = "Default Profile Picture",
-                    tint = Color.White,
-                    modifier = imageModifier
-                        .size(120.dp)
-                        .padding(20.dp)
-                )
-            }
-
-
-            // Edit Button overlay (improved FAB styling)
-            FloatingActionButton(
-                onClick = onEditProfileClick,
-                modifier = Modifier.size(40.dp).offset(x = 4.dp, y = 4.dp), // Slightly larger FAB
-                containerColor = FoodPrimary, // Use Food Primary color
-                shape = CircleShape,
-                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
-            ) {
-                Icon(Icons.Filled.Edit, contentDescription = "Edit Profile", tint = Color.White, modifier = Modifier.size(20.dp))
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = user.name,
-            fontSize = 26.sp, // Larger name
-            fontWeight = FontWeight.Black, // Stronger weight
-            color = FoodTextPrimary
-        )
-        Text(
-            text = user.email,
-            fontSize = 16.sp, // Slightly larger email text
-            color = FoodTextSecondary
-        )
-    }
-}
-
-// Renamed/repurposed to serve as a 'Metrics' card common in food/ecommerce apps.
-@Composable
-fun ProfileDetailsCard(user: UserProfile) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp), // Slightly smaller radius
-        colors = CardDefaults.cardColors(containerColor = FoodCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp) // Higher elevation for pop
-    ) {
-        // Instead of a vertical list of profile data, we show a horizontal metrics summary
-        Row(
+    ) { paddingValues ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(MaterialTheme.colorScheme.background)
         ) {
-            // Mock Data for food app metrics (using DetailRow's logic but adjusted for horizontal layout)
-            MetricItem(value = "15", label = "Orders", icon = Icons.Filled.ListAlt)
-            Divider(modifier = Modifier.height(40.dp).width(1.dp), color = FoodBackground)
-            MetricItem(value = "8", label = "Favorites", icon = Icons.Filled.Favorite)
-            Divider(modifier = Modifier.height(40.dp).width(1.dp), color = FoodBackground)
-            MetricItem(value = "4.9", label = "Rating", icon = Icons.Filled.Star)
+            if (uiState.isLoadingProfile || uiState.isLoadingPosts) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            uiState.errorMessage?.let { errorMessage ->
+                Text(
+                    text = errorMessage,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            uiState.userProfile?.let { userProfile ->
+                ProfileHeader(userProfile = userProfile, viewModel = viewModel)
+            } ?: run {
+                if (!uiState.isLoadingProfile && uiState.errorMessage == null) {
+                    // Show a message or a skeleton loader if profile data is still loading
+                    Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator() // Or a more elaborate skeleton
+                    }
+                }
+            }
+
+
+            Spacer(modifier = Modifier.height(16.dp)) // Spacer between header and tabs
+            if (uiState.userProfile != null) { // Only show tabs if profile is loaded
+                ProfileTabs(uiState = uiState, onTabSelected = { viewModel.onTabSelected(it) })
+            }
+
+            // Content of the selected tab
+            when (uiState.selectedTabIndex) {
+                0 -> PostsGrid(uiState.userPosts, userId, navController, isSavedPosts = false) // For "Posts" tab
+                1 -> {
+                    if (uiState.isLoadingSavedPosts) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        PostsGrid(uiState.savedPosts, userId, navController, isSavedPosts = true) // For "Saved" tab
+                    }
+                }
+            }
         }
     }
 }
 
-// Helper composable for the metrics items in ProfileDetailsCard
 @Composable
-fun MetricItem(value: String, label: String, icon: ImageVector) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = FoodPrimary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = value,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = FoodTextPrimary
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = FoodTextSecondary,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-
-// Original DetailRow kept for completeness, though it is not used in the new ProfileDetailsCard
-@Composable
-fun DetailRow(label: String, value: String, icon: ImageVector) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = FoodAccent, modifier = Modifier.size(24.dp)) // Changed tint
-        Spacer(modifier = Modifier.width(16.dp))
-        Column {
-            Text(label, fontSize = 12.sp, color = FoodTextSecondary) // Changed color
-            Text(value, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = FoodTextPrimary) // Changed color
-        }
-    }
-}
-
-
-@Composable
-fun ActionMenu(
-    onSettingsClick: () -> Unit,
+fun ProfileHeader(
+    userProfile: UserProfile,
+    viewModel: UserViewModel = viewModel()
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // --- Essential Food Actions Group ---
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = FoodCard),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Column {
-                ActionMenuItem(Icons.Filled.ListAlt, "My Orders", FoodTextPrimary, {}) // Added new action
-                Divider(modifier = Modifier.padding(horizontal = 20.dp), color = FoodBackground)
-                ActionMenuItem(Icons.Filled.LocationOn, "Delivery Addresses", FoodTextPrimary, {}) // Added new action
-                Divider(modifier = Modifier.padding(horizontal = 20.dp), color = FoodBackground)
-                ActionMenuItem(Icons.Filled.Payment, "Payment Methods", FoodTextPrimary, {}) // Added new action
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // --- Settings/Support Group ---
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = FoodCard),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Column {
-                ActionMenuItem(Icons.Filled.Settings, "Account Settings", FoodTextPrimary, onSettingsClick)
-                Divider(modifier = Modifier.padding(horizontal = 20.dp), color = FoodBackground)
-                // Added Logout action
-                ActionMenuItem(Icons.Filled.Logout, "Log Out", Color.Red, {})
-            }
-        }
-    }
-}
-
-@Composable
-fun ActionMenuItem(icon: ImageVector, title: String, color: Color, onClick: () -> Unit) {
-    TextButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(64.dp), // Taller button
-        contentPadding = PaddingValues(horizontal = 20.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Icon with a colorful background circle for modern look
-                Box(
+            Box(modifier = Modifier.size(96.dp)) {
+                AsyncImage(
+                    model = userProfile.profilePictureUrl,
+                    contentDescription = "Profile picture",
+                    placeholder = rememberVectorPainter(Icons.Default.Person),
+                    error = rememberVectorPainter(Icons.Default.Person),
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(96.dp)
                         .clip(CircleShape)
-                        // Use FoodPrimary for most actions, but a softer red for Logout
-                        .background(
-                            if (icon == Icons.Filled.Logout) Color.Red.copy(alpha = 0.1f) else FoodPrimary.copy(alpha = 0.1f)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        tint = if (icon == Icons.Filled.Logout) Color.Red else FoodPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Text(
-                    title,
-                    fontSize = 16.sp,
-                    color = color,
-                    fontWeight = FontWeight.Medium
+                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit profile picture",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 8.dp, y = 8.dp) // Offset to position correctly
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .padding(4.dp)
                 )
             }
-            // Chevron is always a secondary color unless it's the Logout button
-            val chevronTint = if (icon == Icons.Filled.Logout) Color.Red else FoodTextSecondary.copy(alpha = 0.6f)
-            Icon(Icons.Filled.ChevronRight, contentDescription = "Next", tint = chevronTint)
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(onClick = { /* TODO: Handle share */ }) {
+                    Icon(Icons.Default.Share, contentDescription = "Share Profile")
+                }
+                IconButton(onClick = { /* TODO: Handle settings */ }) {
+                    Icon(Icons.Default.Settings, contentDescription = "Settings")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = userProfile.fullName,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = userProfile.bio,
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ProfileStat(count = userProfile.postCount, label = "Posts")
+            ProfileStat(count = userProfile.followerCount, label = "Followers")
+            ProfileStat(count = userProfile.followingCount, label = "Following")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Show Edit Profile button if viewing own profile, otherwise show Follow/Unfollow
+        val context = LocalContext.current
+        val currentUserId = remember { TokenManager(context).getUserId() }
+        val isOwnProfile = currentUserId == userProfile._id
+
+        if (isOwnProfile) {
+            Button(
+                onClick = { /* TODO: Navigate to Edit Profile screen */ },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text("Edit Profile", fontSize = 16.sp)
+            }
+        } else {
+            // Follow/Unfollow button
+            var isFollowing by remember { mutableStateOf(false) }
+
+            // Reset following state when userProfile changes
+            LaunchedEffect(userProfile._id) {
+                isFollowing = false // Reset to false when viewing a different profile
+            }
+
+            Button(
+                onClick = {
+                    isFollowing = !isFollowing
+                    if (isFollowing) {
+                        viewModel.followUser(userProfile._id)
+                    } else {
+                        viewModel.unfollowUser(userProfile._id)
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = MaterialTheme.shapes.medium,
+                colors = if (isFollowing) {
+                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                } else {
+                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                }
+            ) {
+                Text(if (isFollowing) "Unfollow" else "Follow", fontSize = 16.sp)
+            }
         }
     }
 }
 
-// ---------------------------------------------------------------------
-// --- PREVIEWS ---
-// ---------------------------------------------------------------------
+@Composable
+fun ProfileStat(count: Int, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = count.toString(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text(text = label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
+    }
+}
+
+@Composable
+fun ProfileTabs(uiState: ProfileUiState, onTabSelected: (Int) -> Unit) {
+    val tabs = listOf("Posts", "Saved")
+    TabRow(
+        selectedTabIndex = uiState.selectedTabIndex,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.primary
+    ) {
+        tabs.forEachIndexed { index, title ->
+            Tab(
+                selected = uiState.selectedTabIndex == index,
+                onClick = { onTabSelected(index) },
+                text = { Text(title) },
+                selectedContentColor = MaterialTheme.colorScheme.primary,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class) // For LazyVerticalGrid
+@Composable
+fun PostsGrid(
+    posts: List<PostResponse>,
+    userId: String,
+    navController: NavController,
+    isSavedPosts: Boolean = false
+) {
+    if (posts.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (isSavedPosts) "No saved posts yet." else "No posts yet.",
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3), // 3 columns for the grid
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(2.dp), // Small padding around the grid
+            verticalArrangement = Arrangement.spacedBy(2.dp), // Space between rows
+            horizontalArrangement = Arrangement.spacedBy(2.dp) // Space between columns
+        ) {
+            items(posts) { post ->
+                // Use the first media URL for the grid item
+                val imageUrl = post.mediaUrls.firstOrNull()
+
+                Box(
+                    modifier = Modifier
+                        .aspectRatio(1f) // Ensures items are square
+                        .clickable {
+                            // Navigate to appropriate screen based on tab
+                            if (isSavedPosts) {
+                                navController.navigate("${UserRoutes.ALL_SAVED_POSTS}/$userId")
+                            } else {
+                                navController.navigate("${UserRoutes.ALL_PROFILE_POSTS}/$userId")
+                            }
+                        }
+                ) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = post.caption,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        // Placeholder/Error for individual post images
+                        placeholder = rememberVectorPainter(Icons.Default.Image), // Using a generic image icon
+                        error = rememberVectorPainter(Icons.Default.BrokenImage) // Broken image icon for errors
+                    )
+                    // You might want to overlay an icon for video posts here
+                    // e.g., if (post.mediaType == "reel") { Icon(Icons.Default.PlayArrow, ...) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SavedPostsContent() {
+    // Placeholder for saved posts content
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("Saved Posts Content (Coming Soon)", style = MaterialTheme.typography.bodyLarge)
+    }
+}
 
 @Preview(showBackground = true, name = "Profile Header Preview - With Image")
 @Composable

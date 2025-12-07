@@ -1,12 +1,9 @@
 package com.example.damprojectfinal.professional.common
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -17,29 +14,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.order.OrderResponse
 import com.example.damprojectfinal.core.dto.order.OrderStatus
 import com.example.damprojectfinal.core.dto.order.OrderType as BackendOrderType
-import com.example.damprojectfinal.core.dto.order.UpdateOrderStatusRequest
-import com.example.damprojectfinal.core.repository.OrderRepository
-import com.example.damprojectfinal.core.retro.RetrofitClient
-import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
-import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
-// --- Mock Data Structures (Kept for screen content) ---
 data class Order(
     val id: String,
     val customerName: String,
@@ -52,7 +37,6 @@ data class Order(
 
 enum class OrderType { PICKUP, DINE_IN, DELIVERY }
 
-// Mapper function: OrderResponse -> UI Order model
 private fun OrderResponse.toUiOrder(): Order {
     val orderType = when (this.orderType) {
         BackendOrderType.TAKEAWAY -> OrderType.PICKUP
@@ -244,7 +228,7 @@ fun HomeScreenPro(
 
                 Spacer(Modifier.weight(1f))
                 HorizontalDivider()
-                
+
                 NavigationDrawerItem(
                     label = { Text("Logout", color = Color.Red, fontWeight = FontWeight.Bold) },
                     selected = false,

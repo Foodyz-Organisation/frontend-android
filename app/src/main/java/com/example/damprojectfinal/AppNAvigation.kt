@@ -7,10 +7,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavType
-import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -27,11 +31,13 @@ import com.example.damprojectfinal.feature_auth.ui.*
 import com.example.damprojectfinal.core.repository.AuthRepository
 import com.example.damprojectfinal.feature_auth.viewmodels.*
 import com.example.damprojectfinal.core.api.AuthApiService
+import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.api.posts.RetrofitClient
+import com.example.damprojectfinal.feature_auth.ui.ForgetPasswordScreen
 import com.example.damprojectfinal.core.api.DebugUserLogger
 import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.repository.MenuItemRepository
 import com.example.damprojectfinal.core.repository.UserRepository
-import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.repository.OrderRepository
 import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
 import com.example.damprojectfinal.user.feautre_order.ui.OrderHistoryScreen
@@ -42,13 +48,20 @@ import com.example.damprojectfinal.feature_auth.ui.LoginScreen
 import com.example.damprojectfinal.feature_auth.ui.SignupScreen
 import com.example.damprojectfinal.feature_auth.ui.SplashScreen
 import com.example.damprojectfinal.feature_auth.ui.ProSignupScreen
+import com.example.damprojectfinal.feature_profile.ui.ProfileScreen
+import com.example.damprojectfinal.feature_profile.ui.AllProfilePosts
+import com.example.damprojectfinal.feature_profile.ui.AllSavedPosts
 import com.example.damprojectfinal.professional.common.HomeScreenPro
+// ADJUSTED IMPORT for CreateContentScreen to match your provided path
+import com.example.damprojectfinal.professional.feature_posts.CreateContentScreen
+import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileScreen
+import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileViewModel
+import com.example.damprojectfinal.professional.feature_profile.ui.AllProfilePosts
 import com.example.damprojectfinal.user.feature_chat.ui.ChatDetailScreen
 import com.example.damprojectfinal.professional.feature_menu.ui.MenuItemManagementScreen
 import com.example.damprojectfinal.professional.feature_menu.ui.components.CreateMenuItemScreen
 import com.example.damprojectfinal.professional.feature_menu.ui.components.ItemDetailsScreen
 import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewModel
-import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.utils.ForgotPasswordViewModelFactory
 import com.example.damprojectfinal.core.utils.ResetPasswordViewModelFactory
 import com.example.damprojectfinal.core.utils.VerifyOtpViewModelFactory
@@ -59,6 +72,13 @@ import com.example.damprojectfinal.feature_relamation.ReclamationsRestaurantView
 import com.example.damprojectfinal.feature_relamation.ReclamationViewModelFactory
 import com.example.damprojectfinal.professional.feature_relamation.ReclamationDetailRestaurantScreen
 import com.example.damprojectfinal.user.common.HomeScreen
+import com.example.damprojectfinal.user.feature_posts.ui.post_management.CreatePostScreen
+import com.example.damprojectfinal.user.feature_posts.ui.post_management.CaptionAndPublishScreen
+import com.example.damprojectfinal.user.feature_posts.ui.post_management.EditPostScreen
+import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostDetailsScreen
+import com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsScreen
+import com.example.damprojectfinal.user.feature_posts.ui.reel_management.CommentScreen
+import com.example.damprojectfinal.user.feature_posts.ui.trends.TrendsScreen
 import com.example.damprojectfinal.professional.feature_deals.ProDealsManagementScreen
 import com.example.damprojectfinal.professional.feature_event.EventDetailScreen
 import com.example.damprojectfinal.user.feature_deals.DealDetailScreen
@@ -92,32 +112,42 @@ object AuthRoutes {
     const val SPLASH = "splash_route"
     const val LOGIN = "login_route"
     const val SIGNUP = "signup_route"
-    const val FORGOT_PASSWORD = "forgot_password_route"
     const val VERIFY_OTP = "verify_otp_route"
     const val RESET_PASSWORD = "reset_password_route"
-    const val PRO_SIGNUP = "pro_signup_route"
     const val FORGET_PASSWORD = "forget_password_route"
+    const val PRO_SIGNUP = "pro_signup_route" // Added Pro Signup route
 }
 
+/**
+ * Routes for authenticated user flow
+ */
 object UserRoutes {
     const val HOME_SCREEN = "home_screen"
-    const val HOME_SCREEN_PRO = "home_screen_pro"
+    const val HOME_SCREEN_PRO = "home_screen_pro" // professional dashboard
+    const val CREATE_POST = "create_post_route"
+    const val CAPTION_PUBLISH_SCREEN = "caption_publish_route"
+    const val MEDIA_URI_ARG = "mediaUri"
+    const val REELS_SCREEN = "reels_screen"
+    const val EDIT_POST_SCREEN = "edit_post_screen/{postId}/{initialCaption}"
+    const val POST_DETAILS_SCREEN = "post_details_screen"
+    const val PROFILE_SCREEN = "profile_screen"
+    const val ALL_PROFILE_POSTS = "all_profile_posts"
+    const val COMMENT_SCREEN = "comment_screen"
+    const val ALL_SAVED_POSTS = "all_saved_posts"
+    const val TRENDS_SCREEN = "trends_screen"
     // Base route for navigation must match the NavHost setup, including argument placeholders
     const val PROFILE_VIEW = "profile_view/{userId}"
     const val PROFILE_UPDATE = "profile_update/{userId}"
-
     const val ORDERS_SCREEN = "orders"
-
     const val ORDERS_ROUTE = "orders_history_route"
-
-
 }
 
 object ProRoutes {
     const val MENU_MANAGEMENT = "menu_management/{professionalId}"
-
     const val CART_ROUTE = "shopping_cart_route"
-
+    const val CREATE_CONTENT_SCREEN = "create_content_screen"
+    const val PROFESSIONAL_PROFILE_SCREEN = "professional_profile_screen/{professionalId}"
+    const val ALL_PROFILE_POSTS = "all_profile_posts"
 }
 
 object ProfileRoutes {
@@ -125,6 +155,8 @@ object ProfileRoutes {
     const val CLIENT_PROFILE_VIEW = "client_profile_view/{professionalId}"
     const val HOME_SCREEN_PRO = "home_screen_pro"
 }
+
+
 
 @Composable
 fun AppNavigation(
@@ -151,14 +183,17 @@ fun AppNavigation(
     DebugUserLogger(tokenManager = tokenManager)
 
     val ServiceLocator = KtorClient
+    val postsApiService = remember { RetrofitClient.postsApiService }
+    val startDestination = AuthRoutes.SPLASH
 
     NavHost(
         navController = navController,
+        startDestination = startDestination,
+        modifier = modifier // Modifier passed to NavHost
         startDestination = AuthRoutes.SPLASH,
         modifier = modifier
     ) {
-        // 1️⃣ Splash
-        // Splash
+        // 1️⃣ Splash Screen
         composable(AuthRoutes.SPLASH) {
             val context = LocalContext.current
             val nextRoute = remember { mutableStateOf<String?>(null) }
@@ -343,6 +378,25 @@ fun AppNavigation(
         composable(UserRoutes.HOME_SCREEN) {
 
             val context = LocalContext.current
+        composable(UserRoutes.REELS_SCREEN) {
+            ReelsScreen(navController = navController)
+        }
+
+        // 6️⃣ PROFESSIONAL HOME SCREEN (Corrected - Removed duplicate "Text" composable)
+        // This is the correct composable for the professional's home screen
+        composable("${UserRoutes.HOME_SCREEN_PRO}/{professionalId}") { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: "unknown"
+            HomeScreenPro(
+                professionalId = professionalId,
+                navController = navController,
+                onLogout = {
+                    println("Logout triggered from HomeScreenPro (not directly used by UI in this version)")
+                    // navController.navigate(AuthRoutes.LOGIN) { // Example of actual logout navigation
+                    //     popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                    // }
+                }
+            )
+        }
 
             val logoutViewModel: LogoutViewModel = viewModel(
                 factory = LogoutViewModelFactory(
@@ -389,6 +443,68 @@ fun AppNavigation(
             )
         }
 
+        // 🆕 Create Content Screen (for professional users to choose what to create)
+        composable(ProRoutes.CREATE_CONTENT_SCREEN) {
+            CreateContentScreen(navController = navController)
+        }
+
+        // 🆕 All Profile Posts Screen (for professional users to view all their posts)
+        composable("${ProRoutes.ALL_PROFILE_POSTS}/{professionalId}") { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: ""
+            AllProfilePosts(
+                navController = navController,
+                professionalId = professionalId
+            )
+        }
+
+        // 🆕 Add Post Screen (Your existing media selection screen)
+        composable(UserRoutes.CREATE_POST) {
+            CreatePostScreen(navController = navController)
+        }
+
+        // 🆕 Caption and Publish Screen (Your existing captioning/publishing screen)
+        composable(
+            route = "${UserRoutes.CAPTION_PUBLISH_SCREEN}/{${UserRoutes.MEDIA_URI_ARG}}",
+            arguments = listOf(
+                navArgument(UserRoutes.MEDIA_URI_ARG) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            val mediaUriString = backStackEntry.arguments?.getString(UserRoutes.MEDIA_URI_ARG)
+            CaptionAndPublishScreen(navController = navController, mediaUriString = mediaUriString)
+        }
+
+        // 🆕 Edit Post Composable
+        composable(
+            route = UserRoutes.EDIT_POST_SCREEN,
+            arguments = listOf(
+                navArgument("postId") { type = NavType.StringType },
+                navArgument("initialCaption") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val postId = backStackEntry.arguments?.getString("postId") ?: ""
+            val initialCaption = backStackEntry.arguments?.getString("initialCaption") ?: ""
+            EditPostScreen(
+                navController = navController,
+                postId = postId,
+                initialCaption = initialCaption
+            )
+        }
+
+        // 🆕 Post Details Composable
+        composable(
+            route = "${UserRoutes.POST_DETAILS_SCREEN}/{postId}",
+            arguments = listOf(
+                navArgument("postId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val postId = backStackEntry.arguments?.getString("postId") ?: ""
+            PostDetailsScreen(
+                navController = navController,
+                postId = postId
 
 
         // Professional Signup
@@ -510,6 +626,57 @@ fun AppNavigation(
                 navController = navController
             )
         }
+
+        // 🆕 All Profile Posts Screen (for normal users to view all their posts)
+        composable("${UserRoutes.ALL_PROFILE_POSTS}/{userId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            AllProfilePosts(
+                navController = navController,
+                userId = userId
+            )
+        }
+
+        // 🆕 Comment Screen (for viewing and adding comments on posts/reels)
+        composable("${UserRoutes.COMMENT_SCREEN}/{postId}") { backStackEntry ->
+            val postId = backStackEntry.arguments?.getString("postId") ?: ""
+            CommentScreen(
+                navController = navController,
+                postId = postId
+            )
+        }
+
+        // 🆕 All Saved Posts Screen (for viewing saved posts)
+        composable("${UserRoutes.ALL_SAVED_POSTS}/{userId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            AllSavedPosts(
+                navController = navController,
+                userId = userId
+            )
+        }
+
+        composable(UserRoutes.TRENDS_SCREEN) {
+            TrendsScreen(navController = navController)
+        }
+
+        composable(UserRoutes.PROFILE_SCREEN) {
+            ProfileScreen(navController = navController)
+        }
+
+        composable(ProRoutes.PROFESSIONAL_PROFILE_SCREEN) {
+            ProfessionalProfileScreen(
+                navController = navController,
+                viewModel = viewModel(
+                    factory = ProfessionalProfileViewModel.Factory(
+                        tokenManager = TokenManager(LocalContext.current),
+                        professionalApiService = RetrofitClient.professionalApiService,
+                        postsApiService = RetrofitClient.postsApiService
+                    )
+                )
+            )
+        }
+
+    }
+}
 
         // 🔟 Liste réclamations (CLIENT)
         composable("list_reclamation_route") {
