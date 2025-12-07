@@ -19,6 +19,7 @@ import com.example.damprojectfinal.feature_auth.ui.SignupScreen
 import com.example.damprojectfinal.feature_auth.ui.SplashScreen
 import com.example.damprojectfinal.feature_auth.ui.ProSignupScreen
 import com.example.damprojectfinal.feature_profile.ui.ProfileScreen
+import com.example.damprojectfinal.feature_profile.ui.AllProfilePosts
 import com.example.damprojectfinal.professional.common.HomeScreenPro
 // ADJUSTED IMPORT for CreateContentScreen to match your provided path
 import com.example.damprojectfinal.professional.feature_posts.CreateContentScreen
@@ -62,6 +63,8 @@ object UserRoutes {
     const val POST_DETAILS_SCREEN = "post_details_screen"
 
     const val PROFILE_SCREEN = "profile_screen"
+    
+    const val ALL_PROFILE_POSTS = "all_profile_posts"
 
     const val TRENDS_SCREEN = "trends_screen"
 }
@@ -231,6 +234,15 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             PostDetailsScreen(
                 navController = navController,
                 postId = postId
+            )
+        }
+
+        // 🆕 All Profile Posts Screen (for normal users to view all their posts)
+        composable("${UserRoutes.ALL_PROFILE_POSTS}/{userId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            AllProfilePosts(
+                navController = navController,
+                userId = userId
             )
         }
 

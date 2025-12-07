@@ -43,6 +43,10 @@ import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme // Assuming you
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.compose.material.icons.filled.ArrowBack // <-- NEW IMPORT
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.UserRoutes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +55,8 @@ fun ProfileScreen(
     viewModel: UserViewModel = viewModel() // ViewModel provided by Hilt or default
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val userId = remember { TokenManager(context).getUserId() ?: "" }
 
     Scaffold(
         topBar = {
@@ -105,7 +111,7 @@ fun ProfileScreen(
 
             // Content of the selected tab
             when (uiState.selectedTabIndex) {
-                0 -> PostsGrid(uiState.userPosts) // For "Posts" tab
+                0 -> PostsGrid(uiState.userPosts, userId, navController) // For "Posts" tab
                 1 -> SavedPostsContent() // For "Saved" tab (placeholder for now)
             }
         }
@@ -233,7 +239,11 @@ fun ProfileTabs(uiState: ProfileUiState, onTabSelected: (Int) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class) // For LazyVerticalGrid
 @Composable
-fun PostsGrid(posts: List<PostResponse>) {
+fun PostsGrid(
+    posts: List<PostResponse>,
+    userId: String,
+    navController: NavController
+) {
     if (posts.isEmpty()) {
         Box(
             modifier = Modifier
@@ -259,8 +269,8 @@ fun PostsGrid(posts: List<PostResponse>) {
                     modifier = Modifier
                         .aspectRatio(1f) // Ensures items are square
                         .clickable {
-                            // TODO: Handle post click (e.g., navigate to PostDetailsScreen)
-                            println("Post clicked: ${post._id}")
+                            // Navigate to AllProfilePosts screen
+                            navController.navigate("${UserRoutes.ALL_PROFILE_POSTS}/$userId")
                         }
                 ) {
                     AsyncImage(
