@@ -3,6 +3,7 @@ package com.example.damprojectfinal.user.feature_posts.ui.post_management
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -11,7 +12,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -21,11 +25,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
@@ -37,6 +50,7 @@ import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsVi
 import kotlinx.coroutines.launch // For rememberCoroutineScope
 import androidx.compose.foundation.Canvas // For the Canvas composable
 import androidx.compose.ui.platform.LocalInspectionMode
+import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 // import com.example.damprojectfinal.core.dto.normalUser.UserProfile // <-- REMOVED THIS IMPORT
 import com.example.damprojectfinal.core.dto.posts.PostOwnerDetails // <-- NEW IMPORT: Use PostOwnerDetails
@@ -237,20 +251,29 @@ fun PostDetailsScreen(
                 }
 
                 // 2. Post Media (Image/Video)
-                val imageUrlToLoad = if (currentPost.mediaType == "reel" && currentPost.thumbnailUrl != null) {
-                    currentPost.thumbnailUrl
+                if (currentPost.mediaType == "reel" && currentPost.mediaUrls.firstOrNull() != null) {
+                    // Show video player for reels
+                    PostVideoPlayer(
+                        videoUrl = currentPost.mediaUrls.firstOrNull()!!,
+                        thumbnailUrl = currentPost.thumbnailUrl,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(250.dp)
+                            .padding(vertical = 8.dp)
+                    )
                 } else {
-                    currentPost.mediaUrls.firstOrNull()
+                    // Show image for non-reel posts
+                    val imageUrlToLoad = currentPost.mediaUrls.firstOrNull()
+                    AsyncImage(
+                        model = imageUrlToLoad,
+                        contentDescription = currentPost.caption,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(250.dp) // Adjust height as needed
+                            .padding(vertical = 8.dp)
+                    )
                 }
-                AsyncImage(
-                    model = imageUrlToLoad,
-                    contentDescription = currentPost.caption,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(250.dp) // Adjust height as needed
-                        .padding(vertical = 8.dp)
-                )
 
                 // 3. Post Details (Caption, Price, Rating/Reviews)
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -377,6 +400,108 @@ fun PostDetailsScreen(
     }
 }
 
+// Video Player Composable for Post Details
+@OptIn(UnstableApi::class)
+@Composable
+fun PostVideoPlayer(
+    videoUrl: String,
+    thumbnailUrl: String?,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var showFullscreen by remember { mutableStateOf(false) }
+    
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(videoUrl))
+            prepare()
+            playWhenReady = true // Auto-play when screen loads
+            volume = 1f
+            repeatMode = ExoPlayer.REPEAT_MODE_ONE
+        }
+    }
+    
+    // Clean up player when composable is disposed
+    DisposableEffect(Unit) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+    
+    Box(modifier = modifier) {
+        // Video player
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = false // Hide default controls
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable { showFullscreen = true }
+        )
+    }
+    
+    // Fullscreen video dialog
+    if (showFullscreen) {
+        FullscreenVideoPlayer(
+            exoPlayer = exoPlayer,
+            onDismiss = { showFullscreen = false }
+        )
+    }
+}
+
+// Fullscreen Video Player Dialog
+@OptIn(UnstableApi::class)
+@Composable
+fun FullscreenVideoPlayer(
+    exoPlayer: ExoPlayer,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = exoPlayer
+                        useController = true // Show controls in fullscreen
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+            
+            // Close button
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Close",
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        }
+    }
+}
+
 // Individual Comment Item Composable (moved out for better organization)
 @Composable
 fun CommentItem(comment: CommentResponse) {
@@ -412,75 +537,68 @@ fun CommentItem(comment: CommentResponse) {
     }
 }
 
-//@Preview(showBackground = true)
-//@Composable
-//fun PostDetailsScreenPreview() {
-//    DamProjectFinalTheme {
-//        val navController = rememberNavController()
-//        val dummyPost = PostResponse(
-//            _id = "preview_post_id_123",
-//            caption = "Creamy Pasta",
-//            mediaUrls = listOf("https://picsum.photos/id/1080/400/300"),
-//            mediaType = "image",
-//            createdAt = "2025-01-01T00:00:00Z",
-//            updatedAt = "2025-01-01T00:00:00Z",
-//            version = 0,
-//            viewsCount = 0,
-//            thumbnailUrl = null,
-//            duration = null,
-//            aspectRatio = null,
-//            likeCount = 12,
-//            commentCount = 5,
-//            saveCount = 3,
-//            description = "A delicious and carefully prepared dish using the finest ingredients. Perfect for any occasion and guaranteed to satisfy your taste buds.",
-//            ingredients = listOf("Fresh vegetables", "Premium spices", "Organic herbs", "Quality proteins", "Special sauce"),
-//            postRating = 4.9,
-//            reviewsCount = 5,
-//            // --- MODIFIED LINE: Use PostOwnerDetails for dummy data matching the new structure ---
-//            ownerId = PostOwnerDetails( // Corrected field name
-//                _id = "dummy_author_id",
-//                username = "chef_mario",
-//                fullName = "Chef Mario",
-//                profilePictureUrl = "https://picsum.photos/id/1005/60/60",
-//                followerCount = 1234,
-//                followingCount = 56,
-//                email = "chef.mario@example.com" // Added email as per PostOwnerDetails
-//            ),
-//            ownerModel = "UserAccount" // Corrected field name
-//            // --- END MODIFIED LINE ---
-//        )
-//
-//        val previewPostsViewModel = object : PostsViewModel() {
-//            override val isLoading = MutableStateFlow(false)
-//            override val errorMessage = MutableStateFlow<String?>(null)
-//            override val posts = MutableStateFlow(listOf(dummyPost)) // Provide the dummy post in the posts list
-//            // Override other methods with no-op or specific responses if needed
-//            override fun fetchPosts() {}
-//            override fun updatePostCaption(postId: String, newCaption: String) {}
-//            override  fun deletePost(postId: String) {}
-//            override  fun incrementLikeCount(postId: String) {}
-//            override  fun decrementLikeCount(postId: String) {}
-//            override  fun createComment(postId: String, commentText: String) {
-//                val newComment = CommentResponse(
-//                    id = "new_comment_${System.currentTimeMillis()}",
-//                    text = commentText,
-//                    createdAt = "Just now",
-//                    updatedAt = "Just now"
-//                )
-//                println("Preview: Comment added - $commentText")
-//            }
-//            override  fun incrementSaveCount(postId: String) {}
-//            override  fun decrementSaveCount(postId: String) {}
-//        }
-//
-//        CompositionLocalProvider(
-//            LocalInspectionMode provides true
-//        ) {
-//            PostDetailsScreen(
-//                navController = navController,
-//                postId = dummyPost._id,
-//                postsViewModel = previewPostsViewModel as PostsViewModel
-//            )
-//        }
-//    }
-//}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun PreviewPostDetailsScreen() {
+    val navController = rememberNavController()
+
+    // ---------- Mock UserProfile (owner) ----------
+    val owner = UserProfile(
+        _id = "user123",
+        username = "john_doe",
+        fullName = "John Doe",
+        email = "john@example.com",
+        followerCount = 120,
+        followingCount = 80,
+        profilePictureUrl = null,
+        bio = "ko",
+        postCount = 20
+    )
+
+    // ---------- Mock Post ----------
+    val mockPost = PostResponse(
+        _id = "post123",
+        caption = "Fresh Pasta Recipe",
+        mediaUrls = listOf("https://picsum.photos/400/300"),
+        mediaType = "image",
+        createdAt = "2025-01-01T12:00:00Z",
+        updatedAt = "2025-01-01T12:00:00Z",
+        version = 1,
+
+        ownerId = owner,
+        ownerModel = "User",
+
+        viewsCount = 200,
+        thumbnailUrl = null,
+        duration = null,
+        aspectRatio = "1:1",
+
+        likeCount = 24,
+        commentCount = 8,
+        saveCount = 5,
+
+        description = "Homemade fresh pasta with organic ingredients.",
+        ingredients = listOf("Flour", "Eggs", "Olive Oil", "Salt"),
+        postRating = 4.7,
+        reviewsCount = 12
+    )
+
+    // ---------- Fake ViewModel ----------
+    val fakeViewModel = object : PostsViewModel() {
+
+        // Override initial posts
+        override val posts = MutableStateFlow(listOf(mockPost))
+
+        // Prevent API call in preview
+        override fun fetchPosts() { }
+    }
+
+    DamProjectFinalTheme {
+        PostDetailsScreen(
+            navController = navController,
+            postId = "post123",
+            postsViewModel = fakeViewModel
+        )
+    }
+}

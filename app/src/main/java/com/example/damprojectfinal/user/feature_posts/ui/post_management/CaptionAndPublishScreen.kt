@@ -248,7 +248,7 @@ private suspend fun publishPost(
         // AuthInterceptor will also handle x-owner-type if we removed it from PostsApiService.createPost()
         // and let AuthInterceptor add it. If you kept it in PostsApiService, then you'd also pass ownerId.
         // For consistency with AuthInterceptor handling x-user-id, let AuthInterceptor handle x-owner-type as well.
-        RetrofitClient.postsApiService.createPost(
+        val createdPost = RetrofitClient.postsApiService.createPost(
             // ownerType is not passed directly here because AuthInterceptor will add x-owner-type.
             // If you still have @Header("x-owner-type") in PostsApiService.createPost,
             // then you MUST uncomment the line below:
@@ -256,6 +256,21 @@ private suspend fun publishPost(
             createPostDto = createPostDto
         )
         // --- END MODIFIED API CALL ---
+
+        // If this is a reel post and thumbnail is not yet generated, wait a bit and fetch again
+        // The backend generates thumbnails asynchronously, so we need to wait for it
+        if (mediaType == AppMediaType.REEL.value && createdPost.thumbnailUrl == null) {
+            // Wait 2 seconds for thumbnail generation, then fetch the post again
+            kotlinx.coroutines.delay(2000)
+            try {
+                val updatedPost = RetrofitClient.postsApiService.getPostById(createdPost._id)
+                // The updated post should now have the thumbnail
+                // The thumbnail will be included when posts are fetched for profiles
+            } catch (e: Exception) {
+                // If fetching fails, continue anyway - thumbnail might be generated later
+                Log.d("PublishPost", "Could not fetch updated post with thumbnail: ${e.message}")
+            }
+        }
 
         onSuccess()
     } catch (e: Exception) {

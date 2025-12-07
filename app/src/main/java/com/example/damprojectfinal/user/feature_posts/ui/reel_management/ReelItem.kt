@@ -71,6 +71,9 @@ fun ReelItem(
         isSaved = reelPost.saveCount > 0
     }
     val context = LocalContext.current
+    // Track playback state for this specific reel
+    var isPlaying by remember(reelPost._id) { mutableStateOf(true) }
+    
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(reelPost.mediaUrls.firstOrNull() ?: ""))
@@ -80,18 +83,37 @@ fun ReelItem(
         }
     }
 
-    // Effect to control playback based on `isCurrentItem`
-    DisposableEffect(isCurrentItem) {
+    // Reset playing state when item becomes current
+    LaunchedEffect(isCurrentItem) {
         if (isCurrentItem) {
-            exoPlayer.playWhenReady = true // Autoplay when current
+            isPlaying = true // Auto-play when becoming current
+        }
+    }
+    
+    // Effect to control playback based on `isCurrentItem` and `isPlaying`
+    DisposableEffect(isCurrentItem, isPlaying) {
+        if (isCurrentItem && isPlaying) {
+            exoPlayer.playWhenReady = true // Autoplay when current and playing
             exoPlayer.play()
             // Optional: Call incrementReelView API here via ViewModel
         } else {
-            exoPlayer.pause() // Pause when not current
+            exoPlayer.pause() // Pause when not current or when paused
         }
         onDispose {
             // When composable leaves composition (e.g., scrolled away), ensure player is paused
             exoPlayer.pause()
+        }
+    }
+    
+    // Handle click to toggle playback
+    val handleReelClick: () -> Unit = {
+        if (isCurrentItem) {
+            // Only toggle if this is the current item
+            isPlaying = !isPlaying
+            reelsViewModel.togglePlayback(reelPost._id)
+        } else {
+            // If not current item, just notify (shouldn't happen, but handle it)
+            onReelClick(reelPost._id)
         }
     }
 
@@ -106,7 +128,7 @@ fun ReelItem(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clickable { onReelClick(reelPost._id) } // Handle reel click (e.g., pause/play toggle)
+            .clickable { handleReelClick() } // Handle reel click (e.g., pause/play toggle)
     ) {
         // --- ExoPlayer PlayerView ---
         AndroidView(
