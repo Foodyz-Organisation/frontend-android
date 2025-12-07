@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,10 +30,16 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.AspectRatioFrameLayout // <-- Ensure this import is present and correct
+import androidx.navigation.NavController
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 import coil.compose.AsyncImage // <-- Ensure this import is present
 import com.example.damprojectfinal.core.dto.normalUser.UserProfile
+import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel
+import com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsViewModel
+import com.example.damprojectfinal.UserRoutes
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 // THIS IS THE CRUCIAL LINE for the "UnstableApi" warnings within ReelItem
 @OptIn(UnstableApi::class)
@@ -40,8 +47,29 @@ import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 fun ReelItem(
     reelPost: PostResponse,
     isCurrentItem: Boolean, // Indicates if this reel is currently in full view
-    onReelClick: (String) -> Unit // Callback for clicks on the reel (e.g., pause/play)
+    onReelClick: (String) -> Unit, // Callback for clicks on the reel (e.g., pause/play)
+    navController: NavController,
+    postsViewModel: PostsViewModel,
+    reelsViewModel: ReelsViewModel
 ) {
+    // Track like and save state
+    // Note: For proper persistence, backend should return isLiked/isSaved flags per user
+    // For now, we track state locally and update from API response
+    var isLiked by remember(reelPost._id) { mutableStateOf(reelPost.likeCount > 0) }
+    var isSaved by remember(reelPost._id) { mutableStateOf(reelPost.saveCount > 0) }
+    var likeCount by remember(reelPost._id) { mutableStateOf(reelPost.likeCount) }
+    var saveCount by remember(reelPost._id) { mutableStateOf(reelPost.saveCount) }
+    val scope = rememberCoroutineScope()
+    
+    // Update counts when post changes (from API updates)
+    LaunchedEffect(reelPost.likeCount, reelPost.saveCount) {
+        likeCount = reelPost.likeCount
+        saveCount = reelPost.saveCount
+        // Update like/save state based on counts
+        // Note: This is not perfect - ideally backend should return user-specific flags
+        isLiked = reelPost.likeCount > 0
+        isSaved = reelPost.saveCount > 0
+    }
     val context = LocalContext.current
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
@@ -106,7 +134,7 @@ fun ReelItem(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(
-                    model = "https://via.placeholder.com/40/0000FF/FFFFFF?text=P", // Placeholder profile pic
+                    model = reelPost.ownerId?.profilePictureUrl ?: "https://via.placeholder.com/40/0000FF/FFFFFF?text=P",
                     contentDescription = "Profile Picture",
                     modifier = Modifier
                         .size(40.dp)
@@ -115,7 +143,7 @@ fun ReelItem(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "FoodieUser123", // Placeholder username
+                    text = reelPost.ownerId?.fullName ?: reelPost.ownerId?.username ?: "Unknown User",
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     fontSize = 16.sp,
@@ -150,26 +178,65 @@ fun ReelItem(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Like
-            Icon(
-                imageVector = Icons.Outlined.FavoriteBorder, // Use filled for liked state
-                contentDescription = "Like",
-                tint = Color.White,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clickable { /* Handle like click */ }
-            )
-            Text(text = "0", color = Color.White, fontSize = 12.sp) // Placeholder count
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    contentDescription = "Like",
+                    tint = if (isLiked) Color(0xFFE91E63) else Color.White,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clickable {
+                            val wasLiked = isLiked
+                            isLiked = !isLiked
+                            if (isLiked) {
+                                likeCount++
+                                postsViewModel.incrementLikeCount(reelPost._id)
+                            } else {
+                                likeCount--
+                                postsViewModel.decrementLikeCount(reelPost._id)
+                            }
+                            // Update ReelsViewModel after API call completes
+                            scope.launch {
+                                try {
+                                    // Wait a bit for PostsViewModel to update, then sync
+                                    kotlinx.coroutines.delay(100)
+                                    val updatedPost = postsViewModel.posts.value.find { it._id == reelPost._id }
+                                    if (updatedPost != null) {
+                                        reelsViewModel.updateReel(updatedPost)
+                                    }
+                                } catch (e: Exception) {
+                                    // Silently handle error - state already updated optimistically
+                                }
+                            }
+                        }
+                )
+                Text(
+                    text = likeCount.toString(),
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
 
             // Comment
-            Icon(
-                imageVector = Icons.Outlined.ChatBubbleOutline,
-                contentDescription = "Comment",
-                tint = Color.White,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clickable { /* Handle comment click */ }
-            )
-            Text(text = "0", color = Color.White, fontSize = 12.sp) // Placeholder count
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Outlined.ChatBubbleOutline,
+                    contentDescription = "Comment",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clickable {
+                            navController.navigate("${UserRoutes.COMMENT_SCREEN}/${reelPost._id}")
+                        }
+                )
+                Text(
+                    text = reelPost.commentCount.toString(),
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
 
             // Share
             Icon(
@@ -182,14 +249,45 @@ fun ReelItem(
             )
 
             // Save
-            Icon(
-                imageVector = Icons.Outlined.BookmarkBorder, // Use filled for saved state
-                contentDescription = "Save",
-                tint = Color.White,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clickable { /* Handle save click */ }
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                    contentDescription = "Save",
+                    tint = if (isSaved) Color(0xFFFFC107) else Color.White,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clickable {
+                            val wasSaved = isSaved
+                            isSaved = !isSaved
+                            if (isSaved) {
+                                saveCount++
+                                postsViewModel.incrementSaveCount(reelPost._id)
+                            } else {
+                                saveCount--
+                                postsViewModel.decrementSaveCount(reelPost._id)
+                            }
+                            // Update ReelsViewModel after API call completes
+                            scope.launch {
+                                try {
+                                    // Wait a bit for PostsViewModel to update, then sync
+                                    kotlinx.coroutines.delay(100)
+                                    val updatedPost = postsViewModel.posts.value.find { it._id == reelPost._id }
+                                    if (updatedPost != null) {
+                                        reelsViewModel.updateReel(updatedPost)
+                                    }
+                                } catch (e: Exception) {
+                                    // Silently handle error - state already updated optimistically
+                                }
+                            }
+                        }
+                )
+                Text(
+                    text = saveCount.toString(),
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
 
             // More Options
             Icon(

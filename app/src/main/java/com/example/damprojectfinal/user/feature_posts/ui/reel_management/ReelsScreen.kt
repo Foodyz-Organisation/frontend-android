@@ -28,13 +28,17 @@ import androidx.recyclerview.widget.RecyclerView // <--- ADDED for RecyclerView.
 import androidx.viewpager2.widget.ViewPager2
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 import com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsViewModel
+import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 
 @OptIn(UnstableApi::class)
 @Composable
 fun ReelsScreen(
     navController: NavController,
-    reelsViewModel: ReelsViewModel = viewModel() // We'll create this ViewModel soon
+    reelsViewModel: ReelsViewModel = viewModel(),
+    postsViewModel: com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val reelsList by reelsViewModel.reels.collectAsState()
@@ -64,11 +68,17 @@ fun ReelsScreen(
 
                     // --- MODIFIED: Initialize adapter correctly ---
                     // The ReelsPagerAdapter needs a context and the onReelClick listener
-                    adapter = ReelsPagerAdapter(ctx) { clickedReelId ->
-                        // Handle reel clicks (e.g., pause/play).
-                        // This logic will be in the ViewModel to manage playback state.
-                        reelsViewModel.togglePlayback(clickedReelId)
-                    }
+                    adapter = ReelsPagerAdapter(
+                        context = ctx,
+                        onReelClick = { clickedReelId ->
+                            // Handle reel clicks (e.g., pause/play).
+                            // This logic will be in the ViewModel to manage playback state.
+                            reelsViewModel.togglePlayback(clickedReelId)
+                        },
+                        navController = navController,
+                        postsViewModel = postsViewModel,
+                        reelsViewModel = reelsViewModel
+                    )
                     // --- END MODIFIED ---
 
                     registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {

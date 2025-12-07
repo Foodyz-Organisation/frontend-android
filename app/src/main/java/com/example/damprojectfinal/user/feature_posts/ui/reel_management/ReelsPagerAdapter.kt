@@ -13,7 +13,10 @@ import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 // The adapter for ViewPager2, which uses a ListAdapter for efficient updates
 class ReelsPagerAdapter(
     private val context: Context, // Context might not be strictly needed if only creating ComposeView
-    private val onReelClick: (String) -> Unit // Callback when a reel is clicked
+    private val onReelClick: (String) -> Unit, // Callback when a reel is clicked
+    private val navController: androidx.navigation.NavController,
+    private val postsViewModel: com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel,
+    private val reelsViewModel: ReelsViewModel
 ) : ListAdapter<PostResponse, ReelsPagerAdapter.ReelViewHolder>(ReelDiffCallback()) {
 
     // Keep track of the currently playing reel's position to control playback
@@ -50,19 +53,29 @@ class ReelsPagerAdapter(
         // Pass whether this item is the currently focused item to the Composable
         val isCurrentItem = position == currentlyPlayingPosition
 
-        holder.bind(reelPost, isCurrentItem, onReelClick)
+        holder.bind(reelPost, isCurrentItem, onReelClick, navController, postsViewModel, reelsViewModel)
     }
 
     // ViewHolder that holds a ComposeView and binds the ReelItem composable
     inner class ReelViewHolder(private val composeView: ComposeView) : RecyclerView.ViewHolder(composeView) {
-        fun bind(reelPost: PostResponse, isCurrentItem: Boolean, onReelClick: (String) -> Unit) {
+        fun bind(
+            reelPost: PostResponse,
+            isCurrentItem: Boolean,
+            onReelClick: (String) -> Unit,
+            navController: androidx.navigation.NavController,
+            postsViewModel: com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel,
+            reelsViewModel: ReelsViewModel
+        ) {
             composeView.setContent {
                 // Ensure theme is applied for composables in this view holder
                 DamProjectFinalTheme {
                     ReelItem(
                         reelPost = reelPost,
                         isCurrentItem = isCurrentItem,
-                        onReelClick = onReelClick
+                        onReelClick = onReelClick,
+                        navController = navController,
+                        postsViewModel = postsViewModel,
+                        reelsViewModel = reelsViewModel
                     )
                 }
             }

@@ -90,6 +90,11 @@ interface PostsApiService {
     // Backend expects DELETE /posts/:id/save
     @DELETE("posts/{postId}/save") // Changed from /bookmarks to /save
     suspend fun removeSave(@Path("postId") postId: String): PostResponse
+    
+    // --- NEW: Endpoint for fetching saved posts (GET /posts/saved) ---
+    @GET("posts/saved/")
+    suspend fun getSavedPosts(): List<PostResponse>
+    
     // --- NEW: Endpoint for fetching trending posts (GET /posts/trends) ---
     @GET("posts/trends")
     suspend fun getTrendingPosts(@Query("limit") limit: Int = 10): List<PostResponse>

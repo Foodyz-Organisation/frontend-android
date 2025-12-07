@@ -111,8 +111,21 @@ fun ProfileScreen(
 
             // Content of the selected tab
             when (uiState.selectedTabIndex) {
-                0 -> PostsGrid(uiState.userPosts, userId, navController) // For "Posts" tab
-                1 -> SavedPostsContent() // For "Saved" tab (placeholder for now)
+                0 -> PostsGrid(uiState.userPosts, userId, navController, isSavedPosts = false) // For "Posts" tab
+                1 -> {
+                    if (uiState.isLoadingSavedPosts) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        PostsGrid(uiState.savedPosts, userId, navController, isSavedPosts = true) // For "Saved" tab
+                    }
+                }
             }
         }
     }
@@ -242,7 +255,8 @@ fun ProfileTabs(uiState: ProfileUiState, onTabSelected: (Int) -> Unit) {
 fun PostsGrid(
     posts: List<PostResponse>,
     userId: String,
-    navController: NavController
+    navController: NavController,
+    isSavedPosts: Boolean = false
 ) {
     if (posts.isEmpty()) {
         Box(
@@ -251,7 +265,10 @@ fun PostsGrid(
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("No posts yet.", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = if (isSavedPosts) "No saved posts yet." else "No posts yet.",
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
     } else {
         LazyVerticalGrid(
@@ -269,8 +286,12 @@ fun PostsGrid(
                     modifier = Modifier
                         .aspectRatio(1f) // Ensures items are square
                         .clickable {
-                            // Navigate to AllProfilePosts screen
-                            navController.navigate("${UserRoutes.ALL_PROFILE_POSTS}/$userId")
+                            // Navigate to appropriate screen based on tab
+                            if (isSavedPosts) {
+                                navController.navigate("${UserRoutes.ALL_SAVED_POSTS}/$userId")
+                            } else {
+                                navController.navigate("${UserRoutes.ALL_PROFILE_POSTS}/$userId")
+                            }
                         }
                 ) {
                     AsyncImage(

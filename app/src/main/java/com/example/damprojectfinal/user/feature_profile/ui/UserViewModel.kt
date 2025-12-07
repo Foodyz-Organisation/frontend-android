@@ -32,6 +32,7 @@ class UserViewModel(application: Application) : AndroidViewModel(application) { 
         // --- THIS CALL MUST USE THE REAL ID ---
         if (loggedInUserId != null) {
             fetchUserProfileAndPosts(loggedInUserId)
+            fetchSavedPosts()
         } else {
             _uiState.update { it.copy(errorMessage = "User not logged in.") }
         }
@@ -63,6 +64,24 @@ class UserViewModel(application: Application) : AndroidViewModel(application) { 
         }
     }
 
+    fun fetchSavedPosts() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingSavedPosts = true, errorMessage = null) }
+            try {
+                val savedPosts = RetrofitClient.postsApiService.getSavedPosts()
+                _uiState.update { it.copy(savedPosts = savedPosts, isLoadingSavedPosts = false) }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        errorMessage = e.message ?: "Failed to load saved posts",
+                        isLoadingSavedPosts = false
+                    )
+                }
+                e.printStackTrace()
+            }
+        }
+    }
+
     fun onTabSelected(index: Int) {
         _uiState.update { it.copy(selectedTabIndex = index) }
     }
@@ -70,6 +89,7 @@ class UserViewModel(application: Application) : AndroidViewModel(application) { 
     fun refreshProfile() {
         if (loggedInUserId != null) {
             fetchUserProfileAndPosts(loggedInUserId) // <-- THIS CALL MUST USE THE REAL ID
+            fetchSavedPosts()
         } else {
             _uiState.update { it.copy(errorMessage = "User not logged in.") }
         }

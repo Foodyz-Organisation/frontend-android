@@ -156,4 +156,14 @@ class ReelsViewModel(
             }
         }
     }
+
+    // Function to update a reel after like/save operations
+    fun updateReel(updatedPost: PostResponse) {
+        val updatedReels = _reels.value.toMutableList()
+        val index = updatedReels.indexOfFirst { it._id == updatedPost._id }
+        if (index != -1) {
+            updatedReels[index] = updatedPost
+            _reels.value = updatedReels
+        }
+    }
 }

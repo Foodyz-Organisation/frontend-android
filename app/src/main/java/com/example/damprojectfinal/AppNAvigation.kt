@@ -20,6 +20,7 @@ import com.example.damprojectfinal.feature_auth.ui.SplashScreen
 import com.example.damprojectfinal.feature_auth.ui.ProSignupScreen
 import com.example.damprojectfinal.feature_profile.ui.ProfileScreen
 import com.example.damprojectfinal.feature_profile.ui.AllProfilePosts
+import com.example.damprojectfinal.feature_profile.ui.AllSavedPosts
 import com.example.damprojectfinal.professional.common.HomeScreenPro
 // ADJUSTED IMPORT for CreateContentScreen to match your provided path
 import com.example.damprojectfinal.professional.feature_posts.CreateContentScreen
@@ -32,6 +33,7 @@ import com.example.damprojectfinal.user.feature_posts.ui.post_management.Caption
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.EditPostScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostDetailsScreen
 import com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsScreen
+import com.example.damprojectfinal.user.feature_posts.ui.reel_management.CommentScreen
 import com.example.damprojectfinal.user.feature_posts.ui.trends.TrendsScreen
 
 /**
@@ -65,6 +67,10 @@ object UserRoutes {
     const val PROFILE_SCREEN = "profile_screen"
     
     const val ALL_PROFILE_POSTS = "all_profile_posts"
+    
+    const val COMMENT_SCREEN = "comment_screen"
+    
+    const val ALL_SAVED_POSTS = "all_saved_posts"
 
     const val TRENDS_SCREEN = "trends_screen"
 }
@@ -241,6 +247,24 @@ fun AppNavigation(modifier: Modifier = Modifier) {
         composable("${UserRoutes.ALL_PROFILE_POSTS}/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId") ?: ""
             AllProfilePosts(
+                navController = navController,
+                userId = userId
+            )
+        }
+
+        // 🆕 Comment Screen (for viewing and adding comments on posts/reels)
+        composable("${UserRoutes.COMMENT_SCREEN}/{postId}") { backStackEntry ->
+            val postId = backStackEntry.arguments?.getString("postId") ?: ""
+            CommentScreen(
+                navController = navController,
+                postId = postId
+            )
+        }
+
+        // 🆕 All Saved Posts Screen (for viewing saved posts)
+        composable("${UserRoutes.ALL_SAVED_POSTS}/{userId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            AllSavedPosts(
                 navController = navController,
                 userId = userId
             )
