@@ -36,30 +36,43 @@ import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import android.util.Log
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.api.posts.RetrofitClient
+import com.example.damprojectfinal.core.dto.posts.PostResponse
 
 enum class ProfessionalProfileTab { ABOUT, REELS, PHOTOS }
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfessionalProfileScreen(
     navController: NavHostController,
-    professionalId: String,
-    viewModel: ProfessionalProfileViewModel = viewModel()
+    viewModel: ProfessionalProfileViewModel = viewModel(
+        factory = ProfessionalProfileViewModel.Factory(
+            tokenManager = TokenManager(LocalContext.current),
+            professionalApiService = RetrofitClient.professionalApiService,
+            postsApiService = RetrofitClient.postsApiService
+        )
+    )
 ) {
+    val professionalId = TokenManager(LocalContext.current).getUserId() ?: "unknown"
+
     Log.d("ProfileScreen", "ProfessionalProfileScreen recomposed for ID: $professionalId")
 
     LaunchedEffect(professionalId) {
         Log.d("ProfileScreen", "LaunchedEffect triggered for ID: $professionalId")
         viewModel.loadProfessionalProfile(professionalId)
-        // Removed: viewModel.loadProfessionalPosts(professionalId)
+        viewModel.fetchProfessionalPosts(professionalId)
     }
 
     val profile by viewModel.profile.collectAsState()
     val selectedProfileImageUri by viewModel.selectedProfileImageUri.collectAsState()
-    // Removed: photoPosts and reelPosts collection
+    val photoPosts by viewModel.photoPosts.collectAsState()
+    val reelPosts by viewModel.reelPosts.collectAsState()
 
     var selectedTab by remember { mutableStateOf(ProfessionalProfileTab.REELS) } // Default to Reels as in your screenshot
 
@@ -109,7 +122,7 @@ fun ProfessionalProfileScreen(
         ) {
             // --- UPDATED: Profile Header Section with LARGE Profile Picture and Name ---
             item {
-                Log.d("ProfileScreen", "Rendering Header item. Profile name: ${profile?.name}")
+                Log.d("ProfileScreen", "Rendering Header item. Profile name: ${profile?.professionalData?.fullName}")
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -122,42 +135,34 @@ fun ProfessionalProfileScreen(
                     contentAlignment = Alignment.BottomStart // Align content (name) to bottom-start
                 ) {
                     // Large Profile Image
-                    val profileImageModel = selectedProfileImageUri ?: profile?.imageUrl // Use selected URI first, then fetched URL
-                    if (profileImageModel != null) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(profileImageModel)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = "Professional Profile Picture",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop // Crop to fill the entire Box
-                        )
-                    } else {
-                        // Default icon if no image selected or fetched
-                        Icon(
-                            imageVector = Icons.Filled.Person,
-                            contentDescription = "Default Profile Icon",
-                            tint = Color.White,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(64.dp) // Pad icon to not fill completely
-                        )
-                    }
+                    val profileImageModel = selectedProfileImageUri ?: "https://picsum.photos/id/237/200/300" // Use selected URI first, then static URL
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(profileImageModel)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Professional Profile Picture",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop // Crop to fill the entire Box
+                    )
 
                     // Overlay for TopAppBar padding to avoid content clash
-                    Spacer(modifier = Modifier
-                        .fillMaxWidth()
-                        .height(paddingValues.calculateTopPadding())
-                        .background(Color.Black.copy(alpha = 0.3f))) // Semi-transparent overlay for readability
+                    Spacer(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .background(Color.Black.copy(alpha = 0.3f))
+                    )
 
-                    // Business Name (Chili's) - positioned directly under the large profile image
+                    // Business Name - pulled up over the white space
                     Text(
-                        text = profile?.name ?: "Loading...",
+                        text = profile?.professionalData?.fullName ?: "Loading...",
                         color = Color.White,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 16.dp, bottom = 8.dp) // Pad from bottom/left of the Box
+                        modifier = Modifier
+                            .padding(start = 16.dp, bottom = 8.dp)
+                            .offset(y = (-32).dp) // move text up; adjust value to match your design
                     )
                 }
             }
@@ -175,7 +180,7 @@ fun ProfessionalProfileScreen(
                 ) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
                         profile?.let { currentProfile ->
-                            Log.d("ProfileScreen", "Profile data available for business info: ${currentProfile.name}")
+                            Log.d("ProfileScreen", "Profile data available for business info: ${currentProfile.professionalData.fullName}")
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
@@ -183,19 +188,19 @@ fun ProfessionalProfileScreen(
                                 Icon(Icons.Filled.Star, contentDescription = "Rating", tint = Color(0xFFFFC107), modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "${currentProfile.rating} (${currentProfile.reviewCount})",
+                                    text = "Rating: N/A",
                                     color = Color.Black,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Text(
-                                    text = currentProfile.priceRange,
+                                    text = "Price Range: N/A",
                                     color = Color.Gray,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Text(
-                                    text = currentProfile.cuisine,
+                                    text = "Cuisine: N/A",
                                     color = Color.Gray
                                 )
                             }
@@ -207,61 +212,38 @@ fun ProfessionalProfileScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 ServiceOptionCard(
-                                    icon = Icons.Filled.LocalShipping,
-                                    title = "Delivery",
-                                    subtitle = currentProfile.deliveryTime,
+                                    icon = Icons.Filled.Info,
+                                    title = "Info",
+                                    subtitle = "View Details",
                                     color = Color(0xFFFFE0B2)
-                                )
-                                ServiceOptionCard(
-                                    icon = Icons.Filled.TakeoutDining,
-                                    title = "Takeaway",
-                                    subtitle = currentProfile.takeawayTime,
-                                    color = Color(0xFFFFF9C4)
-                                )
-                                ServiceOptionCard(
-                                    icon = Icons.Filled.TableBar,
-                                    title = "Dine-in",
-                                    subtitle = if (currentProfile.dineInAvailable) "Available" else "Not available",
-                                    color = Color(0xFFF8BBD0)
                                 )
                             }
 
                             Spacer(modifier = Modifier.height(24.dp))
 
                             Button(
-                                onClick = { Log.d("ProfileScreen", "View Menu & Order clicked") },
+                                onClick = { Log.d("ProfileScreen", "View Profile Details clicked") },
                                 modifier = Modifier.fillMaxWidth().height(56.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5722)),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text(
-                                    text = "View Menu & Order",
+                                    text = "View Profile Details",
                                     color = Color.White,
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Icon(Icons.Filled.FavoriteBorder, contentDescription = "Favorite", tint = Color.White, modifier = Modifier.padding(start = 8.dp))
+                                Icon(Icons.Filled.Info, contentDescription = "Info", tint = Color.White, modifier = Modifier.padding(start = 8.dp))
                             }
 
                             Spacer(modifier = Modifier.height(24.dp))
 
                             ContactInfoRow(
-                                icon = Icons.Filled.LocationOn,
-                                text = currentProfile.address,
+                                icon = Icons.Filled.Email,
+                                text = currentProfile.email,
                                 iconTint = Color(0xFFFF9800)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            ContactInfoRow(
-                                icon = Icons.Filled.Call,
-                                text = currentProfile.phoneNumber,
-                                iconTint = Color(0xFFFF9800)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            ContactInfoRow(
-                                icon = Icons.Filled.AccessTime,
-                                text = currentProfile.openingHours,
-                                iconTint = Color(0xFFFF9800)
-                            )
 
                             Spacer(modifier = Modifier.height(24.dp))
                         } ?: run {
@@ -323,7 +305,7 @@ fun ProfessionalProfileScreen(
                             ProfessionalProfileTab.ABOUT -> {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text(
-                                        text = "About ${profile?.name ?: "this business"}:",
+                                        text = "About ${profile?.professionalData?.fullName ?: "this professional"}:",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 18.sp,
                                         modifier = Modifier.padding(bottom = 8.dp)
@@ -333,17 +315,21 @@ fun ProfessionalProfileScreen(
                                         color = Color.Gray,
                                         modifier = Modifier.padding(bottom = 8.dp)
                                     )
-                                    Text(
-                                        text = "Specialties: ${profile?.cuisine ?: "Various dishes"}",
-                                        color = Color.DarkGray
-                                    )
                                 }
                             }
                             ProfessionalProfileTab.REELS -> {
-                                Text("Reels content placeholder", color = Color.Gray)
+                                if (reelPosts.isNotEmpty()) {
+                                    PostsGrid(reelPosts)
+                                } else {
+                                    Text("No Reels available.", color = Color.Gray)
+                                }
                             }
                             ProfessionalProfileTab.PHOTOS -> {
-                                Text("Photos content placeholder", color = Color.Gray)
+                                if (photoPosts.isNotEmpty()) {
+                                    PostsGrid(photoPosts)
+                                } else {
+                                    Text("No Photos available.", color = Color.Gray)
+                                }
                             }
                         }
                     }
@@ -352,7 +338,6 @@ fun ProfessionalProfileScreen(
         }
     }
 }
-
 
 // --- Helper Composables (No changes) ---
 
@@ -387,12 +372,78 @@ fun ContactInfoRow(icon: ImageVector, text: String, iconTint: Color) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class) // For LazyVerticalGrid
+@Composable
+fun PostsGrid(posts: List<PostResponse>) {
+    if (posts.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("No posts yet.", style = MaterialTheme.typography.bodyLarge)
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3), // 3 columns for the grid
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(2.dp), // Small padding around the grid
+            verticalArrangement = Arrangement.spacedBy(2.dp), // Space between rows
+            horizontalArrangement = Arrangement.spacedBy(2.dp) // Space between columns
+        ) {
+            items(posts) { post ->
+                // Use the first media URL for the grid item
+                val imageUrl = post.mediaUrls.firstOrNull()
 
-@Preview(showBackground = true, showSystemUi = true)
+                Box(
+                    modifier = Modifier
+                        .aspectRatio(1f) // Ensures items are square
+                        .clickable {
+                            // TODO: Handle post click (e.g., navigate to PostDetailsScreen)
+                            println("Post clicked: ${post._id}")
+                        }
+                ) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = post.caption,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        // Placeholder/Error for individual post images
+                        placeholder = rememberVectorPainter(Icons.Default.Image), // Using a generic image icon
+                        error = rememberVectorPainter(Icons.Default.BrokenImage) // Broken image icon for errors
+                    )
+                    // You might want to overlay an icon for video posts here
+                    // e.g., if (post.mediaType == "reel") { Icon(Icons.Default.PlayArrow, ...) }
+                }
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true, name = "Professional Profile Screen")
 @Composable
 fun PreviewProfessionalProfileScreen() {
     val dummyNavController = rememberNavController()
+    val context = LocalContext.current
+
+    // Create a preview ViewModel with sample data
+    val previewViewModel = remember {
+        ProfessionalProfileViewModel(
+            TokenManager(context),
+            RetrofitClient.professionalApiService,
+            RetrofitClient.postsApiService
+        ).apply {
+            // Load profile immediately for preview
+            loadProfessionalProfile("preview_professional_123")
+            fetchProfessionalPosts("preview_professional_123")
+        }
+    }
+
     MaterialTheme {
-        ProfessionalProfileScreen(navController = dummyNavController, professionalId = "sample_pro_id")
+        ProfessionalProfileScreen(
+            navController = dummyNavController,
+            viewModel = previewViewModel
+        )
     }
 }

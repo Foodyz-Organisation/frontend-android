@@ -6,6 +6,7 @@ import com.example.damprojectfinal.core.api.AuthInterceptor // <-- NEW IMPORT
 import com.example.damprojectfinal.core.api.TokenManager // <-- NEW IMPORT
 import android.content.Context // <-- NEW IMPORT for Context to initialize TokenManager
 import com.example.damprojectfinal.core.api.normalUser.UserApiService
+import com.example.damprojectfinal.core.api.professionalUser.ProfessionalApiService
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -16,10 +17,7 @@ object RetrofitClient {
 
     private const val BASE_URL = "http://10.0.2.2:3000/"
 
-    // --- NEW: Context property to initialize TokenManager ---
-    // This needs to be set from your Application class or MainActivity
     lateinit var appContext: Context // Declare appContext here
-    // --- END NEW ---
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         setLevel(HttpLoggingInterceptor.Level.BODY)
@@ -61,4 +59,9 @@ object RetrofitClient {
     val userApiService: UserApiService by lazy {
         retrofit.create(UserApiService::class.java)
     }
+
+    val professionalApiService: ProfessionalApiService by lazy {
+        retrofit.create(ProfessionalApiService::class.java)
+    }
+
 }

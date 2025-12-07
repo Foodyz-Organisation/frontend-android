@@ -231,17 +231,15 @@ fun AppNavigation(modifier: Modifier = Modifier) {
             ProfileScreen(navController = navController)
         }
 
-        composable(
-            route = ProRoutes.PROFESSIONAL_PROFILE_SCREEN,
-            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: "unknown"
-            // Provide ViewModel with factory
+        composable(ProRoutes.PROFESSIONAL_PROFILE_SCREEN) {
             ProfessionalProfileScreen(
                 navController = navController,
-                professionalId = professionalId,
                 viewModel = viewModel(
-                    factory = ProfessionalProfileViewModel.Factory(tokenManager)
+                    factory = ProfessionalProfileViewModel.Factory(
+                        tokenManager = TokenManager(LocalContext.current),
+                        professionalApiService = RetrofitClient.professionalApiService,
+                        postsApiService = RetrofitClient.postsApiService
+                    )
                 )
             )
         }

@@ -1,24 +1,26 @@
 package com.example.damprojectfinal.core.dto.professionalUser
 
-data class ProfessionalProfile(
-    val id: String,
-    val name: String,
-    val imageUrl: String? = null, // URL for the profile picture
-    val rating: Double,
-    val reviewCount: Int,
-    val priceRange: String, // e.g., "$$", "$$$"
-    val cuisine: String, // e.g., "Italian, Pizza, Pasta"
-    val deliveryTime: String, // e.g., "30-45 min"
-    val takeawayTime: String, // e.g., "Ready in 15 min"
-    val dineInAvailable: Boolean,
-    val address: String,
-    val phoneNumber: String,
-    val openingHours: String // e.g., "10:00 AM - 11:00 PM"
+import com.google.gson.annotations.SerializedName
+
+data class ProfessionalUserAccount(
+    val _id: String,
+    val email: String,
+    val role: String, // Will be "professional"
+    val isActive: Boolean,
+    val professionalData: ProfessionalData, // Nested data class for professional details
+    val followerCount: Int,
+    val followingCount: Int,
+    // Add other fields from your backend response as needed (e.g., createdAt, updatedAt)
 )
 
-// You might also want a placeholder for loading profile data, e.g., a ViewModel state
-data class ProfessionalProfileState(
-    val profile: ProfessionalProfile? = null,
-    val isLoading: Boolean = false,
-    val error: String? = null
+data class ProfessionalData(
+    val fullName: String,
+    val licenseNumber: String,
+    val documents: List<Document> // Assuming Document is another data class for file details
+)
+
+// You might need to define a Document data class if you plan to use it
+data class Document(
+    val filename: String,
+    val path: String
 )
