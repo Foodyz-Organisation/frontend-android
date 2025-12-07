@@ -32,8 +32,10 @@ import com.example.damprojectfinal.core.repository.OrderRepository
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
 import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
-import java.time.Duration
-import java.time.Instant
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -60,8 +62,12 @@ private fun OrderResponse.toUiOrder(): Order {
 
     // Calculate time ago
     val timeAgo = try {
-        val instant = Instant.parse(this.createdAt)
-        val minutes = Duration.between(instant, Instant.now()).toMinutes()
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+        dateFormat.timeZone = TimeZone.getTimeZone("UTC")
+        val createdDate = dateFormat.parse(this.createdAt)
+        val currentDate = Date()
+        val diffInMillis = currentDate.time - (createdDate?.time ?: 0)
+        val minutes = diffInMillis / (1000 * 60)
         when {
             minutes < 1 -> "Received just now"
             minutes < 60 -> "Received $minutes minutes ago"

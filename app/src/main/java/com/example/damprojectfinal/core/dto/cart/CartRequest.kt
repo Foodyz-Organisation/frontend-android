@@ -2,12 +2,10 @@ package com.example.damprojectfinal.core.dto.cart
 
 import com.google.gson.annotations.SerializedName
 
-// 1. Updated AddToCartRequest: NOW INCLUDES THE 'name'
+// 1. Updated AddToCartRequest
 data class AddToCartRequest(
     @SerializedName("menuItemId") val menuItemId: String,
-    // ⭐ NEW FIELD: The item's human-readable name, needed for the Cart UI and DB record.
     @SerializedName("name") val name: String,
-    @SerializedName("image") val image: String?, // ⭐ NEW FIELD: Image path
     @SerializedName("quantity") val quantity: Int,
     @SerializedName("chosenIngredients") val chosenIngredients: List<IngredientDto>,
     @SerializedName("chosenOptions") val chosenOptions: List<OptionDto>,

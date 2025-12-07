@@ -326,12 +326,10 @@ fun RestaurantMenuScreen(
                 // --- 3. Construct AddToCartRequest DTO ---
                 val menuItemId = menuItem.id
 
-                // ⭐ FIX 4: Corrected DTO field names to match the AddToCartRequest definition
                 val request = AddToCartRequest(
                     menuItemId = menuItemId,
                     quantity = quantity,
                     name = menuItem.name,
-                    image = menuItem.imagePath,
                     chosenIngredients = finalIngredientsDto,
                     chosenOptions = finalSelectedOptions,
                     calculatedPrice = unitPrice,
@@ -655,7 +653,7 @@ fun MenuTopAppBar(
     onCartClick: () -> Unit,
     cartItemCount: Int
 ) {
-    Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
+    Column(modifier = Modifier.fillMaxWidth().background(Color.White).statusBarsPadding()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
