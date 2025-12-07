@@ -3,7 +3,6 @@ package com.example.damprojectfinal.core.api.posts
 
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import retrofit2.http.GET
-import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.PATCH // <-- NEW: Import PATCH annotation

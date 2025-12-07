@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
@@ -25,6 +26,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -43,20 +45,13 @@ import kotlinx.coroutines.launch
 import com.example.damprojectfinal.user.common._component.AppDrawer
 import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
 import com.example.damprojectfinal.user.common._component.TopAppBar
-import com.example.damprojectfinal.user.common._component.TopAppBar
-import com.example.damprojectfinal.user.feature_posts.ui.PostsScreen
 import com.example.damprojectfinal.ProfileRoutes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import com.example.damprojectfinal.core.api.TokenManager
-import com.example.damprojectfinal.user.common._component.AddButton
 import com.example.damprojectfinal.UserRoutes // <--- Ensure this imports the UserRoutes object correctly
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsScreen
-
-// REMOVED: import androidx.compose.foundation.rememberScrollState // This import is no longer needed here
-// REMOVED: import androidx.compose.foundation.verticalScroll // This import is no longer needed here
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -114,9 +109,7 @@ fun HomeScreen(
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(listOf(Color(0xFFF9FAFB), Color(0xFFF3F4F6)))
-                    )
-                    .verticalScroll(rememberScrollState(), enabled = !isSearchActive)
-                    .padding(bottom = 16.dp),
+                    ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 // ----------------- TOP APP BAR -----------------
@@ -129,6 +122,9 @@ fun HomeScreen(
                     onProfileClick = { userId ->
                         navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/$userId")
                     },
+                    onReelsClick = {
+                        navController.navigate(UserRoutes.REELS_SCREEN)
+                    },
                     onLogoutClick = onLogout
                 )
 
@@ -140,14 +136,17 @@ fun HomeScreen(
                                     modifier = Modifier.padding(horizontal = 20.dp)
                                 ) {
                                     item { FilterChipItem("All", selected = true) }
-                                    item { FilterChipItem("🔥 Spicy") }
-                                    item { FilterChipItem("🥗 Healthy") }
-                                    item { FilterChipItem("🍰 Sweet") }
+                                    item { FilterChipItem("🔥 Spicy", selected = false) }
+                                    item { FilterChipItem("🥗 Healthy", selected = false) }
+                                    item { FilterChipItem("🍰 Sweet", selected = false) }
                                 }
                                 Spacer(Modifier.height(24.dp)) // Spacing before the "Pour vous" title
 
                 Box(modifier = Modifier.padding(horizontal = 2.dp)) {
-                    PostsScreen()
+                    PostsScreen(
+                        navController = navController,
+                        headerContent = {}
+                    )
                 }
             }
 

@@ -23,7 +23,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import java.io.File // Required for handling the file object
-
+import com.example.damprojectfinal.core.api.TokenManager
 class UserApiService(private val tokenManager: TokenManager) {
 
     private val BASE_URL = "http://10.0.2.2:3000"
@@ -43,11 +43,6 @@ class UserApiService(private val tokenManager: TokenManager) {
             requestTimeoutMillis = 15000
         }
     }
-
-    /**
-     * Update the logged-in user's profile
-     * PATCH /users/me
-     */
     suspend fun updateProfile(request: UpdateUserRequest, token: String): UserResponse {
         val url = "$BASE_URL/users/me"
         val response = client.patch(url) {
@@ -62,7 +57,7 @@ class UserApiService(private val tokenManager: TokenManager) {
 
     private suspend fun addAuthHeader(builder: io.ktor.client.request.HttpRequestBuilder) {
         val token = tokenManager.getAccessTokenAsync()
-        if (!token.isNullOrEmpty()) {
+        if (token.isNullOrEmpty()) {
             builder.header(HttpHeaders.Authorization, "Bearer $token")
         }
     }

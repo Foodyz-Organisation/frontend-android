@@ -54,7 +54,7 @@ interface ReclamationApi {
 
 object ReclamationRetrofitClient {
     private const val TAG = "ReclamationClient"
-    private const val BASE_URL = "http://192.168.1.10:3000/"
+    private const val BASE_URL = "http://10.0.2.2:3000/"
 
     fun createClient(token: String): ReclamationApi {
         val loggingInterceptor = HttpLoggingInterceptor().apply {

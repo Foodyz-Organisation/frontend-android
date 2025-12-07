@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
-import com.example.damprojectfinal.core.api.posts.RetrofitClient
+import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel
 import kotlinx.coroutines.launch

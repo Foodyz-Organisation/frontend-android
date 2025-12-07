@@ -2,7 +2,7 @@ package com.example.damprojectfinal.user.feature_posts.ui.trends
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.damprojectfinal.core.api.posts.RetrofitClient
+import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.core.dto.posts.TrendingPostsUiState
 import kotlinx.coroutines.flow.MutableStateFlow

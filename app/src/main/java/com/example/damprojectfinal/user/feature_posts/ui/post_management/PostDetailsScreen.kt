@@ -11,11 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -42,18 +38,14 @@ import androidx.media3.ui.PlayerView
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
-import com.example.damprojectfinal.core.api.posts.RetrofitClient
+import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.CommentResponse
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
-import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel
 import kotlinx.coroutines.launch // For rememberCoroutineScope
 import androidx.compose.foundation.Canvas // For the Canvas composable
-import androidx.compose.ui.platform.LocalInspectionMode
 import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 import kotlinx.coroutines.flow.MutableStateFlow
-// import com.example.damprojectfinal.core.dto.normalUser.UserProfile // <-- REMOVED THIS IMPORT
-import com.example.damprojectfinal.core.dto.posts.PostOwnerDetails // <-- NEW IMPORT: Use PostOwnerDetails
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,18 +72,8 @@ fun PostDetailsScreen(
         isLoading = true
         errorMessage = null
         try {
-            // First, try to get from ViewModel's cache
             post = postsViewModel.posts.value.find { it._id == postId }
-            // If not in cache, fetch from API. Need to pass viewerId (current user's ID) for isLiked/isSaved flags.
-            // Assuming your `getPostById` (or `findOne` in backend) now expects a viewerId.
-            // You'll need `TokenManager` here to get the current user's ID.
-            // For now, I'll pass null or an empty string as a placeholder.
-            // IMPORTANT: If your `getPostById` API call still doesn't take viewerId,
-            // the `isLiked`/`isSaved` flags won't be set correctly for single post view.
             if (post == null) {
-                // You would typically get the current user's ID from TokenManager here
-                // val currentUserId = TokenManager.getUserId()
-                // post = RetrofitClient.postsApiService.getPostById(postId, currentUserId) // If your API supports it
                 post = RetrofitClient.postsApiService.getPostById(postId) // For now, assume it works without viewerId in API endpoint itself.
             }
         } catch (e: Exception) {

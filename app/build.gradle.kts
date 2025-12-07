@@ -1,5 +1,3 @@
-// build.gradle (Module :app)
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")

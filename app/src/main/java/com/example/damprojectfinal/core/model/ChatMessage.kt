@@ -1,4 +1,4 @@
-package com.example.damprojectfinal.model
+package com.example.damprojectfinal.core.model
 
 data class ChatMessage(
     val conversationId: String,

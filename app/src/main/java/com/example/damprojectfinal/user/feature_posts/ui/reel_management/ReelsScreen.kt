@@ -1,4 +1,3 @@
-// app/src/main/java/com/example/damprojectfinal/user/feature_posts/ui/ReelsScreen.kt
 package com.example.damprojectfinal.user.feature_posts.ui.reel_management
 
 import android.view.ViewGroup

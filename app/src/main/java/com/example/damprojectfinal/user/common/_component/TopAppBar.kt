@@ -17,14 +17,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.compose.rememberNavController
-import com.example.damprojectfinal.UserRoutes
 import com.example.damprojectfinal.UserRoutes
 import com.example.damprojectfinal.core.api.ProfessionalApiService
 import com.example.damprojectfinal.core.dto.auth.ProfessionalDto
@@ -40,7 +37,6 @@ private val AccentLightBlue = Color(0xFFE5F0FF) // Light Blue background for sel
 private val GrayInactive = Color(0xFF64748B) // Gray for inactive elements
 private val LightBackground = Color.White    // General background
 
-// --- Helper Composable for Notification Dot ---
 @Composable
 fun NotificationIconWithDot(onClick: () -> Unit, hasNew: Boolean) {
     Box(contentAlignment = Alignment.Center) {
@@ -60,10 +56,6 @@ fun NotificationIconWithDot(onClick: () -> Unit, hasNew: Boolean) {
     }
 }
 
-// -----------------------------------------------------------------------------
-// MAIN TOP APP BAR COMPOSABLE (DESIGN IMPROVED)
-// -----------------------------------------------------------------------------
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopAppBar(
@@ -71,7 +63,7 @@ fun TopAppBar(
     currentRoute: String,
     openDrawer: () -> Unit,
     onSearchClick: () -> Unit,
-    onProfileClick: () -> Unit,
+    onProfileClick: (String) -> Unit,  // Fixed: takes userId parameter
     onReelsClick: () -> Unit,
     currentUserId: String,
     onLogoutClick: () -> Unit
@@ -141,41 +133,12 @@ fun TopAppBar(
             }
         }
 
-        // Secondary Nav Bar
-        SecondaryNavBar(navController = navController, currentRoute = currentRoute)
-
-        // Add Options Popup (Placeholder)
-        if (showAddOptions) {
-            // ... (Add Options code remains unchanged)
-        }
-    }
-
-            // --- Notifications Icon (NEW ENHANCED VERSION) ---
-            NotificationIconWithDropdown(
-                showNotifications = showNotifications,
-                onToggle = { showNotifications = it }, // This updates the local state
-                navController = navController
-            )
-            // ----------------------------------------------------
-
-            // Drawer Button (Unchanged)
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFEFF4FB))
-                    .clickable { openDrawer() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Filled.Menu, contentDescription = "Drawer", tint = Color(0xFF334155))
-            }
-        }
-
         // Secondary Nav Bar (Unchanged)
         SecondaryNavBar(
             navController = navController,
             currentRoute = currentRoute,
-            onReelsClick = onReelsClick)
+            onReelsClick = onReelsClick
+        )
 
         // Add Options Popup (Unchanged)
         if (showAddOptions) {
@@ -203,19 +166,31 @@ fun TopAppBar(
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 IconButton(onClick = { /* Add Post */ }) {
-                                    Icon(Icons.Filled.Edit, contentDescription = "Post", tint = Color(0xFF2563EB))
+                                    Icon(
+                                        Icons.Filled.Edit,
+                                        contentDescription = "Post",
+                                        tint = Color(0xFF2563EB)
+                                    )
                                 }
                                 Text("Post", fontWeight = FontWeight.Medium)
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 IconButton(onClick = { /* Add Photo */ }) {
-                                    Icon(Icons.Filled.PhotoCamera, contentDescription = "Photo", tint = Color(0xFF10B981))
+                                    Icon(
+                                        Icons.Filled.PhotoCamera,
+                                        contentDescription = "Photo",
+                                        tint = Color(0xFF10B981)
+                                    )
                                 }
                                 Text("Photo", fontWeight = FontWeight.Medium)
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 IconButton(onClick = { /* Add Video */ }) {
-                                    Icon(Icons.Filled.Videocam, contentDescription = "Video", tint = Color(0xFFF59E0B))
+                                    Icon(
+                                        Icons.Filled.Videocam,
+                                        contentDescription = "Video",
+                                        tint = Color(0xFFF59E0B)
+                                    )
                                 }
                                 Text("Video", fontWeight = FontWeight.Medium)
                             }
@@ -230,46 +205,58 @@ fun TopAppBar(
 // -----------------------------------------------------------------------------
 // SECONDARY NAVBAR COMPOSABLES (Unchanged)
 // -----------------------------------------------------------------------------
-
-@Composable
-fun SecondaryNavBar(
-    navController: NavController,
-    currentRoute: String,
-    onReelsClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp, horizontal = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+    @Composable
+    fun SecondaryNavBar(
+        navController: NavController,
+        currentRoute: String,
+        onReelsClick: () -> Unit
     ) {
-        NavIcon(Icons.Filled.Home, currentRoute == UserRoutes.HOME_SCREEN) {
-            navController.navigate(UserRoutes.HOME_SCREEN) {
-                popUpTo(UserRoutes.HOME_SCREEN) { inclusive = true } // optional: clear back stack
-                launchSingleTop = true
-            }
-        }
-        NavIcon(Icons.Filled.TrendingUp, currentRoute == "trends") { navController.navigate("trends") }
-        NavIcon(Icons.Filled.TrendingUp, currentRoute == UserRoutes.TRENDS_SCREEN) { navController.navigate(UserRoutes.TRENDS_SCREEN) }
-        NavIcon(Icons.Filled.Chat, currentRoute == "chatList") { navController.navigate("chatList") }
-        NavIcon(
-            Icons.Filled.AttachMoney,
-            currentRoute == UserRoutes.ORDERS_ROUTE // highlight if current route is orders_history_route
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp, horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            navController.navigate(UserRoutes.ORDERS_ROUTE) {
-                launchSingleTop = true
-                restoreState = true
+            NavIcon(Icons.Filled.Home, currentRoute == UserRoutes.HOME_SCREEN) {
+                navController.navigate(UserRoutes.HOME_SCREEN) {
+                    popUpTo(UserRoutes.HOME_SCREEN) {
+                        inclusive = true
+                    } // optional: clear back stack
+                    launchSingleTop = true
+                }
+            }
+            NavIcon(Icons.Filled.PlayArrow, currentRoute == UserRoutes.REELS_SCREEN) { onReelsClick() }
+            NavIcon(Icons.Filled.TrendingUp, currentRoute == UserRoutes.TRENDS_SCREEN) { navController.navigate(UserRoutes.TRENDS_SCREEN) }
+            NavIcon(
+                Icons.Filled.Chat,
+                currentRoute == "chatList"
+            ) { navController.navigate("chatList") }
+            NavIcon(
+                Icons.Filled.AttachMoney,
+                currentRoute == UserRoutes.ORDERS_ROUTE // highlight if current route is orders_history_route
+            ) {
+                navController.navigate(UserRoutes.ORDERS_ROUTE) {
+                    launchSingleTop = true
+                    restoreState = true
+                }
             }
         }
-
+    }
 
 
 
 // From the previously provided improved design code:
 @Composable
-fun NavIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boolean, onClick: () -> Unit) {
+fun NavIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
     // New, modern color scheme for selection
-    val backgroundColor = if (selected) Color(0xFFFFF9C4) else Color.Transparent // light yellow background
-    val iconColor = if (selected) Color(0xFFFFD700) else Color.Gray // golden yellow icon when selected
+    val backgroundColor =
+        if (selected) Color(0xFFFFF9C4) else Color.Transparent // light yellow background
+    val iconColor =
+        if (selected) Color(0xFFFFD700) else Color.Gray // golden yellow icon when selected
 
     // Using Box to ensure the background color covers a larger, clickable area
     Box(
@@ -280,9 +267,16 @@ fun NavIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boo
             .padding(horizontal = 16.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp)) // <-- This applies the dark blue icon tint
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(24.dp)
+        ) // <-- This applies the dark blue icon tint
     }
 }
+
+
 
 // -----------------------------------------------------------------------------
 // SEARCH SCREEN COMPONENTS (DESIGN IMPROVED)
@@ -357,7 +351,11 @@ fun RestaurantListItem(
         Box(
             modifier = Modifier
                 .size(24.dp)
-                .border(2.dp, Color(0xFFD1D5DB), CircleShape) // Kept the border/circle structure
+                .border(
+                    2.dp,
+                    Color(0xFFD1D5DB),
+                    CircleShape
+                ) // Kept the border/circle structure
                 .clip(CircleShape)
         )
     }
@@ -426,7 +424,13 @@ fun DynamicSearchOverlay(
                     searchViewModel.searchByName(searchText) // Triggers the search
                 },
                 placeholder = { Text("Search by name...") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = GrayInactive) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = null,
+                        tint = GrayInactive
+                    )
+                },
                 shape = RoundedCornerShape(12.dp), // Rounded corners
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color(0xFFFACC15),   // Light yellow when focused
@@ -439,42 +443,45 @@ fun DynamicSearchOverlay(
             )
         }
 
-            Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-            // --- Dynamic Content Display (Loading, Error, Results) ---
-            when {
-                isLoading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = AccentBlue) // Colored spinner
-                    }
+        // --- Dynamic Content Display (Loading, Error, Results) ---
+        when {
+            isLoading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = AccentBlue) // Colored spinner
                 }
-                errorMessage != null -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = errorMessage ?: "Error loading results", color = Color.Red)
-                    }
+            }
+
+            errorMessage != null -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = errorMessage ?: "Error loading results", color = Color.Red)
                 }
-                searchResults.isEmpty() && searchText.isNotEmpty() -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "No professionals found", color = GrayInactive)
-                    }
+            }
+
+            searchResults.isEmpty() && searchText.isNotEmpty() -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = "No professionals found", color = GrayInactive)
                 }
-                else -> {
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(searchResults) { professional ->
-                            ProfessionalListItem(
-                                professional = professional,
-                                onItemClick = navigateToProfessionalProfile
-                            )
-                        }
+            }
+
+            else -> {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(searchResults) { professional ->
+                        ProfessionalListItem(
+                            professional = professional,
+                            onItemClick = navigateToProfessionalProfile
+                        )
                     }
                 }
             }
         }
     }
 }
+
 @Composable
 fun ProfessionalListItem(
     professional: ProfessionalDto,
@@ -499,7 +506,11 @@ fun ProfessionalListItem(
                     .background(Color(0xFFE5E7EB)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.Work, contentDescription = "Professional Icon", tint = PrimaryDark)
+                Icon(
+                    Icons.Filled.Work,
+                    contentDescription = "Professional Icon",
+                    tint = PrimaryDark
+                )
             }
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -538,7 +549,11 @@ fun NotificationButton(
         // Icon with dot
         Box(contentAlignment = Alignment.TopEnd) {
             IconButton(onClick = { expanded = !expanded }) {
-                Icon(Icons.Filled.Notifications, contentDescription = "Notifications", tint = PrimaryDark)
+                Icon(
+                    Icons.Filled.Notifications,
+                    contentDescription = "Notifications",
+                    tint = PrimaryDark
+                )
             }
 
             if (hasNew) {
@@ -582,26 +597,3 @@ fun NotificationButton(
         }
     }
 }
-
-// -----------------------------------------------------------------------------
-// PREVIEW
-// -----------------------------------------------------------------------------
-
-@Preview(showBackground = true)
-@Composable
-fun TopAppBarPreview() {
-    val navController = rememberNavController()
-    // Showing "Trends" selected for a visual example of the active state
-    TopAppBar(
-        navController = navController,
-        currentRoute = "trends",
-        openDrawer = {},
-        onSearchClick = {},
-        currentUserId = "MOCK_USER_ID",
-        onProfileClick = {},
-        onNavigateToProfile = {},
-        onReelsClick = {},
-        LogoutClick = {}
-    )
-}
-

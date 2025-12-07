@@ -1,11 +1,7 @@
-// src/main/java/com/example/damprojectfinal/feature_profile.ui/UserViewModel.kt
-package com.example.damprojectfinal.feature_profile.ui
+package com.example.damprojectfinal.user.feature_profile.ui
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.damprojectfinal.core.api.posts.RetrofitClient
-import com.example.damprojectfinal.core.dto.posts.PostResponse
-import com.example.damprojectfinal.core.dto.normalUser.UserProfile
+import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.normalUser.ProfileUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

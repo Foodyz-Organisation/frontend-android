@@ -4,7 +4,7 @@ import android.content.res.Resources
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.damprojectfinal.core.api.posts.PostsApiService
-import com.example.damprojectfinal.core.api.posts.RetrofitClient
+import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.CreateCommentDto
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import kotlinx.coroutines.flow.MutableStateFlow

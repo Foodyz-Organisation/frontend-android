@@ -125,14 +125,7 @@ class LoginViewModel(
                 )
                 // --- END MODIFIED ---
 
-                // --- NEW: Save tokens and formatted role to TokenManager ---
-                tokenManager.saveTokens(
-                    accessToken = response.access_token,
-                    refreshToken = response.refresh_token,
-                    userId = response.id,
-                    role = formattedOwnerType // <--- Save the formatted role here
-                )
-                // --- END NEW ---
+
 
             } catch (e: Exception) {
                 Log.e(TAG, "Login failed", e)
@@ -155,9 +148,6 @@ class LoginViewModel(
                         Log.e(TAG, "Login FAILED: Unknown Error.", e) // ⬅️ DEBUG
                         "An unknown error occurred: ${e.message}"
                     }
-                    is IOException -> "Network error. Server may be down or URL incorrect."
-                    is ClientRequestException -> "Invalid credentials. Please check your email and password."
-                    else -> "An unknown error occurred: ${e.message}"
                 }
 
                 uiState = uiState.copy(isLoading = false, error = errorMessage)

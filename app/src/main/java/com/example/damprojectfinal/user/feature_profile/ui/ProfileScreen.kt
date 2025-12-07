@@ -1,7 +1,5 @@
-// src/main/java/com/example/damprojectfinal/feature_profile.ui/ProfileScreen.kt
-package com.example.damprojectfinal.feature_profile.ui
+package com.example.damprojectfinal.user.feature_profile.ui
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable // <-- NEW IMPORT
@@ -24,10 +22,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter // <-- Ensure this is imported for placeholder
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -35,12 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.example.damprojectfinal.R // Assuming you have a default profile pic drawable
 import com.example.damprojectfinal.core.dto.normalUser.ProfileUiState
 import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 import com.example.damprojectfinal.core.dto.posts.PostResponse
-import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme // Assuming your app's theme
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.compose.material.icons.filled.ArrowBack // <-- NEW IMPORT
 import androidx.compose.runtime.mutableStateOf
@@ -364,35 +357,5 @@ fun SavedPostsContent() {
         contentAlignment = Alignment.Center
     ) {
         Text("Saved Posts Content (Coming Soon)", style = MaterialTheme.typography.bodyLarge)
-    }
-}
-
-@Preview(showBackground = true, name = "Profile Header Preview - With Image")
-@Composable
-fun ProfileHeaderWithImagePreview() {
-    val mockUser = UserProfile(
-        name = "Jane Doe",
-        email = "jane.doe@example.com",
-        joinDate = "October 2024",
-        role = "Standard User",
-        profilePictureUrl = "https://picsum.photos/id/1011/200/200"
-    )
-    MaterialTheme {
-        ProfileHeader(user = mockUser, onEditProfileClick = {})
-    }
-}
-
-@Preview(showBackground = true, name = "Profile Header Preview - No Image")
-@Composable
-fun ProfileHeaderNoImagePreview() {
-    val mockUser = UserProfile(
-        name = "Alex Smith",
-        email = "alex.smith@example.com",
-        joinDate = "January 2024",
-        role = "Admin",
-        profilePictureUrl = null
-    )
-    MaterialTheme {
-        ProfileHeader(user = mockUser, onEditProfileClick = {})
     }
 }

@@ -30,12 +30,6 @@ class TokenManager(private val context: Context) {
     private val USER_ID_KEY = stringPreferencesKey("user_id")
     private val USER_ROLE_KEY = stringPreferencesKey("user_role") // This holds the user's type
 
-    suspend fun saveTokens(accessToken: String, refreshToken: String, userId: String, role: String) {
-        context.dataStore.edit { prefs ->
-            prefs[ACCESS_TOKEN_KEY] = accessToken
-            prefs[REFRESH_TOKEN_KEY] = refreshToken
-            prefs[USER_ID_KEY] = userId
-            prefs[USER_ROLE_KEY] = role // Saving the role (which is our ownerType)
     suspend fun saveTokens(
         accessToken: String,
         refreshToken: String,
@@ -68,13 +62,6 @@ class TokenManager(private val context: Context) {
         Log.d(TAG, "===================================")
     }
 
-    fun getAccessToken(): String? = runBlocking {
-    fun getAccessToken(): Flow<String?> = context.dataStore.data.map { it[ACCESS_TOKEN_KEY] }
-
-    fun getAccessTokenBlocking(): String? = runBlocking {
-        context.dataStore.data.map { it[ACCESS_TOKEN_KEY] }.first()
-    }
-
     fun getAccessTokenSync(): String? = runBlocking {
         try {
             val token = context.dataStore.data.map { it[ACCESS_TOKEN_KEY] }.first()
@@ -104,6 +91,17 @@ class TokenManager(private val context: Context) {
             null
         }
     }
+
+    // Alias for getAccessTokenSync() for compatibility
+    fun getAccessTokenBlocking(): String? = getAccessTokenSync()
+
+    fun getAccessTokenFlow(): Flow<String?> = context.dataStore.data.map {
+        val token = it[ACCESS_TOKEN_KEY]
+        Log.d(TAG, "📡 getAccessTokenFlow() emitting: ${token?.take(30)}...")
+        token
+    }
+
+
 
     fun getRefreshToken(): String? = runBlocking {
         try {
@@ -190,15 +188,10 @@ class TokenManager(private val context: Context) {
         return isLogged
     }
 
-    fun getUserId(): String? = runBlocking {
-        context.dataStore.data.map { it[USER_ID_KEY] }.first()
-    }
-
-    // --- MODIFIED METHOD: Renamed to getUserType and made blocking ---
     fun getUserType(): String? = runBlocking {
         context.dataStore.data.map { it[USER_ROLE_KEY] }.first()
     }
-    // --- END MODIFIED METHOD ---
+
     suspend fun debugPrintAll() {
         Log.d(TAG, "========== DEBUG ALL TOKENS ==========")
         try {
@@ -208,12 +201,10 @@ class TokenManager(private val context: Context) {
                         TAG,
                         "AccessToken: ${(value as? String)?.take(30)}..."
                     )
-
                     "refresh_token" -> Log.d(
                         TAG,
                         "RefreshToken: ${if ((value as? String)?.isNotEmpty() == true) "EXISTS" else "NULL"}"
                     )
-
                     "user_id" -> Log.d(TAG, "UserId: $value")
                     "user_role" -> Log.d(TAG, "Role: $value")
                     else -> Log.d(TAG, "$key: $value")
@@ -276,3 +267,5 @@ class TokenManager(private val context: Context) {
         }
     }
 }
+
+

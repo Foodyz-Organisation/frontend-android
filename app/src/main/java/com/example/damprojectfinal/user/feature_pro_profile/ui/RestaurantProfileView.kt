@@ -1,4 +1,4 @@
-package com.example.damprojectfinal.user.feature_pro_profile.ui
+/*package com.example.damprojectfinal.user.feature_pro_profile.ui
 
 import android.util.Log
 import androidx.compose.foundation.layout.*
@@ -16,14 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.damprojectfinal.professional.feature_profile.ui.RestaurantDetails
-import com.example.damprojectfinal.professional.feature_profile.ui.HeaderSection
-import com.example.damprojectfinal.professional.feature_profile.ui.InfoSection
-import com.example.damprojectfinal.professional.feature_profile.ui.ManagementCard
-import com.example.damprojectfinal.professional.feature_profile.ui.ContactManagementSection
-import com.example.damprojectfinal.professional.feature_profile.ui.ReadOnlyInfoRow
-import com.example.damprojectfinal.professional.feature_profile.ui.mockChilis
-import com.example.damprojectfinal.professional.feature_profile.ui.DarkText
+
 
 // --- Design Colors ---
 val PrimaryRed = Color(0xFFEF4444)
@@ -136,4 +129,4 @@ fun ClientRestaurantProfilePreview() {
         onBackClick = {},
         onViewMenuClick = { id -> /* do nothing for preview */ }
     )
-}
+}*/

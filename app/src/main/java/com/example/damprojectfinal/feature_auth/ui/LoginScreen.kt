@@ -1,5 +1,6 @@
 package com.example.damprojectfinal.feature_auth.ui
 
+import android.app.Application
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -41,6 +42,8 @@ import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
 import kotlinx.coroutines.launch
 import com.example.damprojectfinal.core.utils.ViewModelFactory
 
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     navController: NavController,
@@ -55,17 +58,15 @@ fun LoginScreen(
     val context = LocalContext.current
     val application = context.applicationContext as Application
 
-    // Instantiate ViewModel with the correct factory for AndroidViewModel
+    // Instantiate ViewModel with the correct factory
     val viewModel: LoginViewModel = viewModel(
-        factory = ViewModelFactory { // Assuming ViewModelFactory is your generic factory
+        factory = ViewModelFactory {
             LoginViewModel(authApiService, tokenManager)
         }
-        factory = ViewModelFactory { LoginViewModel(application, authApiService) } // <--- MODIFIED: Pass application
     )
 
     val uiState = viewModel.uiState // Observe uiState directly
     val userRole by viewModel.userRole.collectAsState(initial = null)
-    val context = LocalContext.current
     var showPassword by remember { mutableStateOf(false) }
     var rememberMeChecked by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -87,71 +88,70 @@ fun LoginScreen(
                 viewModel.resetState()
                 return@LaunchedEffect
             }
-        if (uiState.loginSuccess && !uiState.userId.isNullOrEmpty()) {
-            // TokenManager.saveTokens is now handled inside LoginViewModel after login success.
-            // This LaunchedEffect only needs to handle navigation and UI feedback.
+            if (uiState.loginSuccess && !uiState.userId.isNullOrEmpty()) {
+                // TokenManager.saveTokens is now handled inside LoginViewModel after login success.
+                // This LaunchedEffect only needs to handle navigation and UI feedback.
 
-            // --- Navigation Logic Using UserRoutes Constants (uses formatted roles) ---
-            val destinationRoute: String? = when (role) {
-                "ProfessionalAccount" -> "${UserRoutes.HOME_SCREEN_PRO}/${uiState.userId}"
-                "UserAccount" -> UserRoutes.HOME_SCREEN
-                else -> {
-                    // This case should ideally be handled by ViewModel before reaching here,
-                    // but as a fallback, show error.
-                    scope.launch {
-                        snackbarHostState.showSnackbar(
-                            message = "Login failed: User role '$role' is unsupported for navigation.",
-                            actionLabel = "Error",
-                            duration = SnackbarDuration.Long
-                        )
+                // --- Navigation Logic Using UserRoutes Constants (uses formatted roles) ---
+                val destinationRoute: String? = when (role) {
+                    "PROFESSIONAL" -> "${UserRoutes.HOME_SCREEN_PRO}/${uiState.userId}"
+                    "USER" -> UserRoutes.HOME_SCREEN
+                    else -> {
+                        // This case should ideally be handled by ViewModel before reaching here,
+                        // but as a fallback, show error.
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                message = "Login failed: User role '$role' is unsupported for navigation.",
+                                actionLabel = "Error",
+                                duration = SnackbarDuration.Long
+                            )
+                        }
+                        viewModel.resetState()
+                        null // Prevent navigation
                     }
-                    viewModel.resetState()
-                    null // Prevent navigation
                 }
-            }
 
-            // Show success snackbar
-            snackbarHostState.showSnackbar(
-                message = "Login Successful! Welcome $role",
-                actionLabel = "Continue"
-            )
+                // Show success snackbar
+                snackbarHostState.showSnackbar(
+                    message = "Login Successful! Welcome $role",
+                    actionLabel = "Continue"
+                )
 
-            // Save tokens
-            val access = uiState.accessToken
-            val refresh = uiState.refreshToken
-            if (!access.isNullOrEmpty() && !refresh.isNullOrEmpty() && !uiState.userId.isNullOrEmpty() && !uiState.role.isNullOrEmpty()) {
-                try {
-                    TokenManager(context).saveTokens(
-                        access,
-                        refresh,
-                        uiState.userId!!,
-                        uiState.role!!
-                    )
-                } catch (e: Exception) {
-                    println("Failed to save tokens: ${e.message}")
+                // Save tokens
+                val access = uiState.accessToken
+                val refresh = uiState.refreshToken
+                if (!access.isNullOrEmpty() && !refresh.isNullOrEmpty() && !uiState.userId.isNullOrEmpty() && !uiState.role.isNullOrEmpty()) {
+                    try {
+                        TokenManager(context).saveTokens(
+                            access,
+                            refresh,
+                            uiState.userId!!,
+                            uiState.role!!
+                        )
+                    } catch (e: Exception) {
+                        println("Failed to save tokens: ${e.message}")
+                    }
                 }
+
+                destinationRoute?.let { route ->
+                    navController.navigate(route) {
+                        popUpTo(AuthRoutes.LOGIN) { inclusive = true }
+                    }
+                }
+
+                viewModel.resetState()
+
+            } else if (uiState.error != null) {
+                snackbarHostState.showSnackbar(
+                    message = uiState.error ?: "Unknown error",
+                    actionLabel = "Dismiss"
+                )
+                viewModel.resetState()
             }
-
-            navController.navigate(destinationRoute) {
-                popUpTo(AuthRoutes.LOGIN) { inclusive = true }
-            }
-
-            viewModel.resetState()
-
-        } else if (uiState.error != null) {
-            snackbarHostState.showSnackbar(
-                message = uiState.error ?: "Unknown error",
-                actionLabel = "Dismiss"
-            )
-            viewModel.resetState()
         }
     }
 
-    // ... (rest of your UI composables, starting from val gradient = Brush.verticalGradient(...) ) ...
-    // Your existing UI code from here onwards is fine. Just ensure the code below this comment
-    // is placed after the LaunchedEffect block within the LoginScreen Composable function.
-
-
+    // UI Code - moved outside LaunchedEffect
     val gradient = Brush.verticalGradient(
         colors = listOf(Color(0xFFFFFBEA), Color(0xFFFFF8D6), Color(0xFFFFF6C1))
     )
@@ -402,7 +402,7 @@ fun LoginScreen(
 }
 
 @Composable
-private fun SocialButton(
+fun SocialButton(
     text: String,
     icon: @Composable () -> Unit,
     onClick: () -> Unit,

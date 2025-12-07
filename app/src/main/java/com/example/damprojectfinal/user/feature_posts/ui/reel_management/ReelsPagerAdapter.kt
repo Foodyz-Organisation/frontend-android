@@ -1,4 +1,3 @@
-// app/src/main/java/com/example/damprojectfinal/user/feature_posts/ui/ReelsPagerAdapter.kt
 package com.example.damprojectfinal.user.feature_posts.ui.reel_management
 
 import android.content.Context

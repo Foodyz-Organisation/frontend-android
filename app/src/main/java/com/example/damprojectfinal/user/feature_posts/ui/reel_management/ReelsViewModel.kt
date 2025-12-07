@@ -3,7 +3,7 @@ package com.example.damprojectfinal.user.feature_posts.ui.reel_management
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.damprojectfinal.core.api.posts.ReelsApiService
-import com.example.damprojectfinal.core.api.posts.RetrofitClient
+import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

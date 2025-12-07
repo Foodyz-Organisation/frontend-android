@@ -82,7 +82,8 @@ fun ChatDetailScreen(
 
     val context = LocalContext.current
     var currentMessage by remember { mutableStateOf("") }
-    val accessToken by remember { TokenManager(context).getAccessToken() }.collectAsState(initial = null)
+    val tokenManager = remember { TokenManager(context) }
+    val accessToken by tokenManager.getAccessTokenFlow().collectAsState(initial = null)
 
     val httpMessages by vm.messages.collectAsState()
     val isConnected by vm.isSocketConnected.collectAsState()

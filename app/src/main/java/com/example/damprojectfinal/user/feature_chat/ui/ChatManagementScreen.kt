@@ -53,7 +53,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.damprojectfinal.core.api.PeerDto
 import com.example.damprojectfinal.core.api.TokenManager
-import com.example.damprojectfinal.model.ChatListItem
+import com.example.damprojectfinal.core.model.ChatListItem
 import com.example.damprojectfinal.user.feature_chat.ui.components.ChatItemNew
 import com.example.damprojectfinal.user.feature_chat.viewmodel.ChatViewModel
 
@@ -74,7 +74,7 @@ fun ChatManagementScreen(
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
     val currentUserId = remember { tokenManager.getUserId() }
-    val accessToken by tokenManager.getAccessToken().collectAsState(initial = null)
+    val accessToken by tokenManager.getAccessTokenFlow().collectAsState(initial = null)
 
     LaunchedEffect(accessToken) {
         accessToken?.let { token ->

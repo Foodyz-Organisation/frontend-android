@@ -7,18 +7,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
--import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
@@ -32,8 +27,8 @@ import com.example.damprojectfinal.core.repository.AuthRepository
 import com.example.damprojectfinal.feature_auth.viewmodels.*
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.api.TokenManager
-import com.example.damprojectfinal.core.api.posts.RetrofitClient
-import com.example.damprojectfinal.feature_auth.ui.ForgetPasswordScreen
+import com.example.damprojectfinal.core.retro.RetrofitClient
+import com.example.damprojectfinal.core.retro.RetrofitClient as PostsRetrofitClient
 import com.example.damprojectfinal.core.api.DebugUserLogger
 import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.repository.MenuItemRepository
@@ -48,14 +43,13 @@ import com.example.damprojectfinal.feature_auth.ui.LoginScreen
 import com.example.damprojectfinal.feature_auth.ui.SignupScreen
 import com.example.damprojectfinal.feature_auth.ui.SplashScreen
 import com.example.damprojectfinal.feature_auth.ui.ProSignupScreen
-import com.example.damprojectfinal.feature_profile.ui.ProfileScreen
-import com.example.damprojectfinal.feature_profile.ui.AllProfilePosts
-import com.example.damprojectfinal.feature_profile.ui.AllSavedPosts
+import com.example.damprojectfinal.user.feature_profile.ui.ProfileScreen
+import com.example.damprojectfinal.user.feature_profile.ui.AllProfilePosts
+import com.example.damprojectfinal.user.feature_profile.ui.AllSavedPosts
 import com.example.damprojectfinal.professional.common.HomeScreenPro
-// ADJUSTED IMPORT for CreateContentScreen to match your provided path
 import com.example.damprojectfinal.professional.feature_posts.CreateContentScreen
 import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileScreen
-import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileViewModel
+import com.example.damprojectfinal.professional.feature_profile.viewmodel.ProfessionalProfileViewModel
 import com.example.damprojectfinal.professional.feature_profile.ui.AllProfilePosts
 import com.example.damprojectfinal.user.feature_chat.ui.ChatDetailScreen
 import com.example.damprojectfinal.professional.feature_menu.ui.MenuItemManagementScreen
@@ -84,14 +78,10 @@ import com.example.damprojectfinal.professional.feature_event.EventDetailScreen
 import com.example.damprojectfinal.user.feature_deals.DealDetailScreen
 import com.example.damprojectfinal.user.feature_deals.DealsListScreen
 import com.example.damprojectfinal.user.feature_chat.ui.ChatManagementScreen
-import com.example.damprojectfinal.user.feature_profile.ui.UserProfileScreen
-import com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel
+import com.example.damprojectfinal.user.feature_profile.ui.UserViewModel
 import com.example.damprojectfinal.core.`object`.KtorClient
-import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileScreen
-import com.example.damprojectfinal.professional.feature_profile.ui.mockChilis
 import com.example.damprojectfinal.user.feature_cart_item.ui.ShoppingCartScreen
 import com.example.damprojectfinal.user.feature_menu.ui.RestaurantMenuScreen
-import com.example.damprojectfinal.user.feature_pro_profile.ui.ClientRestaurantProfileScreen
 import com.example.damprojectfinal.user.feautre_order.ui.OrderConfirmationScreen
 import com.example.damprojectfinal.core.repository.CartRepository
 import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewModel
@@ -100,7 +90,6 @@ import com.google.gson.Gson
 import com.example.damprojectfinal.user.feature_relamation.ReclamationTemplateScreen
 import com.example.damprojectfinal.professional.feature_event.CreateEventScreen
 import com.example.damprojectfinal.user.feature_event.EventListScreen
-import com.example.damprojectfinal.feature_event.EventStatus
 import com.example.damprojectfinal.feature_event.EventViewModel
 import com.example.damprojectfinal.feature_relamation.ReclamationDetailScreen
 import com.example.damprojectfinal.core.repository.ReclamationRepository
@@ -167,7 +156,6 @@ fun AppNavigation(
     val authApiService = AuthApiService()
     val authRepository = AuthRepository(authApiService)
 
-    // ✅ IMPORTANT: Créer le ViewModel UNE SEULE FOIS
     val dealsViewModel: DealsViewModel = viewModel()
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
@@ -183,30 +171,16 @@ fun AppNavigation(
     DebugUserLogger(tokenManager = tokenManager)
 
     val ServiceLocator = KtorClient
-    val postsApiService = remember { RetrofitClient.postsApiService }
+    val postsApiService = remember { PostsRetrofitClient.postsApiService }
     val startDestination = AuthRoutes.SPLASH
 
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = modifier // Modifier passed to NavHost
-        startDestination = AuthRoutes.SPLASH,
-        modifier = modifier
+        modifier = modifier,
     ) {
         // 1️⃣ Splash Screen
         composable(AuthRoutes.SPLASH) {
-            val context = LocalContext.current
-            val nextRoute = remember { mutableStateOf<String?>(null) }
-
-            LaunchedEffect(Unit) {
-                val authState = TokenManager(context).getAuthState()
-                nextRoute.value = when (authState?.role) {
-                    "professional" -> "${UserRoutes.HOME_SCREEN_PRO}/${authState.userId}"
-                    "user" -> UserRoutes.HOME_SCREEN
-                    else -> null
-                } ?: AuthRoutes.LOGIN
-            }
-
             SplashScreen(
                 durationMs = 1600,
                 // ✅ FIX: Using the correct single callback function signature and adding explicit types
@@ -259,7 +233,7 @@ fun AppNavigation(
         }
 
         // 4️⃣ Forgot Password
-        composable(AuthRoutes.FORGOT_PASSWORD) {
+        composable(AuthRoutes.FORGET_PASSWORD) {
             val vm: ForgotPasswordViewModel = viewModel(
                 factory = ForgotPasswordViewModelFactory(authRepository)
             )
@@ -299,8 +273,6 @@ fun AppNavigation(
             )
         }
 
-        // In your AppNavigation.kt file
-
         composable(
             route = UserRoutes.PROFILE_VIEW,
             arguments = listOf(navArgument("userId") { type = NavType.StringType })
@@ -311,92 +283,18 @@ fun AppNavigation(
             // --- Setup ViewModel ---
             val context = LocalContext.current
 
-            // Fix 1: Ensure Factory uses the correct constructor (referencing the logic from your newer block)
-            val profileViewModel: ProfileViewModel = viewModel(
-                factory = ProfileViewModel.Factory(userRepository, context)
-            )
+            // Fix 1: Ensure Factory uses the correct constructor
+            val userViewModel: UserViewModel = viewModel()
 
-            // Fix 2: Remove arguments from fetchUserProfile.
-            // The ViewModel now handles token/userId internally via TokenManager.
-            LaunchedEffect(userId) {
-                profileViewModel.fetchUserProfile()
-            }
 
-            // --- Composable Call ---
-            UserProfileScreen(
-                viewModel = profileViewModel,
-                onBackClick = { navController.popBackStack() },
-                onEditProfileClick = {
-                    navController.navigate("profile_update/$userId")
-                }
-            )
-        }
-
-        // ----------------------------------------------------
-        // ⭐ PROFILE UPDATE SCREEN (USER) ⭐
-        // ----------------------------------------------------
-        composable(
-            route = UserRoutes.PROFILE_VIEW,
-            arguments = listOf(navArgument("userId") { type = NavType.StringType })
-        ) { backStackEntry ->
-
-            // 1. GET CONTEXT: Required for the ViewModel Factory (and TokenManager inside the VM)
-            val context = LocalContext.current
-
-            val userId = backStackEntry.arguments?.getString("userId")
-                ?: throw IllegalStateException("userId is required for profile view.")
-
-            // 2. VIEWMODEL INITIALIZATION: Pass both the repository and the context
-            val profileViewModel: ProfileViewModel = viewModel(
-                factory = ProfileViewModel.Companion.Factory(userRepository, context)
-            )
-
-            // The ViewModel handles token retrieval internally now.
-
-            // 3. DATA FETCHING: Call the parameter-less fetchUserProfile()
-            LaunchedEffect(userId) {
-                // The ViewModel will use the context to get the stored User ID and Token
-                if (profileViewModel.userState.value == null) {
-                    profileViewModel.fetchUserProfile()
-                }
-            }
-
-            // --- Corrected Composable Call ---
-            UserProfileScreen(
-                viewModel = profileViewModel,
-
-                // Implement the onBackClick action to return to the previous screen
-                onBackClick = { navController.popBackStack() },
-
-                onEditProfileClick = {
-                    navController.navigate("profile_update/$userId")
-                }
-            )
-        }
-        // ----------------------------------------------------
-        // HomeScreen
-        composable(UserRoutes.HOME_SCREEN) {
-
-            val context = LocalContext.current
-        composable(UserRoutes.REELS_SCREEN) {
-            ReelsScreen(navController = navController)
-        }
-
-        // 6️⃣ PROFESSIONAL HOME SCREEN (Corrected - Removed duplicate "Text" composable)
-        // This is the correct composable for the professional's home screen
-        composable("${UserRoutes.HOME_SCREEN_PRO}/{professionalId}") { backStackEntry ->
-            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: "unknown"
-            HomeScreenPro(
-                professionalId = professionalId,
+            ProfileScreen(
                 navController = navController,
-                onLogout = {
-                    println("Logout triggered from HomeScreenPro (not directly used by UI in this version)")
-                    // navController.navigate(AuthRoutes.LOGIN) { // Example of actual logout navigation
-                    //     popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                    // }
-                }
+                viewModel = userViewModel
             )
         }
+
+        composable(UserRoutes.HOME_SCREEN) {
+            val context = LocalContext.current
 
             val logoutViewModel: LogoutViewModel = viewModel(
                 factory = LogoutViewModelFactory(
@@ -420,6 +318,27 @@ fun AppNavigation(
                     }
                 },
                 logoutSuccess = logoutViewModel.logoutSuccess
+            )
+        }
+
+        // Reels Screen
+        composable(UserRoutes.REELS_SCREEN) {
+            ReelsScreen(navController = navController)
+        }
+
+        // 6️⃣ PROFESSIONAL HOME SCREEN (Corrected - Removed duplicate "Text" composable)
+        // This is the correct composable for the professional's home screen
+        composable("${UserRoutes.HOME_SCREEN_PRO}/{professionalId}") { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: "unknown"
+            HomeScreenPro(
+                professionalId = professionalId,
+                navController = navController,
+                onLogout = {
+                    println("Logout triggered from HomeScreenPro (not directly used by UI in this version)")
+                    // navController.navigate(AuthRoutes.LOGIN) { // Example of actual logout navigation
+                    //     popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                    // }
+                }
             )
         }
 
@@ -505,6 +424,8 @@ fun AppNavigation(
             PostDetailsScreen(
                 navController = navController,
                 postId = postId
+            )
+        }
 
 
         // Professional Signup
@@ -541,8 +462,6 @@ fun AppNavigation(
                         launchSingleTop = true
                     }
                 }
-                // Assuming HomeScreenPro also takes a logoutSuccess parameter if needed:
-                // , logoutSuccess = logoutViewModel.logoutSuccess
             )
         }
 
@@ -572,10 +491,8 @@ fun AppNavigation(
                     viewModel = menuItemViewModel
                 )
             }
-
         }
 
-// ---------- Create Menu Item ----------
         composable(
             route = "create_menu_item/{professionalId}",
             arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
@@ -668,15 +585,12 @@ fun AppNavigation(
                 viewModel = viewModel(
                     factory = ProfessionalProfileViewModel.Factory(
                         tokenManager = TokenManager(LocalContext.current),
-                        professionalApiService = RetrofitClient.professionalApiService,
-                        postsApiService = RetrofitClient.postsApiService
+                        professionalApiService = PostsRetrofitClient.professionalApiService,
+                        postsApiService = PostsRetrofitClient.postsApiService
                     )
                 )
             )
         }
-
-    }
-}
 
         // 🔟 Liste réclamations (CLIENT)
         composable("list_reclamation_route") {
@@ -872,9 +786,7 @@ fun AppNavigation(
             }
         }
 
-        // ============================================
-        // 📌 SECTION DEALS - ROUTES PROFESSIONNELLES
-        // ============================================
+
 
         // 1️⃣8️⃣ Gestion PRO des deals
         composable("pro_deals") {
@@ -898,7 +810,6 @@ fun AppNavigation(
             )
         }
 
-        // 1️⃣9️⃣ Ajouter un deal
         composable("deal_add") {
             Log.d("AppNavigation", "➕ Écran d'ajout de deal")
 
@@ -947,14 +858,6 @@ fun AppNavigation(
             )
         }
 
-
-
-
-
-
-        // ----------------------------------------------------
-// ⭐ 1. PROFESSIONAL PROFILE EDIT SCREEN (Editable) ⭐
-// ----------------------------------------------------
         composable(
             route = ProfileRoutes.PROFESSIONAL_PROFILE_EDIT, // e.g., "pro_profile_edit/{professionalId}"
             arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
@@ -962,38 +865,16 @@ fun AppNavigation(
             val professionalId = backStackEntry.arguments?.getString("professionalId")
                 ?: throw IllegalStateException("Restaurant ID is required for Pro profile edit.")
 
-            // TODO: Fetch the specific restaurant details for editing
-            val restaurantDetails = mockChilis // Using mock data for compilation
 
             ProfessionalProfileScreen(
-                restaurantDetails = restaurantDetails,
-                onBackClick = { navController.popBackStack() },
-                onSaveClick = { editedState ->
-                    // TODO: Call ViewModel to save changes
-                    println("Pro Profile Saved: ${editedState.name}")
-                    // Optional: navController.popBackStack()
-                }
-            )
-        }
-
-        composable(
-            route = ProfileRoutes.CLIENT_PROFILE_VIEW, // "client_profile_view/{professionalId}"
-            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val professionalId = backStackEntry.arguments?.getString("professionalId")
-                ?: throw IllegalStateException("Professional ID is required for client profile view.")
-
-            // TODO: Fetch the professional details for viewing
-            val restaurantDetails = mockChilis
-
-            ClientRestaurantProfileScreen(
-                professionalId = professionalId,
-                restaurantDetails = restaurantDetails,
-                onBackClick = { navController.popBackStack() },
-                onViewMenuClick = { id ->
-                    // Navigate to the existing menu/order screen
-                    navController.navigate("menu_order_route/$id")
-                }
+                navController = navController,
+                viewModel = viewModel(
+                    factory = ProfessionalProfileViewModel.Factory(
+                        tokenManager = TokenManager(context),
+                        professionalApiService = RetrofitClient.professionalApiService,
+                        postsApiService = RetrofitClient.postsApiService
+                    )
+                )
             )
         }
 
@@ -1163,22 +1044,8 @@ fun AppNavigation(
                 onBackClick = {
                     Log.d("AppNavigation", "⬅️ Retour depuis dealDetail")
                     navController.popBackStack()
-                }
-            )
+                 }
+                )
+            }
         }
     }
-}
-
-// Extension function pour EventViewModel
-private fun EventViewModel.createEvent(
-    nom: String,
-    description: String,
-    dateDebut: String,
-    dateFin: String,
-    image: String?,
-    lieu: String,
-    categorie: String,
-    statut: EventStatus
-) {
-    // La logique métier est dans EventViewModel
-}

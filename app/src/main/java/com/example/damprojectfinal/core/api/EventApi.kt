@@ -39,10 +39,10 @@ object EventRetrofitClient {
     private const val TAG = "RetrofitClient"
 
     // Pour l’émulateur Android Studio
-    private const val BASE_URL_EMULATOR = "http://192.168.1.10:3000/"
+    private const val BASE_URL_EMULATOR = "http://10.0.2.2:3000/"
 
     // Pour un appareil physique (remplace par ton IP locale)
-    private const val BASE_URL_PHYSICAL = "http://192.168.1.103000/"
+    private const val BASE_URL_PHYSICAL = "http://10.0.2.2:3000/"
 
     // ⚙️ Choisis ton mode ici :
     private const val USE_EMULATOR = true

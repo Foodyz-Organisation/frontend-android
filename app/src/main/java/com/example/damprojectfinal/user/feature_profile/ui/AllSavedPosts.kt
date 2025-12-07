@@ -1,4 +1,4 @@
-package com.example.damprojectfinal.feature_profile.ui
+package com.example.damprojectfinal.user.feature_profile.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,12 +20,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import com.example.damprojectfinal.core.api.posts.RetrofitClient
+import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel
 import kotlinx.coroutines.launch
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import com.example.damprojectfinal.UserRoutes
 
 @OptIn(ExperimentalMaterial3Api::class)

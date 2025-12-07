@@ -81,7 +81,7 @@ fun SplashScreen(
         }
 
         // Authentication check
-        val accessToken = tokenManager.getAccessToken().first()
+        val accessToken = tokenManager.getAccessTokenAsync()
 
         if (!accessToken.isNullOrEmpty()) {
             // User is logged in: fetch details and pass them to the navigator.

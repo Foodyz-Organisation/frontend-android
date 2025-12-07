@@ -11,8 +11,8 @@ import com.example.damprojectfinal.core.api.MessageDto
 import com.example.damprojectfinal.core.api.PeerDto
 import com.example.damprojectfinal.core.api.SendMessageDto
 import com.example.damprojectfinal.core.utils.RetrofitInstance
-import com.example.damprojectfinal.model.ChatListItem
-import com.example.damprojectfinal.model.ChatMessage
+import com.example.damprojectfinal.core.model.ChatListItem
+import com.example.damprojectfinal.core.model.ChatMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow

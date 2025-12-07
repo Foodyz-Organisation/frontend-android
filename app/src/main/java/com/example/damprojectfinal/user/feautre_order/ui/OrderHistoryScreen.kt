@@ -64,6 +64,9 @@ fun OrderHistoryScreen(
                 onProfileClick = { userId ->
                     // navigate to profile screen if needed
                 },
+                onReelsClick = {
+                    navController.navigate(UserRoutes.REELS_SCREEN)
+                },
                 onLogoutClick = onLogout
             )
         },

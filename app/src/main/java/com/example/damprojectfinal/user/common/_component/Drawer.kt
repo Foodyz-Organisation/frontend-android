@@ -222,7 +222,8 @@ fun AppDrawerPreview() {
             AppDrawer(
                 onCloseDrawer = dummyOnCloseDrawer,
                 navigateTo = dummyNavigateTo,
-                currentRoute = dummyCurrentRoute
+                currentRoute = dummyCurrentRoute,
+                onLogoutClick = {} // Dummy logout action for preview
             )
         }
     }

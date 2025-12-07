@@ -32,7 +32,7 @@ interface DealsApiService {
 
 // Singleton pour créer l'instance Retrofit
 object RetrofitInstance {
-    private const val BASE_URL = "http://192.168.1.10:3000/"
+    private const val BASE_URL = "http://10.0.2.2:3000/"
 
     private val retrofit by lazy {
         Retrofit.Builder()
