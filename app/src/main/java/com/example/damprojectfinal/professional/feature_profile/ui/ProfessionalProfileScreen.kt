@@ -222,19 +222,55 @@ fun ProfessionalProfileScreen(
 
                             Spacer(modifier = Modifier.height(24.dp))
 
-                            Button(
-                                onClick = { Log.d("ProfileScreen", "View Profile Details clicked") },
-                                modifier = Modifier.fillMaxWidth().height(56.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5722)),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text(
-                                    text = "View Profile Details",
-                                    color = Color.White,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Icon(Icons.Filled.Info, contentDescription = "Info", tint = Color.White, modifier = Modifier.padding(start = 8.dp))
+                            // Show Follow/Unfollow or View Profile Details based on whether viewing own profile
+                            val currentUserId = TokenManager(context).getUserId()
+                            val isOwnProfile = currentUserId == professionalId
+
+                            if (isOwnProfile) {
+                                Button(
+                                    onClick = { Log.d("ProfileScreen", "View Profile Details clicked") },
+                                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5722)),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(
+                                        text = "View Profile Details",
+                                        color = Color.White,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Icon(Icons.Filled.Info, contentDescription = "Info", tint = Color.White, modifier = Modifier.padding(start = 8.dp))
+                                }
+                            } else {
+                                var isFollowing by remember { mutableStateOf(false) } // TODO: Get actual follow state from backend
+                                
+                                // Reset following state when professionalId changes
+                                LaunchedEffect(professionalId) {
+                                    isFollowing = false // Reset to false when viewing a different profile
+                                }
+                                
+                                Button(
+                                    onClick = {
+                                        isFollowing = !isFollowing
+                                        if (isFollowing) {
+                                            viewModel.followProfessional(professionalId)
+                                        } else {
+                                            viewModel.unfollowProfessional(professionalId)
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isFollowing) Color(0xFF757575) else Color(0xFFFF5722)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(
+                                        text = if (isFollowing) "Unfollow" else "Follow",
+                                        color = Color.White,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(24.dp))

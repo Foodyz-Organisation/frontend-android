@@ -97,6 +97,35 @@ class ProfessionalProfileViewModel(
         }
     }
 
+    // Follow/Unfollow methods
+    fun followProfessional(professionalId: String) {
+        viewModelScope.launch {
+            try {
+                Log.d("ProfileVM", "Following professional: $professionalId")
+                val updatedProfile = professionalApiService.followProfessional(professionalId)
+                _profile.value = updatedProfile
+                Log.d("ProfileVM", "Successfully followed professional")
+            } catch (e: Exception) {
+                Log.e("ProfileVM", "Error following professional: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun unfollowProfessional(professionalId: String) {
+        viewModelScope.launch {
+            try {
+                Log.d("ProfileVM", "Unfollowing professional: $professionalId")
+                val updatedProfile = professionalApiService.unfollowProfessional(professionalId)
+                _profile.value = updatedProfile
+                Log.d("ProfileVM", "Successfully unfollowed professional")
+            } catch (e: Exception) {
+                Log.e("ProfileVM", "Error unfollowing professional: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
     // UPDATED: ViewModel Factory to provide all necessary dependencies
     companion object {
         fun Factory(

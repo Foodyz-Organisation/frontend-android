@@ -94,4 +94,47 @@ class UserViewModel(application: Application) : AndroidViewModel(application) { 
             _uiState.update { it.copy(errorMessage = "User not logged in.") }
         }
     }
+
+    // Follow/Unfollow methods
+    fun followUser(userId: String) {
+        viewModelScope.launch {
+            try {
+                val updatedProfile = RetrofitClient.userApiService.followUser(userId)
+                // Update the profile if it's the one being viewed
+                _uiState.update { currentState ->
+                    if (currentState.userProfile?._id == userId) {
+                        currentState.copy(userProfile = updatedProfile)
+                    } else {
+                        currentState
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "Failed to follow user: ${e.localizedMessage ?: e.message}")
+                }
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun unfollowUser(userId: String) {
+        viewModelScope.launch {
+            try {
+                val updatedProfile = RetrofitClient.userApiService.unfollowUser(userId)
+                // Update the profile if it's the one being viewed
+                _uiState.update { currentState ->
+                    if (currentState.userProfile?._id == userId) {
+                        currentState.copy(userProfile = updatedProfile)
+                    } else {
+                        currentState
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "Failed to unfollow user: ${e.localizedMessage ?: e.message}")
+                }
+                e.printStackTrace()
+            }
+        }
+    }
 }

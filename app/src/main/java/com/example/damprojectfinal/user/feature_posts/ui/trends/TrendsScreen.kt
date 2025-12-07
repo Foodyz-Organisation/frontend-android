@@ -25,8 +25,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.core.dto.posts.PostResponse
-// import com.example.damprojectfinal.core.dto.normalUser.UserProfile // <-- REMOVED THIS IMPORT
-import com.example.damprojectfinal.core.dto.posts.PostOwnerDetails // <-- NEW IMPORT: Use PostOwnerDetails
+import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme // Assuming your app's theme
 import androidx.media3.common.MediaItem // ExoPlayer
 import androidx.media3.exoplayer.ExoPlayer // ExoPlayer
@@ -108,30 +107,33 @@ fun TrendingPostItem(post: PostResponse) {
             verticalArrangement = Arrangement.Bottom,
             horizontalAlignment = Alignment.Start
         ) {
-            // Author Info
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                AsyncImage(
-                    model = post.ownerId?.profilePictureUrl, // <-- CORRECTED: Use ownerId
-                    contentDescription = "Author Avatar",
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.Gray),
-                    contentScale = ContentScale.Crop
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = post.ownerId?.fullName ?: "Unknown User", // <-- CORRECTED: Use ownerId
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-                // You can add a follow button here if desired, but for now we're simplifying
-                // Spacer(modifier = Modifier.width(8.dp))
-                // Button(...)
+            // Author Info - Only show if ownerId is not null and is UserProfile type
+            val ownerId = post.ownerId
+            val userProfile = ownerId as? UserProfile
+            
+            if (userProfile != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    AsyncImage(
+                        model = userProfile.profilePictureUrl,
+                        contentDescription = "Author Avatar",
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.Gray),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    
+                    Text(
+                        text = userProfile.username ?: "User",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
             }
 
             // Caption
@@ -141,8 +143,6 @@ fun TrendingPostItem(post: PostResponse) {
                 fontSize = 16.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
-            // Display interactivityScore if you included it in PostResponse.
-            // Text(text = "Score: ${post.interactivityScore}", color = Color.White)
         }
     }
 }
@@ -203,80 +203,3 @@ fun TrendsScreen(
         }
     }
 }
-
-//
-//@Preview(showBackground = true)
-//@Composable
-//fun TrendingPostItemPreview() {
-//    DamProjectFinalTheme() {
-//        // Create a PostOwnerDetails object for the dummy post
-//        val dummyOwner = PostOwnerDetails( // <-- CORRECTED: Use PostOwnerDetails
-//            _id = "author_id",
-//            username = "FoodieUser123",
-//            fullName = "Foodie User",
-//            profilePictureUrl = "https://picsum.photos/id/1005/60/60",
-//            followerCount = 100,
-//            followingCount = 50,
-//            email = "foodie@example.com" // Added email as it's part of PostOwnerDetails
-//        )
-//        val dummyPost = PostResponse(
-//            _id = "post_id",
-//            caption = "Delicious pizza baking in the wood-fired oven!",
-//            mediaUrls = listOf("https://picsum.photos/id/1070/720/1280"), // Sample image URL
-//            mediaType = "image", // or "reel" for video
-//            ownerId = dummyOwner, // <-- CORRECTED: Use ownerId
-//            ownerModel = "UserAccount", // <-- NEW: Add ownerModel
-//            createdAt = "", updatedAt = "", version = 1, likeCount = 0, commentCount = 0, saveCount = 0
-//            // Add isLiked and isSaved if you want to preview their default state
-//            ,isLiked = false, isSaved = false
-//        )
-//        TrendingPostItem(post = dummyPost)
-//    }
-//}
-//
-//@Preview(showBackground = true)
-//@Composable
-//fun TrendsScreenPreview() {
-//    DamProjectFinalTheme() {
-//        val navController = rememberNavController()
-//        val dummyOwner = PostOwnerDetails( // <-- CORRECTED: Use PostOwnerDetails for preview
-//            _id = "author_id",
-//            username = "FoodieUser123",
-//            fullName = "Foodie User",
-//            profilePictureUrl = "https://picsum.photos/id/1005/60/60",
-//            followerCount = 100,
-//            followingCount = 50,
-//            email = "foodie@example.com"
-//        )
-//        val dummyPosts = listOf(
-//            PostResponse(
-//                _id = "post1", caption = "Amazing pizza", mediaUrls = listOf("https://picsum.photos/id/1070/720/1280"),
-//                mediaType = "image", ownerId = dummyOwner, ownerModel = "UserAccount", createdAt = "", updatedAt = "", version = 1, likeCount = 100, commentCount = 20, saveCount = 30
-//            ),
-//            PostResponse(
-//                _id = "post2", caption = "Fresh pasta recipe", mediaUrls = listOf("https://picsum.photos/id/1080/720/1280"),
-//                mediaType = "image", ownerId = dummyOwner, ownerModel = "UserAccount", createdAt = "", updatedAt = "", version = 1, likeCount = 80, commentCount = 15, saveCount = 25
-//            )
-//        )
-//
-//        // --- SIMPLIFIED PREVIEW VIEWMODEL CREATION ---
-//        val mockViewModel = object : TrendingPostsViewModel() {
-//
-//            // Override the uiState property directly with a MutableStateFlow of dummy data
-//            override val uiState: StateFlow<TrendingPostsUiState> = MutableStateFlow(
-//                TrendingPostsUiState(
-//                    posts = dummyPosts,
-//                    isLoading = false,
-//                    errorMessage = null
-//                )
-//            ).asStateFlow() // Convert MutableStateFlow to StateFlow
-//
-//            // Provide no-op implementations for functions that would trigger API calls
-//            override fun fetchTrendingPosts(limit: Int) { /* Do nothing in preview */ }
-//            override fun refreshTrendingPosts() { /* Do nothing in preview */ }
-//        }
-//        // --- END SIMPLIFIED PREVIEW VIEWMODEL CREATION ---
-//
-//        // Pass the mock ViewModel to the TrendsScreen
-//        TrendsScreen(navController = navController, viewModel = mockViewModel)
-//    }

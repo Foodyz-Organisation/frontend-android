@@ -3,13 +3,19 @@ package com.example.damprojectfinal.core.api.normalUser
 // src/main/java/com/example/damprojectfinal/core/api.user/UserApiService.kt
 
 import com.example.damprojectfinal.core.dto.normalUser.UserProfile
-import retrofit2.http.GET
-import retrofit2.http.Path
+import retrofit2.http.*
+import retrofit2.http.DELETE
+import retrofit2.http.PATCH
 
 interface UserApiService {
 
     @GET("users/{id}/profile")
     suspend fun getUserProfile(@Path("id") userId: String): UserProfile
 
-    // Add other user-related endpoints here as needed (e.g., update profile, follow/unfollow)
+    // Follow/Unfollow endpoints
+    @PATCH("users/{userId}/follow")
+    suspend fun followUser(@Path("userId") userId: String): UserProfile
+
+    @DELETE("users/{userId}/follow")
+    suspend fun unfollowUser(@Path("userId") userId: String): UserProfile
 }

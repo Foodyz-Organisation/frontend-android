@@ -27,6 +27,8 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 // --- IMPORTS FOR FIXING ERRORS ---
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
@@ -112,28 +114,21 @@ fun PostsScreen(
                                 navController.navigate("${UserRoutes.POST_DETAILS_SCREEN}/$postId") // <--- Use correct constant name
                             },
                             onFavoriteClick = { postId ->
-                                if (post.likeCount > 0) {
-                                    postsViewModel.decrementLikeCount(postId)
-                                } else {
-                                    postsViewModel.incrementLikeCount(postId)
-                                }
+                                // Handled internally in RecipeCard now
                             },
                             onCommentClick = { postId ->
                                 navController.navigate("${UserRoutes.POST_DETAILS_SCREEN}/$postId") // <--- Use correct constant name
                             },
                             onShareClick = { /* TODO: Implement share functionality */ },
                             onBookmarkClick = { postId ->
-                                if (post.saveCount > 0) {
-                                    postsViewModel.decrementSaveCount(postId)
-                                } else {
-                                    postsViewModel.incrementSaveCount(postId)
-                                }
+                                // Handled internally in RecipeCard now
                             },
                             onEditClicked = { postId ->
                                 val encodedCaption = URLEncoder.encode(post.caption, StandardCharsets.UTF_8.toString())
                                 navController.navigate("${UserRoutes.EDIT_POST_SCREEN.replace("{postId}", postId).replace("{initialCaption}", encodedCaption)}")
                             },
-                            onDeleteClicked = { postId -> postsViewModel.deletePost(postId) }
+                            onDeleteClicked = { postId -> postsViewModel.deletePost(postId) },
+                            postsViewModel = postsViewModel
                         )
                     }
                 }
@@ -155,9 +150,24 @@ fun RecipeCard(
     onBookmarkClick: (postId: String) -> Unit,
     onEditClicked: (postId: String) -> Unit,
     onDeleteClicked: (postId: String) -> Unit,
+    postsViewModel: PostsViewModel = viewModel()
 ) {
-    var isFavorite by remember { mutableStateOf(false) }
-    var isBookmarked by remember { mutableStateOf(false) }
+    // Track like and save state - same logic as ReelItem
+    var isLiked by remember(post._id) { mutableStateOf(post.likeCount > 0) }
+    var isSaved by remember(post._id) { mutableStateOf(post.saveCount > 0) }
+    var likeCount by remember(post._id) { mutableStateOf(post.likeCount) }
+    var saveCount by remember(post._id) { mutableStateOf(post.saveCount) }
+    val scope = rememberCoroutineScope()
+    
+    // Update counts when post changes (from API updates)
+    LaunchedEffect(post.likeCount, post.saveCount) {
+        likeCount = post.likeCount
+        saveCount = post.saveCount
+        // Update like/save state based on counts
+        isLiked = post.likeCount > 0
+        isSaved = post.saveCount > 0
+    }
+    
     var showOptionsMenu by remember { mutableStateOf(false) }
 
     Card(
@@ -215,16 +225,35 @@ fun RecipeCard(
                 }
 
                 Icon(
-                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                     contentDescription = "Favorite",
-                    tint = if (isFavorite) Color.Red else Color.White,
+                    tint = if (isLiked) Color(0xFFE91E63) else Color.White,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(12.dp)
                         .size(28.dp)
                         .clickable {
-                            isFavorite = !isFavorite
-                            onFavoriteClick(post._id)
+                            val wasLiked = isLiked
+                            isLiked = !isLiked
+                            if (isLiked) {
+                                likeCount++
+                                postsViewModel.incrementLikeCount(post._id)
+                            } else {
+                                likeCount--
+                                postsViewModel.decrementLikeCount(post._id)
+                            }
+                            // Sync with ViewModel after API call
+                            scope.launch {
+                                try {
+                                    kotlinx.coroutines.delay(100)
+                                    val updatedPost = postsViewModel.posts.value.find { it._id == post._id }
+                                    if (updatedPost != null) {
+                                        // State already updated optimistically
+                                    }
+                                } catch (e: Exception) {
+                                    // Silently handle error - state already updated optimistically
+                                }
+                            }
                         }
                 )
 
@@ -357,25 +386,44 @@ fun RecipeCard(
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
                                 contentDescription = "Bookmark",
-                                tint = if (isBookmarked) Color(0xFF4F46E5) else Color(0xFF6B7280),
+                                tint = if (isSaved) Color(0xFFFFC107) else Color(0xFF6B7280),
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clickable {
-                                        isBookmarked = !isBookmarked
-                                        onBookmarkClick(post._id)
+                                        val wasSaved = isSaved
+                                        isSaved = !isSaved
+                                        if (isSaved) {
+                                            saveCount++
+                                            postsViewModel.incrementSaveCount(post._id)
+                                        } else {
+                                            saveCount--
+                                            postsViewModel.decrementSaveCount(post._id)
+                                        }
+                                        // Sync with ViewModel after API call
+                                        scope.launch {
+                                            try {
+                                                kotlinx.coroutines.delay(100)
+                                                val updatedPost = postsViewModel.posts.value.find { it._id == post._id }
+                                                if (updatedPost != null) {
+                                                    // State already updated optimistically
+                                                }
+                                            } catch (e: Exception) {
+                                                // Silently handle error - state already updated optimistically
+                                            }
+                                        }
                                     }
                             )
-                            if (post.saveCount > 0) {
+                            if (saveCount > 0) {
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = post.saveCount.toString(), fontSize = 14.sp)
+                                Text(text = saveCount.toString(), fontSize = 14.sp)
                             }
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (post.likeCount > 0) {
-                                Text(text = post.likeCount.toString(), fontSize = 14.sp)
+                            if (likeCount > 0) {
+                                Text(text = likeCount.toString(), fontSize = 14.sp)
                             }
                         }
                     }

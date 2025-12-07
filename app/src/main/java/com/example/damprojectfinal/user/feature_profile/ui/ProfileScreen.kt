@@ -43,10 +43,13 @@ import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme // Assuming you
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.compose.material.icons.filled.ArrowBack // <-- NEW IMPORT
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.UserRoutes
+import androidx.compose.runtime.setValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,7 +96,7 @@ fun ProfileScreen(
             }
 
             uiState.userProfile?.let { userProfile ->
-                ProfileHeader(userProfile = userProfile)
+                ProfileHeader(userProfile = userProfile, viewModel = viewModel)
             } ?: run {
                 if (!uiState.isLoadingProfile && uiState.errorMessage == null) {
                     // Show a message or a skeleton loader if profile data is still loading
@@ -132,7 +135,10 @@ fun ProfileScreen(
 }
 
 @Composable
-fun ProfileHeader(userProfile: UserProfile) {
+fun ProfileHeader(
+    userProfile: UserProfile,
+    viewModel: UserViewModel = viewModel()
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -210,14 +216,51 @@ fun ProfileHeader(userProfile: UserProfile) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
-            onClick = { /* TODO: Navigate to Edit Profile screen */ },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            shape = MaterialTheme.shapes.medium
-        ) {
-            Text("Edit Profile", fontSize = 16.sp)
+        // Show Edit Profile button if viewing own profile, otherwise show Follow/Unfollow
+        val context = LocalContext.current
+        val currentUserId = remember { TokenManager(context).getUserId() }
+        val isOwnProfile = currentUserId == userProfile._id
+
+        if (isOwnProfile) {
+            Button(
+                onClick = { /* TODO: Navigate to Edit Profile screen */ },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text("Edit Profile", fontSize = 16.sp)
+            }
+        } else {
+            // Follow/Unfollow button
+            var isFollowing by remember { mutableStateOf(false) }
+            
+            // Reset following state when userProfile changes
+            LaunchedEffect(userProfile._id) {
+                isFollowing = false // Reset to false when viewing a different profile
+            }
+            
+            Button(
+                onClick = {
+                    isFollowing = !isFollowing
+                    if (isFollowing) {
+                        viewModel.followUser(userProfile._id)
+                    } else {
+                        viewModel.unfollowUser(userProfile._id)
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = MaterialTheme.shapes.medium,
+                colors = if (isFollowing) {
+                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                } else {
+                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                }
+            ) {
+                Text(if (isFollowing) "Unfollow" else "Follow", fontSize = 16.sp)
+            }
         }
     }
 }
@@ -323,118 +366,3 @@ fun SavedPostsContent() {
         Text("Saved Posts Content (Coming Soon)", style = MaterialTheme.typography.bodyLarge)
     }
 }
-
-
-// --- PREVIEW ---
-//@Preview(showBackground = true)
-//@Composable
-//fun ProfileScreenPreview() {
-//    DamProjectFinalTheme() {
-//        val dummyProfile = UserProfile(
-//            _id = "123",
-//            username = "mohamedali_foodie",
-//            fullName = "Mohamed Ali",
-//            bio = "Food enthusiast 🍕 | Exploring the best flavors 😋 | Love trying new restaurants ❤️",
-//            profilePictureUrl = "https://picsum.photos/200/300", // Dummy URL
-//            followerCount = 2400,
-//            followingCount = 892,
-//            postCount = 127,
-//            phone = null, email = null, address = null, isActive = true
-//        )
-//        val dummyPosts = listOf(
-//            PostResponse(
-//                _id = "p1",
-//                caption = "Delicious pizza",
-//                mediaUrls = listOf("https://picsum.photos/id/10/200/300"),
-//                mediaType = "image",
-//                createdAt = "",
-//                updatedAt = "",
-//                version = 1,
-//                likeCount = 10,
-//                commentCount = 2,
-//                saveCount = 5,
-//                userId = dummyProfile // <-- ADDED THE userId HERE
-//            ),
-//            PostResponse(
-//                _id = "p2",
-//                caption = "Healthy bowl",
-//                mediaUrls = listOf("https://picsum.photos/id/20/200/300"),
-//                mediaType = "image",
-//                createdAt = "",
-//                updatedAt = "",
-//                version = 1,
-//                likeCount = 15,
-//                commentCount = 3,
-//                saveCount = 7,
-//                userId = dummyProfile // <-- ADDED THE userId HERE
-//            ),
-//            PostResponse(
-//                _id = "p3",
-//                caption = "Pancakes",
-//                mediaUrls = listOf("https://picsum.photos/id/30/200/300"),
-//                mediaType = "image",
-//                createdAt = "",
-//                updatedAt = "",
-//                version = 1,
-//                likeCount = 12,
-//                commentCount = 1,
-//                saveCount = 6,
-//                userId = dummyProfile // <-- ADDED THE userId HERE
-//            ),
-//            PostResponse(
-//                _id = "p4",
-//                caption = "Green Salad",
-//                mediaUrls = listOf("https://picsum.photos/id/40/200/300"),
-//                mediaType = "image",
-//                createdAt = "",
-//                updatedAt = "",
-//                version = 1,
-//                likeCount = 8,
-//                commentCount = 0,
-//                saveCount = 3,
-//                userId = dummyProfile // <-- ADDED THE userId HERE
-//            ),
-//            PostResponse(
-//                _id = "p5",
-//                caption = "Raspberry Cake",
-//                mediaUrls = listOf("https://picsum.photos/id/50/200/300"),
-//                mediaType = "image",
-//                createdAt = "",
-//                updatedAt = "",
-//                version = 1,
-//                likeCount = 20,
-//                commentCount = 5,
-//                saveCount = 10,
-//                userId = dummyProfile // <-- ADDED THE userId HERE
-//            ),
-//            PostResponse(
-//                _id = "p6",
-//                caption = "Grilled Skewers",
-//                mediaUrls = listOf("https://picsum.photos/id/60/200/300"),
-//                mediaType = "image",
-//                createdAt = "",
-//                updatedAt = "",
-//                version = 1,
-//                likeCount = 18,
-//                commentCount = 4,
-//                saveCount = 9,
-//                userId = dummyProfile // <-- ADDED THE userId HERE
-//            )
-//        )
-//        val dummyUiState = ProfileUiState(
-//            userProfile = dummyProfile,
-//            userPosts = dummyPosts,
-//            isLoadingProfile = false,
-//            isLoadingPosts = false,
-//            errorMessage = null,
-//            selectedTabIndex = 0
-//        )
-//
-//        Column {
-//            ProfileHeader(userProfile = dummyProfile)
-//            Spacer(modifier = Modifier.height(16.dp))
-//            ProfileTabs(uiState = dummyUiState, onTabSelected = {})
-//            PostsGrid(dummyUiState.userPosts)
-//        }
-//    }
-//}
