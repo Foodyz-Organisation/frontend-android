@@ -1,7 +1,6 @@
 package com.example.damprojectfinal.feature_auth.ui
 
-// --- CRITICAL NOTE: ENSURE THIS IS THE ONLY DEFINITION OF LoginScreen IN YOUR PROJECT ---
-
+import android.app.Application
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -33,28 +33,39 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.damprojectfinal.core.api.AuthApiService
-import com.example.damprojectfinal.core.utils.ViewModelFactory
-import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
 import com.example.damprojectfinal.R
 import com.example.damprojectfinal.UserRoutes
-import com.example.damprojectfinal.AuthRoutes // <-- New Import for Login Route
+import com.example.damprojectfinal.AuthRoutes
+import com.example.damprojectfinal.core.api.AuthApiService
+import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
 import kotlinx.coroutines.launch
+import com.example.damprojectfinal.core.utils.ViewModelFactory
 
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     navController: NavController,
     authApiService: AuthApiService,
+    tokenManager: TokenManager,  // ✅ Reçoit TokenManager depuis AppNavigation
     onNavigateToForgetPassword: () -> Unit = {},
     onGoogleSignIn: () -> Unit = {},
     onFacebookSignIn: () -> Unit = {},
     onNavigateToSignup: () -> Unit = {}
 ) {
+    // Get Application context needed for AndroidViewModel
+    val context = LocalContext.current
+    val application = context.applicationContext as Application
+
+    // Instantiate ViewModel with the correct factory
     val viewModel: LoginViewModel = viewModel(
-        factory = ViewModelFactory { LoginViewModel(authApiService) }
+        factory = ViewModelFactory {
+            LoginViewModel(authApiService, tokenManager)
+        }
     )
 
-    val uiState = viewModel.uiState
+    val uiState = viewModel.uiState // Observe uiState directly
     val userRole by viewModel.userRole.collectAsState(initial = null)
     var showPassword by remember { mutableStateOf(false) }
     var rememberMeChecked by remember { mutableStateOf(false) }
@@ -62,59 +73,80 @@ fun LoginScreen(
     val scope = rememberCoroutineScope()
 
     // --- Handle Login Navigation & Feedback ---
-    LaunchedEffect(uiState.loginSuccess, uiState.error, userRole) {
-        val role = userRole // Capture the current role value
+    // Now observes uiState.loginSuccess, uiState.error, and uiState.role (which is the formatted role)
 
-        if (uiState.loginSuccess && !uiState.userId.isNullOrEmpty()) {
+    LaunchedEffect(uiState.loginSuccess, uiState.error) {
+        if (uiState.loginSuccess) {
+            val role = uiState.role
+            val userId = uiState.userId
 
-            // --- Navigation Logic Using UserRoutes Constants ---
-            val destinationRoute: String? = when (role) {
-                "professional" -> "${UserRoutes.HOME_SCREEN_PRO}/${uiState.userId}"
-                "user" -> UserRoutes.HOME_SCREEN
-                else -> null
-            }
-
-            if (destinationRoute == null) {
-                // Handle unknown role: show error message and prevent navigation
-                scope.launch {
-                    snackbarHostState.showSnackbar(
-                        message = "Login failed: User role '$role' is unsupported for navigation.",
-                        actionLabel = "Error",
-                        duration = SnackbarDuration.Long
-                    )
-                }
-                viewModel.resetState()
-                return@LaunchedEffect // Stop execution here
-            }
-
-            // Show success snackbar only if navigation proceeds
-            scope.launch {
+            if (userId.isNullOrEmpty()) {
                 snackbarHostState.showSnackbar(
-                    message = "Login Successful! Welcome ${role?.replaceFirstChar { it.uppercase() } ?: "User"}",
-                    actionLabel = "Continue",
-                    duration = SnackbarDuration.Short
-                )
-            }
-
-            if (destinationRoute != null) {
-                navController.navigate(destinationRoute) {
-                    popUpTo(AuthRoutes.LOGIN) { inclusive = true }
-                }
-            }
-            viewModel.resetState()
-
-        } else if (uiState.error != null) {
-            scope.launch {
-                snackbarHostState.showSnackbar(
-                    message = uiState.error,
-                    actionLabel = "Dismiss",
+                    message = "Login failed: User ID not found.",
                     duration = SnackbarDuration.Long
                 )
+                viewModel.resetState()
+                return@LaunchedEffect
             }
-            viewModel.resetState()
+            if (uiState.loginSuccess && !uiState.userId.isNullOrEmpty()) {
+                // TokenManager.saveTokens is now handled inside LoginViewModel after login success.
+                // This LaunchedEffect only needs to handle navigation and UI feedback.
+
+                // --- Navigation Logic Using UserRoutes Constants (uses formatted roles) ---
+                val destinationRoute: String? = when (role) {
+                    "PROFESSIONAL" -> "${UserRoutes.HOME_SCREEN_PRO}/${uiState.userId}"
+                    "USER" -> UserRoutes.HOME_SCREEN
+                    else -> {
+                        // This case should ideally be handled by ViewModel before reaching here,
+                        // but as a fallback, show error.
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                message = "Login failed: User role '$role' is unsupported for navigation.",
+                                actionLabel = "Error",
+                                duration = SnackbarDuration.Long
+                            )
+                        }
+                        viewModel.resetState()
+                        null // Prevent navigation
+                    }
+                }
+
+                // Save tokens
+                val access = uiState.accessToken
+                val refresh = uiState.refreshToken
+                if (!access.isNullOrEmpty() && !refresh.isNullOrEmpty() && !uiState.userId.isNullOrEmpty() && !uiState.role.isNullOrEmpty()) {
+                    try {
+                        TokenManager(context).saveTokens(
+                            access,
+                            refresh,
+                            uiState.userId!!,
+                            uiState.role!!
+                        )
+                    } catch (e: Exception) {
+                        println("Failed to save tokens: ${e.message}")
+                    }
+                }
+
+                destinationRoute?.let { route ->
+                    navController.navigate(route) {
+                        popUpTo(AuthRoutes.LOGIN) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+
+                viewModel.resetState()
+
+            } else if (uiState.error != null) {
+                snackbarHostState.showSnackbar(
+                    message = uiState.error ?: "Unknown error",
+                    actionLabel = "Dismiss"
+                )
+                viewModel.resetState()
+            }
         }
     }
 
+    // UI Code - moved outside LaunchedEffect
     val gradient = Brush.verticalGradient(
         colors = listOf(Color(0xFFFFFBEA), Color(0xFFFFF8D6), Color(0xFFFFF6C1))
     )
@@ -147,8 +179,7 @@ fun LoginScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = 48.dp, bottom = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // --- App Logo ---
                 Box(
@@ -156,7 +187,12 @@ fun LoginScreen(
                         .size(120.dp)
                         .clip(CircleShape)
                         .background(
-                            Brush.radialGradient(listOf(Color(0xFFFFECB3), Color(0xFFFFC107)))
+                            Brush.radialGradient(
+                                listOf(
+                                    Color(0xFFFFECB3),
+                                    Color(0xFFFFC107)
+                                )
+                            )
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -171,7 +207,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Text(
-                    text = "Welcome Back",
+                    "Welcome Back",
                     fontSize = 36.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFB87300),
@@ -182,7 +218,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Login to continue your food journey",
+                    "Login to continue your food journey",
                     color = Color(0xFF6B7280),
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center
@@ -195,7 +231,7 @@ fun LoginScreen(
                     value = uiState.email,
                     onValueChange = viewModel::updateEmail,
                     label = { Text("Email") },
-                    leadingIcon = { Icon(Icons.Filled.Email, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Filled.Email, null) },
                     placeholder = { Text("your.email@example.com") },
                     singleLine = true,
                     isError = uiState.error != null && uiState.email.isBlank(),
@@ -206,21 +242,20 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- Password Field ---
+                // Password Field
                 OutlinedTextField(
                     value = uiState.password,
                     onValueChange = viewModel::updatePassword,
                     label = { Text("Password") },
-                    leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Filled.Lock, null) },
                     trailingIcon = {
                         IconButton(onClick = { showPassword = !showPassword }) {
                             Icon(
-                                imageVector = if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                contentDescription = if (showPassword) "Hide password" else "Show password"
+                                if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                null
                             )
                         }
                     },
-                    placeholder = { Text("Enter your password") },
                     singleLine = true,
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     isError = uiState.error != null && uiState.password.isBlank(),
@@ -259,13 +294,22 @@ fun LoginScreen(
 
                 // --- Login Button ---
                 Button(
-                    // Call login without the onSuccess callback here, rely on LaunchedEffect
-                    onClick = viewModel::login,
+                    onClick = {
+                        android.util.Log.d("LoginScreen", "Login button clicked")
+                        android.util.Log.d("LoginScreen", "Email: ${uiState.email}, Password length: ${uiState.password.length}")
+                        android.util.Log.d("LoginScreen", "IsLoading: ${uiState.isLoading}, Button enabled: ${!uiState.isLoading}")
+                        try {
+                            viewModel.login()
+                            android.util.Log.d("LoginScreen", "viewModel.login() called successfully")
+                        } catch (e: Exception) {
+                            android.util.Log.e("LoginScreen", "Error calling login: ${e.message}", e)
+                            e.printStackTrace()
+                        }
+                    },
                     enabled = !uiState.isLoading,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
-                        .padding(horizontal = 0.dp),
+                        .height(56.dp),
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                     contentPadding = PaddingValues(0.dp)
@@ -285,7 +329,7 @@ fun LoginScreen(
                             CircularProgressIndicator(color = Color(0xFF111827))
                         } else {
                             Text(
-                                text = "Login",
+                                "Login",
                                 color = Color(0xFF111827),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
@@ -296,11 +340,14 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Social login and Signup link
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                // Social Login Section
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Divider(modifier = Modifier.weight(1f), color = Color(0xFFE5E7EB))
                     Text(
-                        text = "  Or continue with  ",
+                        "  Or continue with  ",
                         color = Color(0xFF6B7280),
                         style = MaterialTheme.typography.bodyLarge
                     )
@@ -315,30 +362,44 @@ fun LoginScreen(
                 ) {
                     SocialButton(
                         text = "Google",
-                        icon = { Icon(painter = painterResource(id = R.drawable.google), contentDescription = null, modifier = Modifier.size(24.dp)) },
+                        icon = {
+                            Icon(
+                                painterResource(id = R.drawable.google),
+                                null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        },
                         onClick = onGoogleSignIn,
                         modifier = Modifier.weight(1f)
                     )
-
                     SocialButton(
                         text = "Facebook",
-                        icon = { Icon(Icons.Filled.Facebook, contentDescription = null, modifier = Modifier.size(24.dp)) },
+                        icon = {
+                            Icon(
+                                Icons.Filled.Facebook,
+                                null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        },
                         onClick = onFacebookSignIn,
                         modifier = Modifier.weight(1f)
                     )
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(32.dp))
 
-                // 🔸 Signup link
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(text = "Don't have an account? ", color = Color(0xFF6B7280))
+                    Text("Don't have an account? ", color = Color(0xFF6B7280))
                     TextButton(onClick = onNavigateToSignup) {
-                        Text(text = "Register Now", color = Color(0xFFF59E0B), fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Register Now",
+                            color = Color(0xFFF59E0B),
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
             }
@@ -347,7 +408,7 @@ fun LoginScreen(
 }
 
 @Composable
-private fun SocialButton(
+fun SocialButton(
     text: String,
     icon: @Composable () -> Unit,
     onClick: () -> Unit,
@@ -355,13 +416,15 @@ private fun SocialButton(
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier
-            .height(56.dp),
+        modifier = modifier.height(56.dp),
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
         border = BorderStroke(1.dp, Color(0xFFE5E7EB))
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
             icon()
             Spacer(modifier = Modifier.width(8.dp))
             Text(text, color = Color(0xFF374151))
