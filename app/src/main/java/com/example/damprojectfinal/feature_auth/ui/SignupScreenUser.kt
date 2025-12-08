@@ -1,6 +1,5 @@
 package com.example.damprojectfinal.feature_auth.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -260,12 +259,6 @@ fun SignupScreen(
                     icon = { Icon(painter = painterResource(id = R.drawable.google), contentDescription = null, tint = secondaryDarkText) },
                     onClick = onGoogleSignIn
                 )
-                SocialButton(
-                    modifier = Modifier.weight(1f),
-                    text = "Facebook",
-                    icon = { Icon(Icons.Filled.Facebook, contentDescription = null, tint = secondaryDarkText) },
-                    onClick = onFacebookSignIn
-                )
             }
 
             Spacer(Modifier.height(16.dp))
@@ -355,26 +348,4 @@ private fun CustomPasswordTextField(
         shape = RoundedCornerShape(12.dp),
         colors = colors
     )
-}
-
-@Composable
-private fun SocialButton(
-    modifier: Modifier = Modifier,
-    text: String,
-    icon: @Composable () -> Unit,
-    onClick: () -> Unit
-) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier.height(56.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFE5E7EB))
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            icon()
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text, color = Color(0xFF374151))
-        }
-    }
 }

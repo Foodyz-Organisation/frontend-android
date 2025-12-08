@@ -141,12 +141,9 @@ fun ProSignupScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // 📄 Restaurant License Number (New Field based on DTO)
-            // NOTE: Assuming ProSignupViewModel exposes 'licenseNumber' state
             OutlinedTextField(
-                // Placeholder: Use a temporary state if ViewModel doesn't have it yet.
-                // Replace with viewModel.licenseNumber.value when ViewModel is updated.
-                value = "", // viewModel.licenseNumber.value (if available)
-                onValueChange = { /* viewModel.licenseNumber.value = it (if available) */ },
+                value = viewModel.licenseNumber.value,
+                onValueChange = { viewModel.licenseNumber.value = it },
                 label = { Text("Restaurant License Number (Optional)") },
                 leadingIcon = { Icon(Icons.Filled.Domain, contentDescription = null) },
                 singleLine = true,
@@ -154,6 +151,7 @@ fun ProSignupScreen(
                 shape = RoundedCornerShape(16.dp),
                 colors = textFieldColors
             )
+
 
             Spacer(modifier = Modifier.height(16.dp))
 
