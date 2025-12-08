@@ -28,7 +28,8 @@ import io.ktor.client.plugins.HttpResponseValidator
 
 class AuthApiService {
 
-    private val BASE_URL = "http://10.0.2.2:3000"
+    // Use centralized BaseUrlProvider instead of hardcoded URL
+    private val BASE_URL = BaseUrlProvider.BASE_URL
 
     private val client = HttpClient(Android) {
         install(ContentNegotiation) {

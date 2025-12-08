@@ -1,15 +1,16 @@
 package com.example.damprojectfinal.core
 
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 
+/**
+ * @deprecated Use BaseUrlProvider instead. This file is kept for backward compatibility.
+ * Will be removed in future versions.
+ */
 object ApiConstants {
-    const val BASE_URL = "http://192.168.1.7:3000"
+    @Deprecated("Use BaseUrlProvider.BASE_URL instead", ReplaceWith("BaseUrlProvider.BASE_URL"))
+    val BASE_URL: String = BaseUrlProvider.BASE_URL
 
     fun getFullImageUrl(path: String?): String? {
-        if (path == null) return null
-        return if (path.startsWith("http")) {
-            path
-        } else {
-            "$BASE_URL$path"
-        }
+        return BaseUrlProvider.getFullImageUrl(path)
     }
 }

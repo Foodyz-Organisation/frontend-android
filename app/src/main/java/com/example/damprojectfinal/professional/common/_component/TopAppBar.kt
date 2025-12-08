@@ -1,5 +1,6 @@
 package com.example.damprojectfinal.professional.common._component
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable // ⭐ IMPORT ADDED: Necessary for the clickable modifier
 import androidx.compose.foundation.layout.Arrangement
@@ -79,7 +80,12 @@ fun CustomProTopBarWithIcons(
             )
 
             // Menu Icon (trigger drawer)
-            IconButton(onClick = onMenuClick) {
+            IconButton(
+                onClick = {
+                    Log.d("TopAppBar", "Menu IconButton clicked")
+                    onMenuClick()
+                }
+            ) {
                 Icon(Icons.Filled.Menu, contentDescription = "Menu")
             }
 
@@ -110,14 +116,17 @@ fun CustomProTopBarWithIcons(
                 navController.navigate("create_content_screen")
             }
 
-            // Manage Orders
+            // Events List (changed from Manage Orders)
             NavTopIcon(Icons.Filled.ListAlt, "manage_orders", currentRoute == "manage_orders") {
-                navController.navigate("orders_management_route")
+                Log.d("TopAppBar", "List icon clicked - navigating to event_list_remote")
+                navController.navigate("event_list_remote") {
+                    launchSingleTop = true
+                }
             }
 
             // Chat/Messages
             NavTopIcon(Icons.Filled.Chat, "chat", currentRoute == "chat") {
-                navController.navigate("chat_pro_route")
+                navController.navigate("chatList")
             }
 
             // Menu Management

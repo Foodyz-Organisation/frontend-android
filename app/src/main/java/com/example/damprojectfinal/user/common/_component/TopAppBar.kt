@@ -32,10 +32,13 @@ import io.ktor.client.HttpClient
 
 // --- Design Colors/Constants ---
 private val PrimaryDark = Color(0xFF1F2A37) // Dark Gray for text/icons
-private val AccentBlue = Color(0xFF1D4ED8)  // Dark Blue accent
-private val AccentLightBlue = Color(0xFFE5F0FF) // Light Blue background for selected
+private val YellowAccent = Color(0xFFFFC107)  // Primary Yellow (Used for accents/dot)
 private val GrayInactive = Color(0xFF64748B) // Gray for inactive elements
 private val LightBackground = Color.White    // General background
+
+// Search Field Colors
+private val YellowBorder = Color(0xFFFACC15) // Light yellow when focused
+private val VeryPaleYellow = Color(0xFFFDE68A) // Very pale yellow when unfocused
 
 @Composable
 fun NotificationIconWithDot(onClick: () -> Unit, hasNew: Boolean) {
@@ -48,7 +51,7 @@ fun NotificationIconWithDot(onClick: () -> Unit, hasNew: Boolean) {
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFFFC107)) // Yellow Dot
+                    .background(YellowAccent) // Yellow Dot
                     .align(Alignment.TopEnd)
                     .offset(x = (-8).dp, y = 4.dp)
             )
@@ -56,6 +59,9 @@ fun NotificationIconWithDot(onClick: () -> Unit, hasNew: Boolean) {
     }
 }
 
+// -----------------------------------------------------------------------------
+// CUSTOM TOP BAR (FIXED PADDING)
+// -----------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopAppBar(
@@ -63,7 +69,7 @@ fun TopAppBar(
     currentRoute: String,
     openDrawer: () -> Unit,
     onSearchClick: () -> Unit,
-    onProfileClick: (String) -> Unit,  // Fixed: takes userId parameter
+    onProfileClick: (String) -> Unit,
     onReelsClick: () -> Unit,
     currentUserId: String,
     onLogoutClick: () -> Unit
@@ -76,12 +82,15 @@ fun TopAppBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(LightBackground) // Use clean white background
+            // 🌟 FIX 1: Use windowInsetsPadding for status bars to replace hardcoded 48.dp
+            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 48.dp, bottom = 12.dp, start = 16.dp, end = 16.dp)
+                // Removed top padding here, as it's handled by windowInsetsPadding above
+                .padding(vertical = 12.dp, horizontal = 16.dp)
         ) {
             // Profile Avatar Button (Unchanged)
             Box(
@@ -111,8 +120,8 @@ fun TopAppBar(
                     .weight(1f)
             )
 
-            // Added 'Add' button for better adherence to modern layout/screenshot style
-            IconButton(onClick = { showAddOptions = true }) {
+            // '+' navigates directly to post creation
+            IconButton(onClick = { navController.navigate(UserRoutes.CREATE_POST) }) {
                 Icon(Icons.Filled.Add, contentDescription = "Add Content", tint = PrimaryDark)
             }
 
@@ -205,47 +214,44 @@ fun TopAppBar(
 // -----------------------------------------------------------------------------
 // SECONDARY NAVBAR COMPOSABLES (Unchanged)
 // -----------------------------------------------------------------------------
-    @Composable
-    fun SecondaryNavBar(
-        navController: NavController,
-        currentRoute: String,
-        onReelsClick: () -> Unit
+@Composable
+fun SecondaryNavBar(
+    navController: NavController,
+    currentRoute: String,
+    onReelsClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp, horizontal = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp, horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            NavIcon(Icons.Filled.Home, currentRoute == UserRoutes.HOME_SCREEN) {
-                navController.navigate(UserRoutes.HOME_SCREEN) {
-                    popUpTo(UserRoutes.HOME_SCREEN) {
-                        inclusive = true
-                    } // optional: clear back stack
-                    launchSingleTop = true
-                }
+        NavIcon(Icons.Filled.Home, currentRoute == UserRoutes.HOME_SCREEN) {
+            navController.navigate(UserRoutes.HOME_SCREEN) {
+                popUpTo(UserRoutes.HOME_SCREEN) {
+                    inclusive = true
+                } // optional: clear back stack
+                launchSingleTop = true
             }
-            NavIcon(Icons.Filled.PlayArrow, currentRoute == UserRoutes.REELS_SCREEN) { onReelsClick() }
-            NavIcon(Icons.Filled.TrendingUp, currentRoute == UserRoutes.TRENDS_SCREEN) { navController.navigate(UserRoutes.TRENDS_SCREEN) }
-            NavIcon(
-                Icons.Filled.Chat,
-                currentRoute == "chatList"
-            ) { navController.navigate("chatList") }
-            NavIcon(
-                Icons.Filled.AttachMoney,
-                currentRoute == UserRoutes.ORDERS_ROUTE // highlight if current route is orders_history_route
-            ) {
-                navController.navigate(UserRoutes.ORDERS_ROUTE) {
-                    launchSingleTop = true
-                    restoreState = true
-                }
+        }
+        NavIcon(Icons.Filled.PlayArrow, currentRoute == UserRoutes.REELS_SCREEN) { onReelsClick() }
+        NavIcon(Icons.Filled.TrendingUp, currentRoute == UserRoutes.TRENDS_SCREEN) { navController.navigate(UserRoutes.TRENDS_SCREEN) }
+        NavIcon(
+            Icons.Filled.Chat,
+            currentRoute == "chatList"
+        ) { navController.navigate("chatList") }
+        NavIcon(
+            Icons.Filled.AttachMoney,
+            currentRoute == UserRoutes.ORDERS_ROUTE // highlight if current route is orders_history_route
+        ) {
+            navController.navigate(UserRoutes.ORDERS_ROUTE) {
+                launchSingleTop = true
+                restoreState = true
             }
         }
     }
+}
 
-
-
-// From the previously provided improved design code:
 @Composable
 fun NavIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -262,7 +268,7 @@ fun NavIcon(
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(backgroundColor) // <-- This applies the light blue background
+            .background(backgroundColor) // <-- This applies the light yellow background
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
@@ -362,13 +368,15 @@ fun RestaurantListItem(
 }
 
 // -----------------------------------------------------------------------------
-// DYNAMIC SEARCH OVERLAY COMPOSABLES (FIXED)
+// DYNAMIC SEARCH OVERLAY COMPOSABLES (FIXED PADDING AND COLORS)
 // -----------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DynamicSearchOverlay(
     onDismiss: () -> Unit,
-    onNavigateToProfile: (String) -> Unit
+    onNavigateToProfile: (String) -> Unit,
+    // 🌟 FIX 2: Add the modifier parameter to the function signature
+    modifier: Modifier = Modifier
 ) {
     // --- Dependencies & ViewModel Setup ---
     val client = remember { HttpClient() }
@@ -395,26 +403,30 @@ fun DynamicSearchOverlay(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Search Professionals", fontWeight = FontWeight.SemiBold) },
+            // Use a standard Material3 TopAppBar to correctly handle system insets
+            CenterAlignedTopAppBar(
+                title = { Text("Search Professionals", fontWeight = FontWeight.SemiBold, color = PrimaryDark) },
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = PrimaryDark)
                     }
                 },
                 actions = {
                     IconButton(onClick = { /* Handle Filter Click */ }) {
-                        Icon(Icons.Filled.FilterList, contentDescription = "Filter")
+                        Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = PrimaryDark)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = LightBackground)
             )
         },
-        modifier = Modifier.fillMaxSize().background(Color(0xFFF7F7F7))
+        containerColor = Color(0xFFF8F8FB),
+        // 🌟 FIX 3: Apply the passed-in modifier to the root Scaffold
+        modifier = modifier.fillMaxSize()
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // Apply paddingValues from Scaffold to the main content Column
                 .padding(paddingValues)
         ) {
             OutlinedTextField(
@@ -423,7 +435,7 @@ fun DynamicSearchOverlay(
                     searchText = newValue
                     searchViewModel.searchByName(searchText) // Triggers the search
                 },
-                placeholder = { Text("Search by name...") },
+                placeholder = { Text("Search by name...", color = GrayInactive) },
                 leadingIcon = {
                     Icon(
                         Icons.Filled.Search,
@@ -433,48 +445,55 @@ fun DynamicSearchOverlay(
                 },
                 shape = RoundedCornerShape(12.dp), // Rounded corners
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFFACC15),   // Light yellow when focused
-                    unfocusedBorderColor = Color(0xFFFDE68A), // Very pale yellow when unfocused
-                    cursorColor = Color(0xFFFACC15)           // Cursor matches focused border
+                    focusedBorderColor = YellowBorder,
+                    unfocusedBorderColor = VeryPaleYellow,
+                    cursorColor = YellowBorder,
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    focusedPlaceholderColor = GrayInactive,
+                    unfocusedPlaceholderColor = GrayInactive
                 ),
+                singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .height(56.dp)
             )
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-        // --- Dynamic Content Display (Loading, Error, Results) ---
-        when {
-            isLoading -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = AccentBlue) // Colored spinner
+            // --- Dynamic Content Display (Loading, Error, Results) ---
+            when {
+                isLoading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        // Use Yellow Accent for loading indicator
+                        CircularProgressIndicator(color = YellowAccent)
+                    }
                 }
-            }
 
-            errorMessage != null -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = errorMessage ?: "Error loading results", color = Color.Red)
+                errorMessage != null -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(text = errorMessage ?: "Error loading results", color = Color.Red)
+                    }
                 }
-            }
 
-            searchResults.isEmpty() && searchText.isNotEmpty() -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = "No professionals found", color = GrayInactive)
+                searchResults.isEmpty() && searchText.isNotEmpty() -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(text = "No professionals found", color = GrayInactive)
+                    }
                 }
-            }
 
-            else -> {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(searchResults) { professional ->
-                        ProfessionalListItem(
-                            professional = professional,
-                            onItemClick = navigateToProfessionalProfile
-                        )
+                else -> {
+                    LazyColumn(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(searchResults) { professional ->
+                            ProfessionalListItem(
+                                professional = professional,
+                                onItemClick = navigateToProfessionalProfile
+                            )
+                        }
                     }
                 }
             }
@@ -491,7 +510,9 @@ fun ProfessionalListItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onItemClick(professional.id) },
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp), // Increased elevation
+        // Use White background for the card
+        colors = CardDefaults.cardColors(containerColor = LightBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(12.dp) // Rounded card corners
     ) {
         Row(

@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material3.*
@@ -29,6 +30,13 @@ import androidx.navigation.NavController
 import com.example.damprojectfinal.AuthRoutes
 import com.example.damprojectfinal.feature_auth.viewmodels.ForgotPasswordUiState
 import com.example.damprojectfinal.feature_auth.viewmodels.ForgotPasswordViewModel
+
+// --- Custom Colors ---
+private val PrimaryText = Color(0xFF1F2937) // Dark Gray
+private val SecondaryText = Color(0xFF6B7280) // Medium Gray
+private val AccentYellow = Color(0xFFF59E0B) // Vibrant Yellow/Gold
+private val CreamyWhiteLight = Color(0xFFFEFDFB) // Very light cream/off-white for background start
+private val CreamyWhiteDark = Color(0xFFF9F6F0) // Slightly darker cream for gradient end
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,70 +65,97 @@ fun ForgotPasswordScreen(
         }
     }
 
-    val gradient = Brush.verticalGradient(
-        colors = listOf(Color(0xFFFFFBEA), Color(0xFFFFF8D6), Color(0xFFFFF6C1))
+    val creamyGradient = Brush.verticalGradient(
+        colors = listOf(CreamyWhiteLight, CreamyWhiteDark)
     )
 
-    val textFieldColors = TextFieldDefaults.colors(
-        focusedContainerColor = Color.White.copy(alpha = 0.5f),
-        unfocusedContainerColor = Color.White.copy(alpha = 0.5f),
-        disabledContainerColor = Color.White.copy(alpha = 0.3f),
-        focusedIndicatorColor = Color(0xFFF59E0B),
-        unfocusedIndicatorColor = Color.Transparent,
-        cursorColor = Color(0xFFB87300),
-        focusedLabelColor = Color(0xFFB87300),
-        unfocusedLabelColor = Color(0xFF6B7280)
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        // Keep input field container pure white for contrast
+        focusedContainerColor = Color.White,
+        unfocusedContainerColor = Color.White,
+        disabledContainerColor = Color.White,
+        focusedBorderColor = AccentYellow,
+        unfocusedBorderColor = SecondaryText.copy(alpha = 0.5f),
+        cursorColor = AccentYellow,
+        focusedLabelColor = AccentYellow,
+        unfocusedLabelColor = SecondaryText,
+        focusedLeadingIconColor = AccentYellow,
+        unfocusedLeadingIconColor = SecondaryText
     )
 
-    Box(
+    Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            .background(gradient)
-    ) {
+            // Apply the creamy gradient to the entire Scaffold background
+            .background(creamyGradient),
+        containerColor = Color.Transparent, // Make Scaffold transparent so gradient shows through
+        topBar = {
+            TopAppBar(
+                title = { /* Empty title for clean look */ },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = PrimaryText
+                        )
+                    }
+                },
+                // Use a subtle creamy color for the top bar container
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = CreamyWhiteLight)
+            )
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(innerPadding)
                 .padding(horizontal = 24.dp)
-                .padding(top = 48.dp, bottom = 24.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
-            // --- App Logo ---
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(listOf(Color(0xFFFFECB3), Color(0xFFFFC107)))
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Fastfood,
-                    contentDescription = "App Logo",
-                    tint = Color(0xFF5F370E),
-                    modifier = Modifier.size(48.dp)
-                )
-            }
-
             Spacer(modifier = Modifier.height(24.dp))
 
+            // --- App Logo ---
+            Card(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape),
+                shape = CircleShape,
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)), // Light Yellow Background for the icon
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp) // Subtle shadow
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Fastfood,
+                        contentDescription = "App Logo",
+                        tint = AccentYellow,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
             Text(
-                text = "Forgot Password?",
-                fontSize = 36.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFB87300),
+                text = "Trouble Logging In?",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = PrimaryText,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Don't worry! Enter your email address and we'll send you a verification code to reset your password",
-                color = Color(0xFF6B7280),
-                style = MaterialTheme.typography.bodyLarge,
+                text = "Enter your email address below. We'll send you a verification code to securely reset your password.",
+                color = SecondaryText,
+                style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center
             )
 
@@ -130,18 +165,18 @@ fun ForgotPasswordScreen(
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text("Email") },
+                label = { Text("Email Address") },
                 leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                 placeholder = { Text("your.email@example.com") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 enabled = uiState !is ForgotPasswordUiState.Loading,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = textFieldColors
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
             // --- Send Code Button ---
             Button(
@@ -150,38 +185,27 @@ fun ForgotPasswordScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                contentPadding = PaddingValues(0.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentYellow),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(Color(0xFFFFE15A), Color(0xFFF59E0B))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (uiState is ForgotPasswordUiState.Loading) {
-                        CircularProgressIndicator(
-                            color = Color(0xFF111827),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    } else {
-                        Text(
-                            text = "Send Code",
-                            color = Color(0xFF111827),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                    }
+                if (uiState is ForgotPasswordUiState.Loading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Send Verification Code",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // --- Back to Login ---
             Row(
@@ -189,15 +213,17 @@ fun ForgotPasswordScreen(
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = "Remember your password? ", color = Color(0xFF6B7280))
+                Text(text = "Remember your password? ", color = SecondaryText)
                 TextButton(
                     onClick = { navController.popBackStack() },
-                    enabled = uiState !is ForgotPasswordUiState.Loading
+                    enabled = uiState !is ForgotPasswordUiState.Loading,
+                    contentPadding = PaddingValues(horizontal = 4.dp)
                 ) {
                     Text(
-                        text = "Back to Login",
-                        color = Color(0xFFF59E0B),
-                        fontWeight = FontWeight.SemiBold
+                        text = "Log In",
+                        color = AccentYellow,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp
                     )
                 }
             }

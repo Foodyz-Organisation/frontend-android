@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.CommentResponse
 import com.example.damprojectfinal.core.dto.posts.PostResponse
@@ -172,7 +173,7 @@ fun CommentScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 AsyncImage(
-                                    model = currentPost.mediaUrls.firstOrNull(),
+                                    model = BaseUrlProvider.getFullImageUrl(currentPost.mediaUrls.firstOrNull()),
                                     contentDescription = "Post",
                                     modifier = Modifier
                                         .size(60.dp)

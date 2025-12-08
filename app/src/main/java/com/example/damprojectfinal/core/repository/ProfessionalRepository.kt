@@ -7,12 +7,17 @@ class ProfessionalRepository(private val apiService: ProfessionalApiService) {
 
     suspend fun searchByName(name: String): List<ProfessionalDto> =
         runCatching {
+            println("DEBUG: 🔎 ProfessionalRepository.searchByName('$name') called")
             val response = apiService.searchByName(name)
-            println("DEBUG: searchByName response JSON = $response")
+            println("DEBUG: ✅ searchByName response count = ${response.size}")
+            response.forEachIndexed { index, prof ->
+                println("DEBUG:   [$index] ${prof.fullName} - ${prof.email}")
+            }
             response
-        }.getOrElse {
-            println("ERROR in searchByName:")
-            it.printStackTrace()
+        }.getOrElse { exception ->
+            println("ERROR in searchByName: ${exception.javaClass.simpleName}")
+            println("ERROR message: ${exception.message}")
+            exception.printStackTrace()
             emptyList()
         }
 

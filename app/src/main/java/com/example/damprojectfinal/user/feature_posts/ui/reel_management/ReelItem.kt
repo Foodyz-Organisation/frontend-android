@@ -33,12 +33,14 @@ import androidx.navigation.NavController
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 import coil.compose.AsyncImage // <-- Ensure this import is present
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel
 import com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsViewModel
 import com.example.damprojectfinal.UserRoutes
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.layout.statusBarsPadding
 
 // THIS IS THE CRUCIAL LINE for the "UnstableApi" warnings within ReelItem
 @OptIn(UnstableApi::class)
@@ -73,9 +75,10 @@ fun ReelItem(
     // Track playback state for this specific reel
     var isPlaying by remember(reelPost._id) { mutableStateOf(true) }
     
+    val videoUrl = BaseUrlProvider.getFullImageUrl(reelPost.mediaUrls.firstOrNull()) ?: ""
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(reelPost.mediaUrls.firstOrNull() ?: ""))
+            setMediaItem(MediaItem.fromUri(videoUrl))
             prepare()
             volume = 0f // Start muted, user can unmute later
             repeatMode = ExoPlayer.REPEAT_MODE_ONE // Loop the video
@@ -129,6 +132,20 @@ fun ReelItem(
             .background(Color.Black)
             .clickable { handleReelClick() } // Handle reel click (e.g., pause/play toggle)
     ) {
+        // Back button (aligned to top-start, padded below status bar)
+        Icon(
+            imageVector = Icons.Filled.ArrowBack,
+            contentDescription = "Back",
+            tint = Color.White,
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(start = 12.dp, top = 12.dp)
+                .size(28.dp)
+                .clickable {
+                    navController.popBackStack()
+                }
+        )
+
         // --- ExoPlayer PlayerView ---
         AndroidView(
             modifier = Modifier.fillMaxSize(),

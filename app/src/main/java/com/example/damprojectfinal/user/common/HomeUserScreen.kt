@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.*
@@ -90,8 +91,10 @@ fun HomeScreen(
         }
     }
 
+    // --- Main Screen Content (Including Scaffold and Drawer) ---
     ModalNavigationDrawer(
         drawerState = drawerState,
+        // Disable gestures when the search overlay is open
         gesturesEnabled = !isSearchActive,
         drawerContent = {
             AppDrawer(
@@ -102,17 +105,8 @@ fun HomeScreen(
             )
         }
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(listOf(Color(0xFFF9FAFB), Color(0xFFF3F4F6)))
-                    ),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                // ----------------- TOP APP BAR -----------------
+        Scaffold(
+            topBar = {
                 TopAppBar(
                     navController = navController,
                     currentRoute = currentRoute,
@@ -127,46 +121,64 @@ fun HomeScreen(
                     },
                     onLogoutClick = onLogout
                 )
-
-                    // 🔹 Passer le NavController ici
-                    HighlightCard(navController = navController)
-
+            }
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .background(
+                        Brush.verticalGradient(listOf(Color(0xFFF9FAFB), Color(0xFFF3F4F6)))
+                    )
+            ) {
+                // Body scrolls; top bar stays fixed via Scaffold
+                Box(modifier = Modifier.padding(horizontal = 2.dp)) {
+                    PostsScreen(
+                        navController = navController,
+                        headerContent = {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp)
+                            ) {
+                                HighlightCard(navController = navController)
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    modifier = Modifier.padding(horizontal = 20.dp)
+                                    modifier = Modifier
+                                        .padding(horizontal = 20.dp, vertical = 16.dp)
                                 ) {
                                     item { FilterChipItem("All", selected = true) }
                                     item { FilterChipItem("🔥 Spicy", selected = false) }
                                     item { FilterChipItem("🥗 Healthy", selected = false) }
                                     item { FilterChipItem("🍰 Sweet", selected = false) }
                                 }
-                                Spacer(Modifier.height(24.dp)) // Spacing before the "Pour vous" title
-
-                Box(modifier = Modifier.padding(horizontal = 2.dp)) {
-                    PostsScreen(
-                        navController = navController,
-                        headerContent = {}
-                    )
-                }
-            }
-
-
-                // --- 2. Dynamic Search Overlay (Placed on top of content) ---
-                if (isSearchActive) {
-                    DynamicSearchOverlay(
-                        onDismiss = { isSearchActive = false },
-                        onNavigateToProfile = { profileId ->
-                            isSearchActive = false
-                            // Assuming 'restaurant_profile_route/{profileId}' needs a concrete ID for navigation
-                            if (profileId.isNotEmpty()) {
-                                // Use the correct route from ProfileRoutes
-                                navController.navigate("${ProfileRoutes.CLIENT_PROFILE_VIEW.substringBefore("/")}/${profileId}")
+                                Spacer(Modifier.height(8.dp))
                             }
                         }
                     )
                 }
+
+                // 🌟 REMOVED: DynamicSearchOverlay should NOT be inside this padded Box.
             }
         }
+    } // End ModalNavigationDrawer
+
+    // --- Dynamic Search Overlay (Placed OUTSIDE Scaffold/Drawer to cover the whole screen) ---
+    if (isSearchActive) {
+        // FIX: Passing Modifier.fillMaxSize() and relying on the implementation of
+        // DynamicSearchOverlay (from the previous step) to accept this modifier.
+        DynamicSearchOverlay(
+            onDismiss = { isSearchActive = false },
+            onNavigateToProfile = { professionalId ->
+                isSearchActive = false
+                if (professionalId.isNotEmpty()) {
+                    // Navigate to restaurant profile view (RestaurantProfileView)
+                    navController.navigate("restaurant_profile_view/$professionalId")
+                }
+            },
+            modifier = Modifier.fillMaxSize() // This ensures it covers the entire view
+        )
+    }
 
 }
 

@@ -22,12 +22,22 @@ class ProfessionalApiService(private val client: HttpClient) {
 
     suspend fun searchByName(name: String): List<ProfessionalDto> {
         val encodedName = name.encodeURLPath() // encode ' and spaces
-        return client.get {
-            url {
-                takeFrom(BASE_URL)
-                encodedPath += "/name/$encodedName"
-            }
-            contentType(ContentType.Application.Json)
-        }.body()
+        val fullUrl = "$BASE_URL/name/$encodedName"
+        println("DEBUG: 🌐 Ktor API calling: $fullUrl")
+        return try {
+            val response: List<ProfessionalDto> = client.get {
+                url {
+                    takeFrom(BASE_URL)
+                    encodedPath += "/name/$encodedName"
+                }
+                contentType(ContentType.Application.Json)
+            }.body()
+            println("DEBUG: 📦 Ktor response received with ${response.size} professionals")
+            response
+        } catch (e: Exception) {
+            println("ERROR: ❌ Ktor API call failed: ${e.javaClass.simpleName} - ${e.message}")
+            e.printStackTrace()
+            throw e
+        }
     }
 }

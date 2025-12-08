@@ -34,17 +34,10 @@ data class DrawerItem(
 )
 
 val drawerItems = listOf(
-    DrawerItem(Icons.Default.Home, "Home", "home_route"),
-    DrawerItem(Icons.Default.ChatBubble, "Chats", "chatList"),
-    DrawerItem(Icons.Default.Settings, "Settings", "settings_route"),
-    DrawerItem(Icons.Default.Favorite, "Favorites", "favorites_route"),
-    DrawerItem(Icons.Default.Person, "Profile", "profile_route"),
-    DrawerItem(Icons.Default.Help, "Help & Support", "help_route"),
     DrawerItem(Icons.Default.Add, "Ajouter Réclamation", "create_reclamation"),
     DrawerItem(Icons.Default.List, "Mes Réclamations", "list_reclamation_route"),
     DrawerItem(Icons.Default.Event, "Événements", "event_list"),
-    DrawerItem(Icons.Default.AddCircle, "Créer un Événement", "create_event"), // 🔥
-    DrawerItem(Icons.Default.ShoppingCart, "Liste des Deals", "deals/list")  // ✅ Changé ici
+    DrawerItem(Icons.Default.ShoppingCart, "Liste des Deals", "deals")  // ✅ Navigue vers DealsListScreen
 )
 
 // 🔑 NEW: Define the Professional Signup Item
@@ -210,7 +203,7 @@ fun DrawerFooter(onClickLogout: () -> Unit) {
 fun AppDrawerPreview() {
     // For previews, we provide mock implementations of NavController and callbacks
     val dummyNavController = rememberNavController() // Provides a mock NavController
-    val dummyCurrentRoute = drawerItems.first().route // Simulate being on the first home route
+    val dummyCurrentRoute = drawerItems.first().route // Simulate being on the first remaining route
     val dummyOnCloseDrawer: () -> Unit = {} // Empty lambda for closing drawer
     val dummyNavigateTo: (String) -> Unit = { route -> println("Navigating to $route") } // Log navigation
 

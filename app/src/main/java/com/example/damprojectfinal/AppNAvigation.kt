@@ -78,6 +78,8 @@ import com.example.damprojectfinal.professional.feature_event.EventDetailScreen
 import com.example.damprojectfinal.user.feature_deals.DealDetailScreen
 import com.example.damprojectfinal.user.feature_deals.DealsListScreen
 import com.example.damprojectfinal.user.feature_chat.ui.ChatManagementScreen
+import com.example.damprojectfinal.user.feature_pro_profile.ui.RestaurantProfileView
+import com.example.damprojectfinal.user.feature_pro_profile.ui.RestaurantProfileViewScreen
 import com.example.damprojectfinal.user.feature_profile.ui.UserViewModel
 import com.example.damprojectfinal.core.`object`.KtorClient
 import com.example.damprojectfinal.user.feature_cart_item.ui.ShoppingCartScreen
@@ -89,6 +91,7 @@ import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartViewMode
 import com.google.gson.Gson
 import com.example.damprojectfinal.user.feature_relamation.ReclamationTemplateScreen
 import com.example.damprojectfinal.professional.feature_event.CreateEventScreen
+import com.example.damprojectfinal.professional.feature_event.EventListScreenRemote
 import com.example.damprojectfinal.user.feature_event.EventListScreen
 import com.example.damprojectfinal.feature_event.EventViewModel
 import com.example.damprojectfinal.feature_relamation.ReclamationDetailScreen
@@ -592,6 +595,18 @@ fun AppNavigation(
             )
         }
 
+        // Restaurant Profile View (Client-side view of professional)
+        composable(
+            route = "restaurant_profile_view/{professionalId}",
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: ""
+            RestaurantProfileViewScreen(
+                professionalId = professionalId,
+                navController = navController
+            )
+        }
+
         // 🔟 Liste réclamations (CLIENT)
         composable("list_reclamation_route") {
             val context = LocalContext.current
@@ -714,6 +729,18 @@ fun AppNavigation(
                     navController.navigate("event_list") { popUpTo("create_event") { inclusive = true } }
                 },
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        // 1️⃣5️⃣.1️⃣ Liste événements Remote (Professional)
+        composable("event_list_remote") {
+            EventListScreenRemote(
+                onEventClick = { event ->
+                    // Navigate to event detail if needed
+                    navController.navigate("event_detail/${event._id}")
+                },
+                onBackClick = { navController.popBackStack() },
+                onAddEventClick = { navController.navigate("create_event") }
             )
         }
 
@@ -1025,7 +1052,8 @@ fun AppNavigation(
                 onDealClick = { dealId ->
                     Log.d("AppNavigation", "🔍 Navigation vers dealDetail/$dealId")
                     navController.navigate("dealDetail/$dealId")
-                }
+                },
+                onBackClick = { navController.popBackStack() }
             )
         }
 

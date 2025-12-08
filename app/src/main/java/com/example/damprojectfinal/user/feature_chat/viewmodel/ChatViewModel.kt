@@ -10,7 +10,7 @@ import com.example.damprojectfinal.core.api.CreateConversationDto
 import com.example.damprojectfinal.core.api.MessageDto
 import com.example.damprojectfinal.core.api.PeerDto
 import com.example.damprojectfinal.core.api.SendMessageDto
-import com.example.damprojectfinal.core.utils.RetrofitInstance
+import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.model.ChatListItem
 import com.example.damprojectfinal.core.model.ChatMessage
 import kotlinx.coroutines.Job
@@ -26,9 +26,8 @@ import java.time.format.DateTimeParseException
 
 class ChatViewModel : ViewModel() {
 
-    private val chatApiService: ChatApiService by lazy {
-        RetrofitInstance.retrofit.create(ChatApiService::class.java)
-    }
+    private val chatApiService: ChatApiService = RetrofitClient.chatApiService
+
 
     // ===== Liste des conversations (écran liste) =====
     private val _chats = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -88,10 +87,13 @@ class ChatViewModel : ViewModel() {
                 val response: List<ConversationDto> =
                     chatApiService.getConversations("Bearer $authToken")
 
+                // Filter out conversations with null IDs
+                val validConversations = response.filter { it.id != null }
+
                 // Mapping DTO -> modèle UI
-                conversations = response
-                _chats.value = response.map { it.toChatMessage() }
-                _chatItems.value = response.map { it.toChatListItem(currentUserId) }
+                conversations = validConversations
+                _chats.value = validConversations.map { it.toChatMessage() }
+                _chatItems.value = validConversations.map { it.toChatListItem(currentUserId) }
 
                 _errorMessage.value = null
             } catch (e: Exception) {
@@ -148,6 +150,12 @@ class ChatViewModel : ViewModel() {
                 return@launch
             }
 
+            if (currentUserId.isNullOrBlank()) {
+                _startConversationError.value = "Missing current user ID"
+                onResult(null)
+                return@launch
+            }
+
             _isStartingConversation.value = true
             _startConversationError.value = null
             try {
@@ -156,10 +164,18 @@ class ChatViewModel : ViewModel() {
                     bearerToken = "Bearer $authToken",
                     dto = CreateConversationDto(
                         kind = "private",
-                        participants = listOf(peer.id),
+                        participants = listOf(currentUserId, peer.id), // Include both users
                         title = peer.name
                     )
+                    
                 )
+
+                // Validate that the conversation has a valid ID
+                if (conversation.id.isNullOrBlank()) {
+                    _startConversationError.value = "Backend error: conversation created without ID"
+                    onResult(null)
+                    return@launch
+                }
 
                 upsertConversation(conversation, currentUserId)
                 onResult(conversation)
@@ -328,7 +344,7 @@ class ChatViewModel : ViewModel() {
     // =======================
     private fun ConversationDto.toChatMessage(): ChatMessage {
         return ChatMessage(
-            conversationId = id,
+            conversationId = id ?: "unknown",
             name = title?.takeIf { it.isNotBlank() } ?: "Conversation",
             message = "No message yet",
             time = updatedAt ?: createdAt ?: "",
@@ -341,7 +357,7 @@ class ChatViewModel : ViewModel() {
     private fun ConversationDto.toChatListItem(currentUserId: String?): ChatListItem {
         val resolvedTitle = resolveTitle(currentUserId)
         return ChatListItem(
-            id = id,
+            id = id ?: "unknown",
             title = resolvedTitle,
             subtitle = summary(),
             updatedTime = formatTimestamp(updatedAt ?: createdAt),
@@ -397,7 +413,7 @@ class ChatViewModel : ViewModel() {
 
     private fun upsertConversation(conversation: ConversationDto, currentUserId: String?) {
         val mutable = conversations.toMutableList()
-        val index = mutable.indexOfFirst { it.id == conversation.id }
+        val index = mutable.indexOfFirst { it.id == conversation.id && conversation.id != null }
         if (index >= 0) {
             mutable[index] = conversation
         } else {

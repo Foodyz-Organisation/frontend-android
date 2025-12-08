@@ -2,53 +2,56 @@ package com.example.damprojectfinal.user.feature_profile.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable // <-- NEW IMPORT
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells // <-- NEW IMPORT
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid // <-- NEW IMPORT
-import androidx.compose.foundation.lazy.grid.items // <-- NEW IMPORT
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.BrokenImage
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Person // <-- Ensure this is imported for placeholder
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.* // Using Material 3 for Composables
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.rememberVectorPainter // <-- Ensure this is imported for placeholder
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.damprojectfinal.UserRoutes
+import com.example.damprojectfinal.core.api.BaseUrlProvider
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.normalUser.ProfileUiState
 import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 import com.example.damprojectfinal.core.dto.posts.PostResponse
-import androidx.navigation.NavController
-import androidx.compose.material.icons.filled.ArrowBack // <-- NEW IMPORT
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
-import com.example.damprojectfinal.core.api.TokenManager
-import com.example.damprojectfinal.UserRoutes
 import androidx.compose.runtime.setValue
+
+// Define the custom yellow color from the image for consistency
+val CustomYellow = Color(0xFFE5B338) // Closely matching the button color in the image
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    navController: NavController, // If you plan to use NavController for navigation
-    viewModel: UserViewModel = viewModel() // ViewModel provided by Hilt or default
+    navController: NavController,
+    viewModel: UserViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -58,13 +61,19 @@ fun ProfileScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(text = uiState.userProfile?.username ?: "Profile") },
-                navigationIcon = { // <-- NEW: Back button
-                    IconButton(onClick = { navController.popBackStack() }) { // <-- Navigate back
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
+                },
+                actions = {
+                    IconButton(onClick = { /* TODO: Handle share */ }) {
+                        Icon(Icons.Default.Share, contentDescription = "Share Profile")
+                    }
+                    IconButton(onClick = { /* TODO: Handle settings */ }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
                 }
-                // No back button directly on the profile as per your last clarification
-                // actions = { /* Settings or other actions could go here */ }
             )
         }
     ) { paddingValues ->
@@ -92,22 +101,20 @@ fun ProfileScreen(
                 ProfileHeader(userProfile = userProfile, viewModel = viewModel)
             } ?: run {
                 if (!uiState.isLoadingProfile && uiState.errorMessage == null) {
-                    // Show a message or a skeleton loader if profile data is still loading
                     Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator() // Or a more elaborate skeleton
+                        CircularProgressIndicator()
                     }
                 }
             }
 
-
-            Spacer(modifier = Modifier.height(16.dp)) // Spacer between header and tabs
-            if (uiState.userProfile != null) { // Only show tabs if profile is loaded
+            // Tabs should be directly under the header content without an extra spacer
+            if (uiState.userProfile != null) {
                 ProfileTabs(uiState = uiState, onTabSelected = { viewModel.onTabSelected(it) })
             }
 
             // Content of the selected tab
             when (uiState.selectedTabIndex) {
-                0 -> PostsGrid(uiState.userPosts, userId, navController, isSavedPosts = false) // For "Posts" tab
+                0 -> PostsGrid(uiState.userPosts, userId, navController, isSavedPosts = false)
                 1 -> {
                     if (uiState.isLoadingSavedPosts) {
                         Box(
@@ -119,7 +126,7 @@ fun ProfileScreen(
                             CircularProgressIndicator()
                         }
                     } else {
-                        PostsGrid(uiState.savedPosts, userId, navController, isSavedPosts = true) // For "Saved" tab
+                        PostsGrid(uiState.savedPosts, userId, navController, isSavedPosts = true)
                     }
                 }
             }
@@ -132,73 +139,67 @@ fun ProfileHeader(
     userProfile: UserProfile,
     viewModel: UserViewModel = viewModel()
 ) {
+    // Determine if it's the current user's profile
+    val context = LocalContext.current
+    // NOTE: Current user ID logic is commented out as it's not needed without the buttons
+    // val currentUserId = remember { TokenManager(context).getUserId() }
+    // val isOwnProfile = currentUserId == userProfile._id
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp) // Adjusted vertical padding
     ) {
+        // 1. Profile Picture and Basic Info Row
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Box(modifier = Modifier.size(96.dp)) {
+            // Profile Picture
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(CircleShape)
+                    .border(3.dp, CustomYellow, CircleShape) // Yellow border
+            ) {
                 AsyncImage(
                     model = userProfile.profilePictureUrl,
                     contentDescription = "Profile picture",
                     placeholder = rememberVectorPainter(Icons.Default.Person),
                     error = rememberVectorPainter(Icons.Default.Person),
-                    modifier = Modifier
-                        .size(96.dp)
-                        .clip(CircleShape)
-                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                    modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
-                )
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit profile picture",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .offset(x = 8.dp, y = 8.dp) // Offset to position correctly
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                        .padding(4.dp)
                 )
             }
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Name and Bio Column
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.Start
             ) {
-                IconButton(onClick = { /* TODO: Handle share */ }) {
-                    Icon(Icons.Default.Share, contentDescription = "Share Profile")
-                }
-                IconButton(onClick = { /* TODO: Handle settings */ }) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings")
-                }
+                Text(
+                    text = userProfile.fullName,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = userProfile.bio,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    maxLines = 2 // Restrict bio length
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = userProfile.fullName,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = userProfile.bio,
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
+        // 2. Stats Row
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -207,86 +208,59 @@ fun ProfileHeader(
             ProfileStat(count = userProfile.followingCount, label = "Following")
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Show Edit Profile button if viewing own profile, otherwise show Follow/Unfollow
-        val context = LocalContext.current
-        val currentUserId = remember { TokenManager(context).getUserId() }
-        val isOwnProfile = currentUserId == userProfile._id
-
-        if (isOwnProfile) {
-            Button(
-                onClick = { /* TODO: Navigate to Edit Profile screen */ },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Text("Edit Profile", fontSize = 16.sp)
-            }
-        } else {
-            // Follow/Unfollow button
-            var isFollowing by remember { mutableStateOf(false) }
-
-            // Reset following state when userProfile changes
-            LaunchedEffect(userProfile._id) {
-                isFollowing = false // Reset to false when viewing a different profile
-            }
-
-            Button(
-                onClick = {
-                    isFollowing = !isFollowing
-                    if (isFollowing) {
-                        viewModel.followUser(userProfile._id)
-                    } else {
-                        viewModel.unfollowUser(userProfile._id)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = MaterialTheme.shapes.medium,
-                colors = if (isFollowing) {
-                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                } else {
-                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                }
-            ) {
-                Text(if (isFollowing) "Unfollow" else "Follow", fontSize = 16.sp)
-            }
-        }
+        // Removed Spacer and Action Button block entirely
+        Spacer(modifier = Modifier.height(16.dp)) // Maintain some space before tabs start
     }
 }
 
 @Composable
 fun ProfileStat(count: Int, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = count.toString(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Text(text = label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
+        // Increased font size for count and bolded for emphasis
+        Text(
+            text = count.toString(),
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 20.sp,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        // Kept label smaller
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        )
     }
 }
 
 @Composable
 fun ProfileTabs(uiState: ProfileUiState, onTabSelected: (Int) -> Unit) {
     val tabs = listOf("Posts", "Saved")
+    // Added bottom padding to the TabRow for separation from the grid
     TabRow(
         selectedTabIndex = uiState.selectedTabIndex,
         containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.primary
+        contentColor = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(bottom = 0.dp) // Adjusted padding
     ) {
         tabs.forEachIndexed { index, title ->
             Tab(
                 selected = uiState.selectedTabIndex == index,
                 onClick = { onTabSelected(index) },
-                text = { Text(title) },
-                selectedContentColor = MaterialTheme.colorScheme.primary,
+                text = {
+                    Text(
+                        title,
+                        fontWeight = if (uiState.selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
+                // Use CustomYellow for indicator and selected text to match the design style
+                selectedContentColor = CustomYellow,
                 unselectedContentColor = MaterialTheme.colorScheme.onSurface
             )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class) // For LazyVerticalGrid
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostsGrid(
     posts: List<PostResponse>,
@@ -294,6 +268,7 @@ fun PostsGrid(
     navController: NavController,
     isSavedPosts: Boolean = false
 ) {
+    // Existing PostsGrid remains functional and visually correct for a gallery view
     if (posts.isEmpty()) {
         Box(
             modifier = Modifier
@@ -308,26 +283,22 @@ fun PostsGrid(
         }
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(3), // 3 columns for the grid
+            columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(2.dp), // Small padding around the grid
-            verticalArrangement = Arrangement.spacedBy(2.dp), // Space between rows
-            horizontalArrangement = Arrangement.spacedBy(2.dp) // Space between columns
+            contentPadding = PaddingValues(2.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             items(posts) { post ->
-                // Use the first media URL for the grid item
-                val imageUrl = post.mediaUrls.firstOrNull()
+                val imageUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls.firstOrNull())
 
                 Box(
                     modifier = Modifier
-                        .aspectRatio(1f) // Ensures items are square
+                        .aspectRatio(1f)
                         .clickable {
-                            // Navigate to appropriate screen based on tab
-                            if (isSavedPosts) {
-                                navController.navigate("${UserRoutes.ALL_SAVED_POSTS}/$userId")
-                            } else {
-                                navController.navigate("${UserRoutes.ALL_PROFILE_POSTS}/$userId")
-                            }
+                            // Navigate to a detail view for the post
+                            val route = if (isSavedPosts) UserRoutes.ALL_SAVED_POSTS else UserRoutes.ALL_PROFILE_POSTS
+                            navController.navigate("$route/$userId")
                         }
                 ) {
                     AsyncImage(
@@ -335,27 +306,12 @@ fun PostsGrid(
                         contentDescription = post.caption,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
-                        // Placeholder/Error for individual post images
-                        placeholder = rememberVectorPainter(Icons.Default.Image), // Using a generic image icon
-                        error = rememberVectorPainter(Icons.Default.BrokenImage) // Broken image icon for errors
+                        placeholder = rememberVectorPainter(Icons.Default.Image),
+                        error = rememberVectorPainter(Icons.Default.BrokenImage)
                     )
-                    // You might want to overlay an icon for video posts here
-                    // e.g., if (post.mediaType == "reel") { Icon(Icons.Default.PlayArrow, ...) }
+                    // Optional: Overlay an icon for video posts or multiple images
                 }
             }
         }
-    }
-}
-
-@Composable
-fun SavedPostsContent() {
-    // Placeholder for saved posts content
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Saved Posts Content (Coming Soon)", style = MaterialTheme.typography.bodyLarge)
     }
 }

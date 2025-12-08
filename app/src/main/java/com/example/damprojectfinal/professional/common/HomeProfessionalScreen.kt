@@ -1,5 +1,6 @@
 package com.example.damprojectfinal.professional.common
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -262,7 +263,10 @@ fun HomeScreenPro(
                     professionalId = professionalId,
                     navController = navController,
                     onLogout = onLogout,
-                    onMenuClick = { scope.launch { drawerState.open() } }
+                    onMenuClick = { 
+                        // Open the drawer (original functionality)
+                        scope.launch { drawerState.open() }
+                    }
                 )
             },
             bottomBar = {

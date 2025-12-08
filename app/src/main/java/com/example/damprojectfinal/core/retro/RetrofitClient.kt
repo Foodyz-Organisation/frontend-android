@@ -2,7 +2,9 @@ package com.example.damprojectfinal.core.retro
 
 import android.content.Context
 import com.example.damprojectfinal.core.api.AuthInterceptor
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.api.CartApiService
+import com.example.damprojectfinal.core.api.ChatApiService
 import com.example.damprojectfinal.core.api.MenuItemApi
 import com.example.damprojectfinal.core.api.OrderApiService
 import com.example.damprojectfinal.core.api.TokenManager
@@ -18,7 +20,8 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    private const val BASE_URL = "http://10.0.2.2:3000/"
+    // Use centralized BaseUrlProvider instead of hardcoded URL
+    private val BASE_URL = BaseUrlProvider.BASE_URL_WITH_SLASH
 
     lateinit var appContext: Context // Declare appContext here
 
@@ -72,6 +75,10 @@ object RetrofitClient {
 
     val orderApi: OrderApiService by lazy {
         retrofit.create(OrderApiService::class.java)
+    }
+
+    val chatApiService: ChatApiService by lazy {
+        retrofit.create(ChatApiService::class.java)
     }
 
 }

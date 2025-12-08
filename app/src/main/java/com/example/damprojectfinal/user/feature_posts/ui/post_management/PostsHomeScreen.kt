@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -187,11 +188,17 @@ fun RecipeCard(
                     .height(200.dp)
                     .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 0.dp, bottomEnd = 0.dp))
             ) {
-                val imageUrlToLoad = if (post.mediaType == "reel" && post.thumbnailUrl != null) {
+                val rawUrl = if (post.mediaType == "reel" && post.thumbnailUrl != null) {
                     post.thumbnailUrl
                 } else {
                     post.mediaUrls.firstOrNull()
                 }
+                val imageUrlToLoad = BaseUrlProvider.getFullImageUrl(rawUrl)
+                
+                // Debug logging
+                android.util.Log.d("PostsHomeScreen", "📸 Post ID: ${post._id}")
+                android.util.Log.d("PostsHomeScreen", "   Raw URL: $rawUrl")
+                android.util.Log.d("PostsHomeScreen", "   Full URL: $imageUrlToLoad")
 
                 AsyncImage(
                     model = imageUrlToLoad,

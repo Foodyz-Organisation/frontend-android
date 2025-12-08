@@ -25,22 +25,31 @@ class SearchViewModel(private val repository: ProfessionalRepository) : ViewMode
     private var searchJob: Job? = null
 
     fun searchByName(name: String) {
+        android.util.Log.d("SearchViewModel", "🔍 searchByName called with: '$name'")
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             delay(300) // debounce
             if (name.isBlank()) {
+                android.util.Log.d("SearchViewModel", "❌ Name is blank, clearing search")
                 clearSearch()
                 return@launch
             }
+            android.util.Log.d("SearchViewModel", "⏳ Starting search for: '$name'")
             _isLoading.value = true
             _errorMessage.value = null
             try {
                 val results = repository.searchByName(name)
+                android.util.Log.d("SearchViewModel", "✅ Search completed. Results count: ${results.size}")
+                results.forEachIndexed { index, prof ->
+                    android.util.Log.d("SearchViewModel", "  [$index] ${prof.fullName} (${prof.email})")
+                }
                 _searchResults.value = results
             } catch (e: Exception) {
+                android.util.Log.e("SearchViewModel", "❌ Error during search: ${e.message}", e)
                 _errorMessage.value = e.localizedMessage ?: "Unknown error"
             } finally {
                 _isLoading.value = false
+                android.util.Log.d("SearchViewModel", "🏁 Search finished. Loading = false")
             }
         }
     }

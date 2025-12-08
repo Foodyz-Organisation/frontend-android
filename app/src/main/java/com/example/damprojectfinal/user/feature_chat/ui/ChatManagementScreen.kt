@@ -153,7 +153,7 @@ fun ChatManagementScreen(
                             authToken = token,
                             currentUserId = currentUserId
                         ) { conversation ->
-                            if (conversation != null) {
+                            if (conversation != null && !conversation.id.isNullOrBlank()) {
                                 val title = vm.displayTitleFor(conversation, currentUserId)
                                 val resolvedUser = currentUserId ?: "unknown"
                                 navController.navigate("chatDetail/${conversation.id}/$title/$resolvedUser")

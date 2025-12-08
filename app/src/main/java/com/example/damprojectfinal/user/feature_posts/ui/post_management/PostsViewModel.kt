@@ -133,18 +133,9 @@ open class PostsViewModel : ViewModel() {
 
     // Function to create a comment
     open fun createComment(postId: String, commentText: String) {
-        if (commentText.isBlank()) {
-            _errorMessage.value = "Comment cannot be empty."
-            return
-        }
         viewModelScope.launch {
             try {
-                postsApiService.createComment(postId, CreateCommentDto(commentText))
-                // After creating a comment, the post's commentCount is updated on backend.
-                // We should re-fetch the post to get the latest counts, or fetch all posts again.
-                // For now, re-fetching all posts is simplest but not most efficient.
-                // A better approach would be to fetch the updated single post or optimistic update.
-                // Let's re-fetch the specific post's data for efficiency.
+                createCommentImmediate(postId, commentText)
                 val updatedPost = postsApiService.getPostById(postId)
                 _posts.update { currentPosts ->
                     currentPosts.map { post ->
@@ -155,6 +146,15 @@ open class PostsViewModel : ViewModel() {
                 _errorMessage.value = "Failed to add comment: ${e.localizedMessage ?: e.message}"
             }
         }
+    }
+
+    // Suspend version used by screens when they need immediate result
+    open suspend fun createCommentImmediate(postId: String, commentText: String) =
+        postsApiService.createComment(postId, CreateCommentDto(commentText))
+
+    // Simple validator that callers can use before invoking a suspend create
+    fun validateComment(commentText: String): String? {
+        return if (commentText.isBlank()) "Comment cannot be empty." else null
     }
 
     // Function to increment save count

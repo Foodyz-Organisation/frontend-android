@@ -38,12 +38,14 @@ import androidx.media3.ui.PlayerView
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.CommentResponse
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 import kotlinx.coroutines.launch // For rememberCoroutineScope
 import androidx.compose.foundation.Canvas // For the Canvas composable
+import androidx.compose.ui.draw.alpha
 import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -63,6 +65,7 @@ fun PostDetailsScreen(
     var isLoadingComments by remember { mutableStateOf(false) }
     var commentsError by remember { mutableStateOf<String?>(null) }
     var newCommentText by remember { mutableStateOf("") }
+    var isSubmittingComment by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -126,42 +129,6 @@ fun PostDetailsScreen(
                     }
                 }
             )
-        },
-        bottomBar = {
-            // --- Sticky Bottom Buttons ---
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface) // Use surface color
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(
-                    onClick = { /* Handle Discover Our Plates click */ },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFACC15)),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Text("Discover our plates", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Button(
-                    onClick = {
-                        // Focus on comment input, or scroll to comments section
-                        // For now, let's just trigger a focus logic if we had one
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF111827)),
-                    border = BorderStroke(1.dp, Color(0xFF111827)),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Text("Leave Comment")
-                }
-            }
-            // --- End Sticky Bottom Buttons ---
         }
     ) { paddingValues ->
         if (isLoading) {
@@ -235,9 +202,11 @@ fun PostDetailsScreen(
                 // 2. Post Media (Image/Video)
                 if (currentPost.mediaType == "reel" && currentPost.mediaUrls.firstOrNull() != null) {
                     // Show video player for reels
+                    val videoUrl = BaseUrlProvider.getFullImageUrl(currentPost.mediaUrls.firstOrNull())
+                    val thumbnailUrl = BaseUrlProvider.getFullImageUrl(currentPost.thumbnailUrl)
                     PostVideoPlayer(
-                        videoUrl = currentPost.mediaUrls.firstOrNull()!!,
-                        thumbnailUrl = currentPost.thumbnailUrl,
+                        videoUrl = videoUrl ?: "",
+                        thumbnailUrl = thumbnailUrl,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(250.dp)
@@ -245,7 +214,7 @@ fun PostDetailsScreen(
                     )
                 } else {
                     // Show image for non-reel posts
-                    val imageUrlToLoad = currentPost.mediaUrls.firstOrNull()
+                    val imageUrlToLoad = BaseUrlProvider.getFullImageUrl(currentPost.mediaUrls.firstOrNull())
                     AsyncImage(
                         model = imageUrlToLoad,
                         contentDescription = currentPost.caption,
@@ -360,18 +329,38 @@ fun PostDetailsScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         FloatingActionButton(
                             onClick = {
-                                if (newCommentText.isNotBlank()) {
-                                    scope.launch {
-                                        postsViewModel.createComment(currentPost._id, newCommentText)
-                                        newCommentText = "" // Clear input field
-                                        fetchComments() // Re-fetch comments to show the new one
-                                        postsViewModel.fetchPosts() // Update main feed's comment count
+                                if (newCommentText.isBlank()) return@FloatingActionButton
+                                if (isSubmittingComment) return@FloatingActionButton
+                                scope.launch {
+                                    isSubmittingComment = true
+                                    try {
+                                        val createdComment = postsViewModel.createCommentImmediate(
+                                            currentPost._id,
+                                            newCommentText.trim()
+                                        )
+
+                                        // Optimistically prepend the new comment so it shows immediately
+                                        val enriched = createdComment.copy(
+                                            authorName = createdComment.authorName ?: "You"
+                                        )
+                                        comments = listOf(enriched) + comments
+                                        newCommentText = ""
+
+                                        // Refresh from server to keep in sync (count, etc.)
+                                        fetchComments()
+                                        postsViewModel.fetchPosts()
+                                    } catch (e: Exception) {
+                                        commentsError = "Failed to add comment: ${e.localizedMessage ?: e.message}"
+                                    } finally {
+                                        isSubmittingComment = false
                                     }
                                 }
                             },
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(48.dp)
+                            containerColor = Color(0xFFFACC15),
+                            contentColor = Color(0xFF1F2937),
+                            modifier = Modifier
+                                .size(48.dp)
+                                .alpha(if (isSubmittingComment) 0.6f else 1f)
                         ) {
                             Icon(Icons.Filled.Send, contentDescription = "Send Comment")
                         }
@@ -501,7 +490,7 @@ fun CommentItem(comment: CommentResponse) {
         Spacer(modifier = Modifier.width(8.dp))
         Column {
             Text(
-                text = "Anonymous User", // Placeholder: replace with actual username later
+                text = comment.authorName ?: comment.authorUsername ?: "Anonymous User",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp
             )

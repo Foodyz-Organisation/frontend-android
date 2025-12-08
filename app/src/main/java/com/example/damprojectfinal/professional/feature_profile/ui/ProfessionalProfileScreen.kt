@@ -32,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import android.util.Log
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -434,7 +435,7 @@ fun PostsGrid(
         ) {
             items(posts) { post ->
                 // Use the first media URL for the grid item
-                val imageUrl = post.mediaUrls.firstOrNull()
+                val imageUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls.firstOrNull())
 
                 Box(
                     modifier = Modifier

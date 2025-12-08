@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel
@@ -155,11 +156,12 @@ fun PostItem(
     ) {
         Column {
             // Post Image
-            val imageUrlToLoad = if (post.mediaType == "reel" && post.thumbnailUrl != null) {
+            val rawUrl = if (post.mediaType == "reel" && post.thumbnailUrl != null) {
                 post.thumbnailUrl
             } else {
                 post.mediaUrls.firstOrNull()
             }
+            val imageUrlToLoad = BaseUrlProvider.getFullImageUrl(rawUrl)
 
             AsyncImage(
                 model = imageUrlToLoad,

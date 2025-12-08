@@ -2,7 +2,8 @@ package com.example.damprojectfinal.core.api
 
 object AppConfig {
     // Default value for development on Android emulator
-    const val SOCKET_BASE_URL: String = "http://10.0.2.2:3000"
+    // Use centralized BaseUrlProvider
+    val SOCKET_BASE_URL: String = BaseUrlProvider.BASE_URL
 
     // If your Socket.IO server uses a custom path, update this accordingly.
     // Default Socket.IO path is "/socket.io" — most servers use that.

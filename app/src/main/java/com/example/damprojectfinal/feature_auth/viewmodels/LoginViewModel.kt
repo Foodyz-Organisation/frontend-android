@@ -54,6 +54,10 @@ class LoginViewModel(
     }
 
     fun login() {
+        Log.d(TAG, "========== login() function called ==========")
+        Log.d(TAG, "Current email: '${uiState.email}', password length: ${uiState.password.length}")
+        Log.d(TAG, "IsLoading: ${uiState.isLoading}")
+        
         if (uiState.email.isBlank() || uiState.password.isBlank()) {
             uiState = uiState.copy(error = "Please enter both email and password.")
             Log.w(TAG, "Login attempt blocked: Empty fields.") // ⬅️ DEBUG
@@ -129,10 +133,29 @@ class LoginViewModel(
 
             } catch (e: Exception) {
                 Log.e(TAG, "Login failed", e)
+                
+                // Log the BASE_URL being used for debugging
+                try {
+                    val baseUrl = com.example.damprojectfinal.core.api.BaseUrlProvider.BASE_URL
+                    Log.e(TAG, "🔗 Attempted connection to: $baseUrl/auth/login")
+                } catch (ex: Exception) {
+                    Log.e(TAG, "Could not retrieve BASE_URL", ex)
+                }
+                
                 val errorMessage = when (e) {
-                    is IOException -> {
+                    is IOException, is java.net.ConnectException -> {
+                        val baseUrl = try {
+                            com.example.damprojectfinal.core.api.BaseUrlProvider.BASE_URL
+                        } catch (ex: Exception) {
+                            "unknown"
+                        }
                         Log.e(TAG, "Login FAILED: Network Error. ${e.message}") // ⬅️ DEBUG
-                        "Network error. Server may be down or URL incorrect."
+                        Log.e(TAG, "💡 Troubleshooting:")
+                        Log.e(TAG, "   1. Is backend server running on port 3000?")
+                        Log.e(TAG, "   2. Is your computer IP correct? (Current: $baseUrl)")
+                        Log.e(TAG, "   3. Are phone and computer on same WiFi?")
+                        Log.e(TAG, "   4. Is firewall blocking port 3000?")
+                        "Cannot connect to server at $baseUrl. Check:\n• Backend server is running\n• Correct IP address\n• Same WiFi network\n• Firewall settings"
                     }
                     is io.ktor.client.plugins.ClientRequestException -> {
                         // This typically means 401 Unauthorized (Invalid credentials)

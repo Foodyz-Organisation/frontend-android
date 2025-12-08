@@ -24,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme // Assuming your app's theme
@@ -51,7 +52,7 @@ fun TrendingPostItem(post: PostResponse) {
             .fillMaxSize()
             .background(Color.Black) // Background for full-screen video
     ) {
-        val mediaUrl = post.mediaUrls.firstOrNull()
+        val mediaUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls.firstOrNull())
 
         // --- Media Display ---
         if (post.mediaType == "reel" && mediaUrl != null) {

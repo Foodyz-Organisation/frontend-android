@@ -175,16 +175,48 @@ fun CaptionAndPublishScreen(
 private fun getTempFileFromUri(context: Context, uri: Uri): File {
     val contentResolver = context.contentResolver
     val fileName = "upload_${System.currentTimeMillis()}"
-    val fileExtension = contentResolver.getType(uri)?.split("/")?.get(1) ?: "tmp"
-    val tempFile = File(context.cacheDir, "$fileName.$fileExtension")
-
-    contentResolver.openInputStream(uri)?.use { inputStream ->
-        tempFile.outputStream().use { outputStream ->
-            inputStream.copyTo(outputStream)
+    
+    // Get MIME type to determine file extension
+    val mimeType = contentResolver.getType(uri)
+    Log.d("getTempFileFromUri", "URI: $uri, MIME type: $mimeType")
+    
+    val fileExtension = when {
+        mimeType?.startsWith("video/") == true -> {
+            mimeType.split("/").getOrNull(1) ?: "mp4"
         }
-    } ?: throw Exception("Failed to open input stream for URI: $uri")
+        mimeType?.startsWith("image/") == true -> {
+            mimeType.split("/").getOrNull(1) ?: "jpg"
+        }
+        else -> {
+            // Try to get extension from URI path
+            uri.path?.substringAfterLast('.', "") ?: "tmp"
+        }
+    }
+    
+    val tempFile = File(context.cacheDir, "$fileName.$fileExtension")
+    Log.d("getTempFileFromUri", "Creating temp file: ${tempFile.absolutePath}")
 
-    return tempFile
+    try {
+        contentResolver.openInputStream(uri)?.use { inputStream ->
+            tempFile.outputStream().use { outputStream ->
+                val bytesCopied = inputStream.copyTo(outputStream)
+                Log.d("getTempFileFromUri", "Copied $bytesCopied bytes to temp file")
+            }
+        } ?: throw Exception("Failed to open input stream for URI: $uri. Check if you have proper permissions.")
+        
+        if (!tempFile.exists() || tempFile.length() == 0L) {
+            throw Exception("Temp file was not created or is empty: ${tempFile.absolutePath}")
+        }
+        
+        Log.d("getTempFileFromUri", "Successfully created temp file: ${tempFile.absolutePath}, size: ${tempFile.length()} bytes")
+        return tempFile
+    } catch (e: SecurityException) {
+        Log.e("getTempFileFromUri", "SecurityException: ${e.message}", e)
+        throw Exception("Permission denied. Please grant media access permissions. ${e.message}")
+    } catch (e: Exception) {
+        Log.e("getTempFileFromUri", "Error reading URI: ${e.message}", e)
+        throw Exception("Failed to read file from URI: ${e.message}")
+    }
 }
 
 private suspend fun publishPost(

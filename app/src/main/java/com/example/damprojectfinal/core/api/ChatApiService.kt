@@ -1,7 +1,6 @@
 package com.example.damprojectfinal.core.api
 
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
+import com.google.gson.annotations.SerializedName
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -11,9 +10,8 @@ import retrofit2.http.Query
 
 // ===== DTOs =====
 
-@Serializable
 data class ConversationDto(
-    @SerialName("_id") val id: String,
+    @SerializedName("_id") val id: String? = null,
     val kind: String? = null,
     val participants: List<String> = emptyList(),
     val title: String? = null,
@@ -22,11 +20,10 @@ data class ConversationDto(
     val updatedAt: String? = null
 )
 
-@Serializable
 data class MessageDto(
-    @SerialName("_id") val id: String? = null,
-    @SerialName("conversation") val conversationId: String? = null,
-    @SerialName("sender") val senderId: String? = null,
+    @SerializedName("_id") val id: String? = null,
+    @SerializedName("conversation") val conversationId: String? = null,
+    @SerializedName("sender") val senderId: String? = null,
     val content: String? = null,
     val type: String = "text",
     val createdAt: String? = null,
@@ -34,7 +31,6 @@ data class MessageDto(
     val meta: Map<String, String>? = null
 )
 
-@Serializable
 data class CreateConversationDto(
     val kind: String,
     val participants: List<String>,
@@ -42,14 +38,12 @@ data class CreateConversationDto(
     val meta: Map<String, String>? = null
 )
 
-@Serializable
 data class SendMessageDto(
     val content: String,
     val type: String = "text",
     val meta: Map<String, String>? = null
 )
 
-@Serializable
 data class PeerDto(
     val id: String,
     val name: String,

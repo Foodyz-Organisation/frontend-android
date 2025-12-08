@@ -111,12 +111,6 @@ fun LoginScreen(
                     }
                 }
 
-                // Show success snackbar
-                snackbarHostState.showSnackbar(
-                    message = "Login Successful! Welcome $role",
-                    actionLabel = "Continue"
-                )
-
                 // Save tokens
                 val access = uiState.accessToken
                 val refresh = uiState.refreshToken
@@ -136,6 +130,7 @@ fun LoginScreen(
                 destinationRoute?.let { route ->
                     navController.navigate(route) {
                         popUpTo(AuthRoutes.LOGIN) { inclusive = true }
+                        launchSingleTop = true
                     }
                 }
 
@@ -299,7 +294,18 @@ fun LoginScreen(
 
                 // --- Login Button ---
                 Button(
-                    onClick = viewModel::login,
+                    onClick = {
+                        android.util.Log.d("LoginScreen", "Login button clicked")
+                        android.util.Log.d("LoginScreen", "Email: ${uiState.email}, Password length: ${uiState.password.length}")
+                        android.util.Log.d("LoginScreen", "IsLoading: ${uiState.isLoading}, Button enabled: ${!uiState.isLoading}")
+                        try {
+                            viewModel.login()
+                            android.util.Log.d("LoginScreen", "viewModel.login() called successfully")
+                        } catch (e: Exception) {
+                            android.util.Log.e("LoginScreen", "Error calling login: ${e.message}", e)
+                            e.printStackTrace()
+                        }
+                    },
                     enabled = !uiState.isLoading,
                     modifier = Modifier
                         .fillMaxWidth()

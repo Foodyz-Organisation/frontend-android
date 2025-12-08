@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.ArrowBack // Added for navigation icon
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +31,14 @@ import androidx.navigation.NavController
 import com.example.damprojectfinal.AuthRoutes
 import com.example.damprojectfinal.feature_auth.viewmodels.VerifyOtpUiState
 import com.example.damprojectfinal.feature_auth.viewmodels.VerifyOtpViewModel
+
+// --- Custom Colors (Consistent with other screens) ---
+private val PrimaryText = Color(0xFF1F2937) // Dark Gray
+private val SecondaryText = Color(0xFF6B7280) // Medium Gray
+private val AccentYellow = Color(0xFFF59E0B) // Vibrant Yellow/Gold
+private val CreamyWhiteLight = Color(0xFFFEFDFB) // Very light cream/off-white for background start
+private val CreamyWhiteDark = Color(0xFFF9F6F0) // Slightly darker cream for gradient end
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,78 +77,105 @@ fun VerifyOtpScreen(
         }
     }
 
-    val gradient = Brush.verticalGradient(
-        colors = listOf(Color(0xFFFFFBEA), Color(0xFFFFF8D6), Color(0xFFFFF6C1))
+    val creamyGradient = Brush.verticalGradient(
+        colors = listOf(CreamyWhiteLight, CreamyWhiteDark)
     )
 
-    val textFieldColors = TextFieldDefaults.colors(
-        focusedContainerColor = Color.White.copy(alpha = 0.5f),
-        unfocusedContainerColor = Color.White.copy(alpha = 0.5f),
-        disabledContainerColor = Color.White.copy(alpha = 0.3f),
-        focusedIndicatorColor = Color(0xFFF59E0B),
-        unfocusedIndicatorColor = Color.Transparent,
-        cursorColor = Color(0xFFB87300),
-        focusedLabelColor = Color(0xFFB87300),
-        unfocusedLabelColor = Color(0xFF6B7280)
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = Color.White,
+        unfocusedContainerColor = Color.White,
+        disabledContainerColor = Color.White,
+        focusedBorderColor = AccentYellow,
+        unfocusedBorderColor = SecondaryText.copy(alpha = 0.5f),
+        cursorColor = AccentYellow,
+        focusedLabelColor = AccentYellow,
+        unfocusedLabelColor = SecondaryText,
+        focusedLeadingIconColor = AccentYellow,
+        unfocusedLeadingIconColor = SecondaryText,
+        errorBorderColor = MaterialTheme.colorScheme.error,
+        errorLeadingIconColor = MaterialTheme.colorScheme.error,
+        errorLabelColor = MaterialTheme.colorScheme.error
     )
 
-    Box(
+    Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            .background(gradient)
-    ) {
+            .background(creamyGradient),
+        containerColor = Color.Transparent,
+        topBar = {
+            TopAppBar(
+                title = { /* Empty title for clean look */ },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = PrimaryText
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = CreamyWhiteLight)
+            )
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(innerPadding)
                 .padding(horizontal = 24.dp)
-                .padding(top = 48.dp, bottom = 24.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
+            Spacer(modifier = Modifier.height(24.dp))
+
             // --- App Logo ---
-            Box(
+            Card(
                 modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(listOf(Color(0xFFFFECB3), Color(0xFFFFC107)))
-                    ),
-                contentAlignment = Alignment.Center
+                    .size(100.dp)
+                    .clip(CircleShape),
+                shape = CircleShape,
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Fastfood,
-                    contentDescription = "App Logo",
-                    tint = Color(0xFF5F370E),
-                    modifier = Modifier.size(48.dp)
-                )
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Fastfood,
+                        contentDescription = "App Logo",
+                        tint = AccentYellow,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             Text(
                 text = "Verify Code",
-                fontSize = 36.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFB87300),
+                fontSize = 28.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = PrimaryText,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "We sent a 6-digit verification code to",
-                color = Color(0xFF6B7280),
-                style = MaterialTheme.typography.bodyLarge,
+                text = "We've sent a 6-digit verification code to:",
+                color = SecondaryText,
+                style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center
             )
 
             Text(
                 text = email,
-                color = Color(0xFFB87300),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
+                color = AccentYellow,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
 
@@ -149,6 +185,7 @@ fun VerifyOtpScreen(
             OutlinedTextField(
                 value = otp,
                 onValueChange = {
+                    // Limit input to 6 digits
                     if (it.length <= 6 && it.all { c -> c.isDigit() }) {
                         otp = it
                     }
@@ -160,7 +197,7 @@ fun VerifyOtpScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 enabled = uiState !is VerifyOtpUiState.Loading,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = textFieldColors,
                 isError = otp.isNotEmpty() && otp.length != 6
             )
@@ -170,11 +207,12 @@ fun VerifyOtpScreen(
                 Text(
                     text = "Code must be 6 digits",
                     color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.fillMaxWidth().padding(start = 8.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
             // --- Verify Button ---
             Button(
@@ -186,54 +224,45 @@ fun VerifyOtpScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                contentPadding = PaddingValues(0.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentYellow), // Solid yellow button
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(Color(0xFFFFE15A), Color(0xFFF59E0B))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (uiState is VerifyOtpUiState.Loading) {
-                        CircularProgressIndicator(
-                            color = Color(0xFF111827),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    } else {
-                        Text(
-                            text = "Verify Code",
-                            color = Color(0xFF111827),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                    }
+                if (uiState is VerifyOtpUiState.Loading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Verify Code",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // --- Back Link ---
+            // --- Resend and Back Link ---
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = "Didn't receive the code? ", color = Color(0xFF6B7280))
+                Text(text = "Didn't receive the code? ", color = SecondaryText)
                 TextButton(
                     onClick = { navController.popBackStack() },
-                    enabled = uiState !is VerifyOtpUiState.Loading
+                    enabled = uiState !is VerifyOtpUiState.Loading,
+                    contentPadding = PaddingValues(horizontal = 4.dp)
                 ) {
                     Text(
                         text = "Resend",
-                        color = Color(0xFFF59E0B),
-                        fontWeight = FontWeight.SemiBold
+                        color = AccentYellow,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp
                     )
                 }
             }
