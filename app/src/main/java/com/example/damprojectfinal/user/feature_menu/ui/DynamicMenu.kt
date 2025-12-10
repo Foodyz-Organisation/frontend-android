@@ -6,29 +6,37 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.R
 import com.airbnb.lottie.compose.*
+import java.util.Date
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 // DTOs for Menu Item structure (source)
 import com.example.damprojectfinal.core.dto.menu.IngredientDto
 import com.example.damprojectfinal.core.dto.menu.MenuItemResponseDto
@@ -66,8 +74,12 @@ data class MenuItem(
     val imageUrl: String?,
     val imagePath: String?, // Raw path for backend
     val category: Category,
-    val defaultIngredients: List<String> = emptyList(),
-    val extraOptions: List<Option> = emptyList()
+    val description: String? = null, // Item description
+    val calories: Int? = null, // Calories count (optional)
+    val defaultIngredients: List<IngredientDto> = emptyList(), // Changed to preserve full IngredientDto
+    val extraOptions: List<Option> = emptyList(),
+    val createdAt: String? = null, // Date when item was created
+    val updatedAt: String? = null // Date when item was last updated
 )
 
 // Category UI Model
@@ -96,13 +108,22 @@ private fun getCategoryItems(): List<CategoryItem> {
 }
 
 // DTO to UI Model Mappers (Necessary to convert backend Double to UI Float)
-private fun List<IngredientDto>?.toIngredientNames(): List<String> {
-    return this?.mapNotNull { it.name } ?: emptyList()
-}
 private fun List<com.example.damprojectfinal.core.dto.menu.OptionDto>?.toOptionModels(): List<Option> {
     return this?.map { Option(name = it.name, price = it.price.toFloat()) } ?: emptyList()
 }
 private fun MenuItemResponseDto.toUiModel(): MenuItem {
+    // Generate deterministic calories based on category/ingredients if not provided (placeholder logic)
+    // Using hash of name to ensure consistent calories for same item
+    val nameHash = this.name.hashCode()
+    val estimatedCalories = when (this.category) {
+        Category.BURGER -> 350 + (nameHash % 250) // 350-600 range
+        Category.PIZZA -> 300 + (nameHash % 200) // 300-500 range
+        Category.PASTA -> 250 + (nameHash % 200) // 250-450 range
+        Category.SALAD -> 100 + (nameHash % 100) // 100-200 range
+        Category.DESSERT -> 300 + (nameHash % 200) // 300-500 range
+        else -> 200 + (nameHash % 200) // 200-400 range
+    }
+    
     return MenuItem(
         id = this.id,
         name = this.name,
@@ -110,9 +131,64 @@ private fun MenuItemResponseDto.toUiModel(): MenuItem {
         imageUrl = if (this.image.isNullOrEmpty()) null else BASE_URL + this.image,
         imagePath = this.image,
         category = this.category,
-        defaultIngredients = this.ingredients.toIngredientNames(),
-        extraOptions = this.options.toOptionModels()
+        description = this.description ?: "Delicious ${this.name.lowercase()} made with fresh ingredients",
+        calories = estimatedCalories, // Deterministic calories based on category and name
+        defaultIngredients = this.ingredients, // Keep full IngredientDto objects
+        extraOptions = this.options.toOptionModels(),
+        createdAt = this.createdAt,
+        updatedAt = this.updatedAt
     )
+}
+
+// Helper function to check if an item is recent (created or updated within last 7 days)
+private fun MenuItem.isRecent(): Boolean {
+    val daysThreshold = 7L
+    val now = Date()
+    
+    return try {
+        // Parse ISO 8601 date format (e.g., "2025-12-09T18:26:51.820Z")
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+        dateFormat.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        
+        val createdAtDate = createdAt?.let { 
+            try {
+                dateFormat.parse(it)
+            } catch (e: Exception) {
+                // Try alternative format without milliseconds
+                val altFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                altFormat.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                altFormat.parse(it)
+            }
+        }
+        
+        val updatedAtDate = updatedAt?.let { 
+            try {
+                dateFormat.parse(it)
+            } catch (e: Exception) {
+                // Try alternative format without milliseconds
+                val altFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                altFormat.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                altFormat.parse(it)
+            }
+        }
+        
+        val isRecentlyCreated = createdAtDate?.let {
+            val diffInMillis = now.time - it.time
+            val diffInDays = TimeUnit.MILLISECONDS.toDays(diffInMillis)
+            diffInDays <= daysThreshold
+        } ?: false
+        
+        val isRecentlyUpdated = updatedAtDate?.let {
+            val diffInMillis = now.time - it.time
+            val diffInDays = TimeUnit.MILLISECONDS.toDays(diffInMillis)
+            diffInDays <= daysThreshold
+        } ?: false
+        
+        isRecentlyCreated || isRecentlyUpdated
+    } catch (e: Exception) {
+        // If date parsing fails, consider it as old
+        false
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -121,7 +197,7 @@ private fun MenuItemResponseDto.toUiModel(): MenuItem {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RestaurantMenuScreen(
+fun RestaurantMenuScreen(   
     restaurantId: String,
     onBackClick: () -> Unit,
     onViewCartClick: () -> Unit,
@@ -180,6 +256,13 @@ fun RestaurantMenuScreen(
         }
     }
     
+    // Separate items into recent and old based on creation/update date
+    val (recentItems, oldItems) = remember(filteredItems) {
+        val recent = filteredItems.filter { it.isRecent() }
+        val old = filteredItems.filter { !it.isRecent() }
+        Pair(recent, old)
+    }
+    
     // Get available categories from menu items
     val availableCategories = remember(uiMenuItems) {
         val categories = uiMenuItems.map { it.category }.distinct()
@@ -216,70 +299,130 @@ fun RestaurantMenuScreen(
         modifier = Modifier.fillMaxSize(),
         containerColor = AppBackgroundLight
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            // Category Selector
-            if (availableCategories.isNotEmpty()) {
-                CategorySelector(
-                    categories = availableCategories,
-                    selectedCategory = selectedCategory,
-                    onCategorySelected = { selectedCategory = it }
-                )
-            }
-
-            // Content based on state
-            when {
-                isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = AppCartButtonYellow)
-                    }
+        // Content based on state
+        when {
+            isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = AppCartButtonYellow)
                 }
-                errorMessage != null -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+            }
+            errorMessage != null -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(32.dp)
                     ) {
+                        Icon(
+                            Icons.Default.Error,
+                            contentDescription = "Error",
+                            tint = Color.Red,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
                         Text(
-                            text = "Error loading menu: $errorMessage",
+                            text = "Error loading menu",
                             color = Color.Red,
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = errorMessage ?: "Unknown error",
+                            color = Color.Gray,
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 }
-                filteredItems.isEmpty() -> {
-                    EmptyCategoryState(
-                        categoryName = selectedCategory?.name ?: "this category"
-                    )
-                }
-                else -> {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        // Top spacer if needed, or included in padding
-                        
-                        items(
-                            items = filteredItems,
-                            key = { item -> item.id }
-                        ) { item ->
-                            MenuItemCard(
-                                item = item,
-                                onAddClick = { selectedItemForCustomization = item }
+            }
+            else -> {
+                // Main scrollable content using LazyColumn for better modularity and upgradability
+                // This structure makes it easy to add new sections (promotions, featured items, etc.)
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp), // Reduced top padding
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // ============================================================
+                    // SECTION 1: Category Selector
+                    // ============================================================
+                    // Easy to add: Featured categories, category promotions, etc.
+                    if (availableCategories.isNotEmpty()) {
+                        item {
+                            CategorySelector(
+                                categories = availableCategories,
+                                selectedCategory = selectedCategory,
+                                onCategorySelected = { selectedCategory = it }
                             )
                         }
-                        
-                        // Bottom spacer for FAB/BottomBar
-                        item { Spacer(Modifier.height(80.dp)) }
-                        item { Spacer(Modifier.height(80.dp)) }
+                    }
+
+                    // ============================================================
+                    // SECTION 2: Menu Items Grid
+                    // ============================================================
+                    // All items displayed in a scrollable 2-column grid
+                    if (filteredItems.isEmpty()) {
+                        item {
+                            EmptyCategoryState(
+                                categoryName = selectedCategory?.name ?: "this category"
+                            )
+                        }
+                    } else {
+                        // Use items() to create a grid layout manually for better LazyColumn integration
+                        // This approach allows smooth scrolling and better performance
+                        items(
+                            items = filteredItems.chunked(2), // Split into pairs for 2-column grid
+                            key = { chunk -> chunk.firstOrNull()?.id ?: "" }
+                        ) { rowItems ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                // First column item
+                                Box(modifier = Modifier.weight(1f)) {
+                                    MenuItemCard(
+                                        item = rowItems[0],
+                                        onAddClick = { selectedItemForCustomization = rowItems[0] }
+                                    )
+                                }
+                                
+                                // Second column item (if exists)
+                                if (rowItems.size > 1) {
+                                    Spacer(Modifier.width(16.dp))
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        MenuItemCard(
+                                            item = rowItems[1],
+                                            onAddClick = { selectedItemForCustomization = rowItems[1] }
+                                        )
+                                    }
+                                } else {
+                                    // Empty space to maintain grid alignment
+                                    Spacer(Modifier.weight(1f))
+                                }
+                            }
+                            Spacer(Modifier.height(16.dp))
+                        }
+                    }
+
+                    // ============================================================
+                    // SECTION 3: Bottom spacing for bottom bar
+                    // ============================================================
+                    // Easy to add: Restaurant info, reviews section, etc.
+                    item {
+                        Spacer(Modifier.height(100.dp))
                     }
                 }
             }
@@ -292,8 +435,11 @@ fun RestaurantMenuScreen(
         ItemCustomizationOverlay(
             item = item,
             onDismiss = { selectedItemForCustomization = null },
-            onConfirmAddToCart = { confirmedItem, quantity, ingredientsToRemove, selectedOptions ->
+            onConfirmAddToCart = { confirmedItem, quantity, ingredientsToRemove, selectedOptions, ingredientIntensities ->
 
+                android.util.Log.d("DynamicMenu", "🛒 ========== ADD TO CART CLICKED ==========")
+                android.util.Log.d("DynamicMenu", "Item: ${confirmedItem.name}, Quantity: $quantity")
+                
                 val menuItem = confirmedItem
 
                 // --- 1. Unit Price Calculation ---
@@ -302,6 +448,7 @@ fun RestaurantMenuScreen(
 
                 // The price per unit (item) AFTER options are added
                 val unitPrice = basePrice + optionsPrice
+                android.util.Log.d("DynamicMenu", "💰 Price calculation: base=$basePrice, options=$optionsPrice, total=$unitPrice")
 
                 // --- 2. Data Mapping (UI Models to DTOs) ---
 
@@ -312,15 +459,31 @@ fun RestaurantMenuScreen(
                         price = uiOption.price.toDouble()
                     )
                 }
+                android.util.Log.d("DynamicMenu", "📦 Options: ${finalSelectedOptions.size} items")
+                finalSelectedOptions.forEach { opt ->
+                    android.util.Log.d("DynamicMenu", "  - ${opt.name}: ${opt.price} TND")
+                }
 
-                // Filter Ingredients: Map UI ingredient names (Set<String>) back to DTOs
-                val initialIngredientNames: List<String> = menuItem.defaultIngredients
+                // Filter Ingredients: Map UI ingredient names (Set<String>) back to DTOs with intensity information
+                val initialIngredientNames: List<String> = menuItem.defaultIngredients.map { it.name }
                 val namesToKeep = initialIngredientNames.filter { it !in ingredientsToRemove }
+                android.util.Log.d("DynamicMenu", "🥘 Ingredients: initial=${initialIngredientNames.size}, removed=${ingredientsToRemove.size}, kept=${namesToKeep.size}")
 
-                // Map ingredients names to CartIngredientDto (the DTO needed for the Cart POST endpoint)
+                // Map ingredients to CartIngredientDto with intensity information from menu item
                 val finalIngredientsDto: List<CartIngredientDto> = namesToKeep.map { name ->
-                    // Assuming all ingredients in this flow are default ones, as the UI only allows removal of default ones.
-                    CartIngredientDto(name = name, isDefault = true)
+                    // Find the original ingredient from menu item to get intensity type and color
+                    val originalIngredient = menuItem.defaultIngredients.find { it.name == name }
+                    // Get the actual intensity value selected by the user (default to 0.5 if not set)
+                    val selectedIntensityValue = ingredientIntensities[name] ?: 0.5f
+                    val ingredientDto = CartIngredientDto(
+                        name = name,
+                        isDefault = true,
+                        intensityType = originalIngredient?.intensityType,
+                        intensityColor = originalIngredient?.intensityColor,
+                        intensityValue = if (originalIngredient?.supportsIntensity == true) selectedIntensityValue.toDouble() else null
+                    )
+                    android.util.Log.d("DynamicMenu", "  - $name: type=${ingredientDto.intensityType}, value=${ingredientDto.intensityValue}, color=${ingredientDto.intensityColor}")
+                    ingredientDto
                 }
 
                 // --- 3. Construct AddToCartRequest DTO ---
@@ -335,17 +498,61 @@ fun RestaurantMenuScreen(
                     calculatedPrice = unitPrice,
                 )
 
+                android.util.Log.d("DynamicMenu", "📝 Request DTO:")
+                android.util.Log.d("DynamicMenu", "  - menuItemId: $menuItemId")
+                android.util.Log.d("DynamicMenu", "  - name: ${request.name}")
+                android.util.Log.d("DynamicMenu", "  - quantity: ${request.quantity}")
+                android.util.Log.d("DynamicMenu", "  - calculatedPrice: ${request.calculatedPrice}")
+                android.util.Log.d("DynamicMenu", "  - ingredients count: ${request.chosenIngredients.size}")
+                android.util.Log.d("DynamicMenu", "  - options count: ${request.chosenOptions.size}")
 
                 // Call the existing 'addItem' function in CartViewModel
-                // ⭐ FIX 5: Removed customerId argument based on the ViewModel provided in the last step
+                android.util.Log.d("DynamicMenu", "🚀 Calling cartViewModel.addItem()...")
                 cartViewModel.addItem(
                     request = request
                 )
+                android.util.Log.d("DynamicMenu", "✅ addItem() call completed")
 
                 selectedItemForCustomization = null
             }
         )
     }
+}
+
+// -----------------------------------------------------------------------------
+// ANIMATED BOUNCING ICON COMPOSABLE
+// -----------------------------------------------------------------------------
+
+@Composable
+fun AnimatedBouncingIcon(
+    emoji: String,
+    fontSize: TextUnit,
+    delayMillis: Int = 0
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "bounce")
+    
+    val bounceOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 600,
+                delayMillis = delayMillis,
+                easing = FastOutSlowInEasing
+            ),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bounce_offset"
+    )
+    
+    Text(
+        text = emoji,
+        fontSize = fontSize,
+        modifier = Modifier
+            .graphicsLayer {
+                translationY = bounceOffset
+            }
+    )
 }
 
 // -----------------------------------------------------------------------------
@@ -356,11 +563,13 @@ fun RestaurantMenuScreen(
 fun ItemCustomizationOverlay(
     item: MenuItem,
     onDismiss: () -> Unit,
-    onConfirmAddToCart: (MenuItem, Int, Set<String>, Set<Option>) -> Unit
+    onConfirmAddToCart: (MenuItem, Int, Set<String>, Set<Option>, Map<String, Float>) -> Unit
 ) {
     var quantity by remember { mutableStateOf(1) }
     var ingredientsToRemove by remember { mutableStateOf(setOf<String>()) }
     var selectedOptions by remember { mutableStateOf(setOf<Option>()) }
+    // Track intensity values for each ingredient (ingredient name -> intensity value)
+    var ingredientIntensities by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
 
     // Calculate final total (for display only)
     val finalTotal = remember(item.priceDT, quantity, selectedOptions) {
@@ -375,60 +584,143 @@ fun ItemCustomizationOverlay(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(AppBackgroundLight)
+                .background(AppCartButtonYellow.copy(alpha = 0.15f))
         ) {
-            CustomizationHeader(item = item, onDismiss = onDismiss)
-
-            LazyColumn(
+            // Top Header with back, dots, and heart
+            TopCustomizationHeader(onDismiss = onDismiss)
+            
+            // Product Info Card (rounded top corners, off-white background) - Takes up most of the screen
+            Card(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(topStart = 40.dp, topEnd = 40.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFFFF8F0) // Off-white/beige
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
             ) {
-                item {
-                    Spacer(Modifier.height(16.dp))
-                    QuantitySelector(
-                        quantity = quantity,
-                        onQuantityChange = { quantity = it }
-                    )
-                    Spacer(Modifier.height(24.dp))
-
-                    // 1. Ingredients (Removal)
-                    IngredientsCustomizer(
-                        ingredients = item.defaultIngredients,
-                        ingredientsToRemove = ingredientsToRemove,
-                        onToggleIngredient = { ingredient ->
-                            ingredientsToRemove = if (ingredientsToRemove.contains(ingredient)) {
-                                ingredientsToRemove - ingredient
-                            } else {
-                                ingredientsToRemove + ingredient
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp, vertical = 20.dp),
+                    contentPadding = PaddingValues(bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    item {
+                        // Smaller Image - scrolls with content
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(200.dp)
+                                    .shadow(
+                                        elevation = 12.dp,
+                                        shape = CircleShape,
+                                        spotColor = Color.Black.copy(alpha = 0.2f)
+                                    )
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                                    .padding(3.dp)
+                            ) {
+                                AsyncImage(
+                                    model = item.imageUrl,
+                                    contentDescription = item.name,
+                                    contentScale = ContentScale.Crop,
+                                    placeholder = painterResource(id = R.drawable.placeholder),
+                                    error = painterResource(id = R.drawable.placeholder),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                )
                             }
                         }
-                    )
-
-                    // 2. Options (Add-ons)
-                    if (item.extraOptions.isNotEmpty()) {
-                        Spacer(Modifier.height(24.dp))
-                        OptionsCustomizer(
-                            options = item.extraOptions,
-                            selectedOptions = selectedOptions,
-                            onToggleOption = { option ->
-                                selectedOptions = if (selectedOptions.contains(option)) {
-                                    selectedOptions - option
+                        
+                        // Quantity and Price Section
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            QuantitySelectorRedesigned(
+                                quantity = quantity,
+                                onQuantityChange = { quantity = it }
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = "${String.format("%.2f", finalTotal / quantity)} TND",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppDarkText
+                            )
+                        }
+                        
+                        Spacer(Modifier.height(16.dp))
+                        
+                        // Product Title
+                        Text(
+                            text = item.name,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppDarkText,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                        
+                        // Description (if available) - More compact
+                        Text(
+                            text = "Fresh ingredients with premium quality. Customize your order to your taste preferences.",
+                            fontSize = 13.sp,
+                            color = Color.Gray,
+                            lineHeight = 18.sp,
+                            modifier = Modifier.padding(bottom = 20.dp)
+                        )
+                        
+                        // 1. Ingredients (Removal) - Main focus
+                        IngredientsCustomizer(
+                            ingredients = item.defaultIngredients,
+                            ingredientsToRemove = ingredientsToRemove,
+                            ingredientIntensities = ingredientIntensities,
+                            onToggleIngredient = { ingredient ->
+                                ingredientsToRemove = if (ingredientsToRemove.contains(ingredient)) {
+                                    ingredientsToRemove - ingredient
                                 } else {
-                                    selectedOptions + option
+                                    ingredientsToRemove + ingredient
                                 }
+                            },
+                            onIntensityChange = { ingredientName, intensityValue ->
+                                ingredientIntensities = ingredientIntensities + (ingredientName to intensityValue)
                             }
                         )
+
+                        // 2. Options (Add-ons)
+                        if (item.extraOptions.isNotEmpty()) {
+                            Spacer(Modifier.height(24.dp))
+                            OptionsCustomizer(
+                                options = item.extraOptions,
+                                selectedOptions = selectedOptions,
+                                onToggleOption = { option ->
+                                    selectedOptions = if (selectedOptions.contains(option)) {
+                                        selectedOptions - option
+                                    } else {
+                                        selectedOptions + option
+                                    }
+                                }
+                            )
+                        }
                     }
-                    Spacer(Modifier.height(24.dp))
                 }
             }
-
+            
+            // Add to Cart Button (Fixed at bottom)
             CustomizationFooter(
                 total = finalTotal,
                 onAddToCart = {
-                    onConfirmAddToCart(item, quantity, ingredientsToRemove, selectedOptions)
+                    onConfirmAddToCart(item, quantity, ingredientsToRemove, selectedOptions, ingredientIntensities)
                 }
             )
         }
@@ -450,7 +742,7 @@ fun CustomizationHeader(item: MenuItem, onDismiss: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(item.name, color = AppDarkText, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-            Text("${item.priceDT} DT", color = AppPrimaryRed, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text("${item.priceDT} TND", color = AppCartButtonYellow, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
         }
         IconButton(
             onClick = onDismiss,
@@ -466,79 +758,538 @@ fun CustomizationHeader(item: MenuItem, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun QuantitySelector(quantity: Int, onQuantityChange: (Int) -> Unit) {
+fun TopCustomizationHeader(onDismiss: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Quantity", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AppDarkText)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Button(
-                onClick = { if (quantity > 1) onQuantityChange(quantity - 1) },
-                colors = ButtonDefaults.buttonColors(containerColor = AppCardBackground, contentColor = AppDarkText),
-                modifier = Modifier.size(40.dp),
-                shape = CircleShape,
-                contentPadding = PaddingValues(0.dp)
-            ) {
-                Icon(Icons.Default.Remove, contentDescription = "Decrease Quantity")
-            }
-            Spacer(Modifier.width(16.dp))
-            Text(quantity.toString(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AppDarkText)
-            Spacer(Modifier.width(16.dp))
-            FloatingActionButton(
-                onClick = { onQuantityChange(quantity + 1) },
-                containerColor = AppCartButtonYellow,
-                contentColor = AppDarkText,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Increase Quantity")
-            }
+        IconButton(onClick = onDismiss) {
+            Icon(
+                Icons.Default.ArrowBack,
+                contentDescription = "Back",
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
 
 @Composable
+fun QuantitySelectorRedesigned(quantity: Int, onQuantityChange: (Int) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Minus button - Yellow square
+        Button(
+            onClick = { if (quantity > 1) onQuantityChange(quantity - 1) },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AppCartButtonYellow,
+                contentColor = AppDarkText
+            ),
+            modifier = Modifier.size(48.dp),
+            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(0.dp),
+            enabled = quantity > 1
+        ) {
+            Icon(
+                Icons.Default.Remove,
+                contentDescription = "Decrease Quantity",
+                tint = AppDarkText,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        
+        // Quantity number - White background
+        Box(
+            modifier = Modifier
+                .width(60.dp)
+                .height(48.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                quantity.toString(),
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppDarkText
+            )
+        }
+        
+        // Plus button - Yellow square
+        Button(
+            onClick = { onQuantityChange(quantity + 1) },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AppCartButtonYellow,
+                contentColor = AppDarkText
+            ),
+            modifier = Modifier.size(48.dp),
+            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = "Increase Quantity",
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// INTENSITY TYPE ICON/COLOR HELPERS (Using Backend IntensityType)
+// -----------------------------------------------------------------------------
+
+@Composable
+fun getIntensityIcons(intensityType: com.example.damprojectfinal.core.dto.menu.IntensityType?, intensityValue: Float): List<Pair<String, Int>> {
+    return when (intensityType) {
+        com.example.damprojectfinal.core.dto.menu.IntensityType.COFFEE -> {
+            when {
+                intensityValue >= 0.8f -> listOf("☕" to 0, "☕" to 100)
+                intensityValue >= 0.3f -> listOf("☕" to 0)
+                else -> listOf("☕" to 0)
+            }
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.HARISSA -> {
+            when {
+                intensityValue >= 0.8f -> listOf("🔥" to 0)
+                intensityValue >= 0.3f -> listOf("🌶️" to 0, "🌶️" to 150)
+                else -> listOf("🌶️" to 0)
+            }
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.SAUCE -> {
+            when {
+                intensityValue >= 0.8f -> listOf("🍯" to 0, "🍯" to 100)
+                intensityValue >= 0.3f -> listOf("🍯" to 0)
+                else -> listOf("🍯" to 0)
+            }
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.SPICE -> {
+            when {
+                intensityValue >= 0.8f -> listOf("🌿" to 0, "🌿" to 100)
+                intensityValue >= 0.3f -> listOf("🌿" to 0)
+                else -> listOf("🌿" to 0)
+            }
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.SUGAR -> {
+            when {
+                intensityValue >= 0.8f -> listOf("🍬" to 0, "🍬" to 100)
+                intensityValue >= 0.3f -> listOf("🍬" to 0)
+                else -> listOf("🍬" to 0)
+            }
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.SALT -> {
+            when {
+                intensityValue >= 0.8f -> listOf("🧂" to 0, "🧂" to 100)
+                intensityValue >= 0.3f -> listOf("🧂" to 0)
+                else -> listOf("🧂" to 0)
+            }
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.PEPPER -> {
+            when {
+                intensityValue >= 0.8f -> listOf("🫚" to 0, "🫚" to 100)
+                intensityValue >= 0.3f -> listOf("🫚" to 0)
+                else -> listOf("🫚" to 0)
+            }
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.CHILI -> {
+            when {
+                intensityValue >= 0.8f -> listOf("🔥" to 0)
+                intensityValue >= 0.3f -> listOf("🌶️" to 0, "🌶️" to 150)
+                else -> listOf("🌶️" to 0)
+            }
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.GARLIC -> {
+            when {
+                intensityValue >= 0.8f -> listOf("🧄" to 0, "🧄" to 100)
+                intensityValue >= 0.3f -> listOf("🧄" to 0)
+                else -> listOf("🧄" to 0)
+            }
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.LEMON -> {
+            when {
+                intensityValue >= 0.8f -> listOf("🍋" to 0, "🍋" to 100)
+                intensityValue >= 0.3f -> listOf("🍋" to 0)
+                else -> listOf("🍋" to 0)
+            }
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.CUSTOM, null -> {
+            when {
+                intensityValue >= 0.8f -> listOf("⭐" to 0, "⭐" to 100)
+                intensityValue >= 0.3f -> listOf("⭐" to 0)
+                else -> listOf("⭐" to 0)
+            }
+        }
+    }
+}
+
+fun getIntensityColor(intensityType: com.example.damprojectfinal.core.dto.menu.IntensityType?, intensityColorHex: String?, intensityValue: Float): Color {
+    // If backend provided a color, parse it and adjust by intensity
+    if (intensityColorHex != null) {
+        try {
+            val baseColor = Color(android.graphics.Color.parseColor(intensityColorHex))
+            // Adjust brightness based on intensity
+            return Color(
+                red = (baseColor.red * (0.5f + intensityValue * 0.5f)).coerceIn(0f, 1f),
+                green = (baseColor.green * (0.5f + intensityValue * 0.5f)).coerceIn(0f, 1f),
+                blue = (baseColor.blue * (0.5f + intensityValue * 0.5f)).coerceIn(0f, 1f)
+            )
+        } catch (e: Exception) {
+            // Fall through to default colors
+        }
+    }
+    
+    // Default colors based on type
+    return when (intensityType) {
+        com.example.damprojectfinal.core.dto.menu.IntensityType.COFFEE -> {
+            Color(
+                red = (0.2f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                green = (0.15f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                blue = (0.1f + intensityValue * 0.1f).coerceIn(0f, 1f)
+            )
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.HARISSA, 
+        com.example.damprojectfinal.core.dto.menu.IntensityType.CHILI -> {
+            Color(
+                red = (0.6f + intensityValue * 0.4f).coerceIn(0f, 1f),
+                green = (0.2f - intensityValue * 0.2f).coerceIn(0f, 1f),
+                blue = (0.2f - intensityValue * 0.2f).coerceIn(0f, 1f)
+            )
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.SAUCE -> {
+            Color(
+                red = (0.9f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                green = (0.6f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                blue = (0.2f - intensityValue * 0.1f).coerceIn(0f, 1f)
+            )
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.SPICE -> {
+            Color(
+                red = (0.8f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                green = (0.5f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                blue = (0.2f - intensityValue * 0.1f).coerceIn(0f, 1f)
+            )
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.SUGAR -> {
+            Color(
+                red = (0.95f + intensityValue * 0.05f).coerceIn(0f, 1f),
+                green = (0.9f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                blue = (0.7f + intensityValue * 0.2f).coerceIn(0f, 1f)
+            )
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.SALT -> {
+            Color(
+                red = (0.85f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                green = (0.85f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                blue = (0.9f + intensityValue * 0.1f).coerceIn(0f, 1f)
+            )
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.PEPPER -> {
+            Color(
+                red = (0.2f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                green = (0.2f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                blue = (0.2f + intensityValue * 0.2f).coerceIn(0f, 1f)
+            )
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.GARLIC -> {
+            Color(
+                red = (0.95f + intensityValue * 0.05f).coerceIn(0f, 1f),
+                green = (0.95f + intensityValue * 0.05f).coerceIn(0f, 1f),
+                blue = (0.9f + intensityValue * 0.1f).coerceIn(0f, 1f)
+            )
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.LEMON -> {
+            Color(
+                red = (0.95f + intensityValue * 0.05f).coerceIn(0f, 1f),
+                green = (0.9f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                blue = (0.4f - intensityValue * 0.2f).coerceIn(0f, 1f)
+            )
+        }
+        com.example.damprojectfinal.core.dto.menu.IntensityType.CUSTOM, null -> {
+            Color(
+                red = (0.6f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                green = (0.6f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                blue = (0.6f + intensityValue * 0.2f).coerceIn(0f, 1f)
+            )
+        }
+    }
+}
+
+// Custom Slider with Vertical Bar Thumb Design
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CustomIntensitySlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    activeColor: Color,
+    inactiveColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val trackHeight = 6.dp
+    val thumbWidth = 3.dp
+    val thumbHeight = 20.dp
+    val density = LocalDensity.current
+    
+    BoxWithConstraints(modifier = modifier.height(thumbHeight)) {
+        val trackWidthPx = with(density) { maxWidth.toPx() }
+        val thumbWidthPx = with(density) { thumbWidth.toPx() }
+        val thumbOffsetPx = value * (trackWidthPx - thumbWidthPx)
+        val thumbOffset = with(density) { thumbOffsetPx.toDp() }
+        val activeTrackWidth = with(density) { (thumbOffsetPx + thumbWidthPx / 2).toDp() }
+        
+        // Inactive track (background) - rounded
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(trackHeight)
+                .clip(RoundedCornerShape(8.dp))
+                .background(inactiveColor)
+                .align(Alignment.Center)
+        )
+        
+        // Active track (filled portion) - rounded left side
+        Box(
+            modifier = Modifier
+                .width(activeTrackWidth)
+                .height(trackHeight)
+                .clip(
+                    RoundedCornerShape(
+                        topStart = 8.dp,
+                        bottomStart = 8.dp,
+                        topEnd = if (value >= 1f) 8.dp else 0.dp,
+                        bottomEnd = if (value >= 1f) 8.dp else 0.dp
+                    )
+                )
+                .background(activeColor)
+                .align(Alignment.CenterStart)
+        )
+        
+        // Vertical bar thumb
+        Box(
+            modifier = Modifier
+                .width(thumbWidth)
+                .height(thumbHeight)
+                .offset(x = thumbOffset)
+                .background(activeColor)
+                .align(Alignment.CenterStart)
+        )
+        
+        // Small dot at the end of inactive track
+        if (value < 1f) {
+            Box(
+                modifier = Modifier
+                    .size(4.dp)
+                    .clip(CircleShape)
+                    .background(inactiveColor)
+                    .offset(x = maxWidth - 4.dp)
+                    .align(Alignment.CenterEnd)
+            )
+        }
+        
+        // Invisible touch target for interaction
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = 0f..1f,
+            modifier = Modifier.fillMaxSize(),
+            colors = SliderDefaults.colors(
+                thumbColor = Color.Transparent,
+                activeTrackColor = Color.Transparent,
+                inactiveTrackColor = Color.Transparent
+            ),
+            thumb = {
+                Box(modifier = Modifier.size(0.dp))
+            },
+            track = {
+                Box(modifier = Modifier.fillMaxSize())
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun IngredientsCustomizer(
-    ingredients: List<String>,
+    ingredients: List<IngredientDto>,
     ingredientsToRemove: Set<String>,
-    onToggleIngredient: (String) -> Unit
+    ingredientIntensities: Map<String, Float>,
+    onToggleIngredient: (String) -> Unit,
+    onIntensityChange: (String, Float) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             "Customize Ingredients",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = AppDarkText
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = AppDarkText,
+            modifier = Modifier.padding(bottom = 4.dp)
         )
         Text(
-            "Remove any ingredients you don't like",
-            fontSize = 14.sp,
+            "Tap to remove • Adjust intensity with slider",
+            fontSize = 13.sp,
             color = Color.Gray,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 16.dp)
         )
 
         ingredients.forEach { ingredient ->
-            val isSelected = !ingredientsToRemove.contains(ingredient)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AppCardBackground)
-                    .clickable { onToggleIngredient(ingredient) }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(
-                    selected = isSelected,
-                    onClick = { onToggleIngredient(ingredient) },
-                    colors = RadioButtonDefaults.colors(
-                        selectedColor = AppPrimaryRed,
-                        unselectedColor = Color.LightGray
+            val isSelected = !ingredientsToRemove.contains(ingredient.name)
+            
+            if (ingredient.supportsIntensity == true) {
+                // Display as slider with color effect - Professional design
+                // Use stored intensity value or default to 0.5f
+                var intensityValue by remember(ingredient.name) { 
+                    mutableStateOf(ingredientIntensities[ingredient.name] ?: 0.5f) 
+                }
+                // Update stored intensity when slider changes
+                LaunchedEffect(intensityValue) {
+                    onIntensityChange(ingredient.name, intensityValue)
+                }
+                val intensityColor = getIntensityColor(ingredient.intensityType, ingredient.intensityColor, intensityValue)
+                val intensityIcons = getIntensityIcons(ingredient.intensityType, intensityValue)
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSelected) AppCardBackground else Color(0xFFF5F5F5)
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = if (isSelected) 2.dp else 0.dp
                     )
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(ingredient, color = AppDarkText, fontWeight = FontWeight.Medium)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        // Ingredient name row - clickable to remove
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onToggleIngredient(ingredient.name) },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // Visual indicator
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isSelected) AppCartButtonYellow else Color.LightGray
+                                        )
+                                )
+                                Text(
+                                    ingredient.name, 
+                                    color = if (isSelected) AppDarkText else Color.Gray,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 16.sp
+                                )
+                            }
+                            // Tap to remove hint
+                            if (isSelected) {
+                                Text(
+                                    "Tap to remove",
+                                    fontSize = 11.sp,
+                                    color = Color.Gray,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                        
+                        Spacer(Modifier.height(12.dp))
+                        
+                        // Intensity slider row - Custom design with vertical bar thumb
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CustomIntensitySlider(
+                                value = intensityValue,
+                                onValueChange = { intensityValue = it },
+                                activeColor = intensityColor,
+                                inactiveColor = intensityColor.copy(alpha = 0.3f),
+                                modifier = Modifier.weight(1f)
+                            )
+                            // Intensity icons based on ingredient type with bouncing animation - moved to the right
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(start = 12.dp)
+                            ) {
+                                intensityIcons.forEach { (emoji, delay) ->
+                                    AnimatedBouncingIcon(
+                                        emoji = emoji,
+                                        fontSize = if (intensityValue >= 0.8f) 22.sp else 20.sp,
+                                        delayMillis = delay
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Display as regular ingredient - Professional card design
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onToggleIngredient(ingredient.name) }
+                        .padding(vertical = 4.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSelected) AppCardBackground else Color(0xFFF5F5F5)
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = if (isSelected) 2.dp else 0.dp
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Visual indicator
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isSelected) AppPrimaryRed else Color.LightGray
+                                    )
+                            )
+                            Text(
+                                ingredient.name, 
+                                color = if (isSelected) AppDarkText else Color.Gray,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp
+                            )
+                        }
+                        // Tap to remove hint
+                        if (isSelected) {
+                            Text(
+                                "Tap to remove",
+                                fontSize = 11.sp,
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -591,8 +1342,8 @@ fun OptionsCustomizer(
                 }
 
                 Text(
-                    text = String.format("+%.2f DT", option.price),
-                    color = AppPrimaryRed,
+                    text = String.format("+%.2f TND", option.price),
+                    color = AppCartButtonYellow,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp
                 )
@@ -604,43 +1355,55 @@ fun OptionsCustomizer(
 
 @Composable
 fun CustomizationFooter(total: Float, onAddToCart: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(AppCardBackground)
-            .padding(16.dp)
-            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xFFFFF8F0), // Off-white/beige to match card
+        shadowElevation = 8.dp
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Total", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = AppDarkText)
-            Text(
-                String.format("%.2f DT", total),
-                fontSize = 22.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = AppCartButtonYellow
-            )
-        }
-
-        Button(
-            onClick = onAddToCart,
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .clip(RoundedCornerShape(12.dp)),
-            colors = ButtonDefaults.buttonColors(containerColor = AppCartButtonYellow)
+                .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
-            Text(
-                text = "Add to Cart",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = AppDarkText
-            )
-            Spacer(Modifier.width(8.dp))
-            Icon(Icons.Default.ArrowForward, contentDescription = null, tint = AppDarkText)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Total",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppDarkText
+                )
+                Text(
+                    String.format("%.2f TND", total),
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = AppCartButtonYellow
+                )
+            }
+
+            Button(
+                onClick = {
+                    android.util.Log.d("CustomizationFooter", "🔘 Add To Cart BUTTON CLICKED!")
+                    onAddToCart()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(16.dp)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppCartButtonYellow
+                )
+            ) {
+                Text(
+                    text = "Add To Cart",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
         }
     }
 }
@@ -679,8 +1442,8 @@ fun MenuTopAppBar(
                     badge = {
                         if (cartItemCount > 0) {
                             Badge(
-                                containerColor = AppPrimaryRed,
-                                contentColor = Color.White
+                                containerColor = AppCartButtonYellow,
+                                contentColor = AppDarkText
                             ) {
                                 Text(
                                     text = if (cartItemCount > 99) "99+" else cartItemCount.toString(),
@@ -734,11 +1497,21 @@ fun MenuTopAppBar(
 }
 
 @Composable
-fun MenuItemCard(item: MenuItem, onAddClick: () -> Unit) {
+fun MenuItemCard(
+    item: MenuItem, 
+    onAddClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // Apply width constraint from modifier first, then fillMaxWidth only if no width is set
+    val finalModifier = if (modifier == Modifier) {
+        Modifier.fillMaxWidth()
+    } else {
+        modifier // Use custom modifier as-is (may include width constraint)
+    }
+    
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(260.dp) // Fixed height for grid uniformity
+        modifier = finalModifier
+            .height(240.dp) // Reduced height to eliminate space
             .clickable { onAddClick() },
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -747,62 +1520,55 @@ fun MenuItemCard(item: MenuItem, onAddClick: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.Center
         ) {
             // Image Area
-            Box(
+            AsyncImage(
+                model = item.imageUrl,
+                contentDescription = item.name,
+                contentScale = ContentScale.Crop,
+                placeholder = painterResource(id = R.drawable.placeholder),
+                error = painterResource(id = R.drawable.placeholder),
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                AsyncImage(
-                    model = item.imageUrl,
-                    contentDescription = item.name,
-                    contentScale = ContentScale.Crop, // Or Fit based on image type
-                    placeholder = painterResource(id = R.drawable.placeholder),
-                    error = painterResource(id = R.drawable.placeholder),
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape) // Circular image style as seen in modern designs
-                        // .background(Color(0xFFF5F5F5)) // Optional background for transparent images
-                )
-            }
+                    .size(90.dp)
+                    .clip(CircleShape)
+            )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
 
-            // Text Area
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = item.name,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = AppDarkText,
-                    maxLines = 2,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    lineHeight = 20.sp
-                )
-                
-                Spacer(Modifier.height(4.dp))
-                
-                Text(
-                    text = "Starting From",
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
-                
-                Text(
-                    text = "${item.priceDT} TND",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = AppPrimaryRed // Or Orange/Yellow
-                )
-            }
+            // Title (Name)
+            Text(
+                text = item.name,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = AppDarkText,
+                maxLines = 1,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+
+            Spacer(Modifier.height(2.dp))
+
+            // Description
+            Text(
+                text = item.description ?: "Delicious ${item.name.lowercase()}",
+                fontSize = 12.sp,
+                color = Color.Gray,
+                maxLines = 2,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                lineHeight = 14.sp
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            // Price
+            Text(
+                text = "${String.format("%.2f", item.priceDT)} TND",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = AppDarkText
+            )
         }
     }
 }
@@ -825,10 +1591,10 @@ fun MenuBottomBar(totalOrderPrice: Float, onConfirmClick: () -> Unit) {
                 color = AppDarkText
             )
             Text(
-                text = String.format("%.2f DT", totalOrderPrice),
+                text = String.format("%.2f TND", totalOrderPrice),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF9333EA)
+                color = AppCartButtonYellow
             )
         }
         Spacer(Modifier.height(16.dp))

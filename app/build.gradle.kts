@@ -124,6 +124,7 @@ dependencies {
     // Font Awesome icons (Your Existing)
     implementation("br.com.devsrsouza.compose.icons:font-awesome:1.1.0")
     implementation("io.ktor:ktor-client-cio:2.3.5")
+    // implementation(libs.compose.material3)  // REMOVED: This was pointing to wear compose library (Wear OS)
     // ===== Testing =====
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

@@ -16,19 +16,45 @@ class OrderRepository(
     // -----------------------------------------------------
     suspend fun createOrder(request: CreateOrderRequest): OrderResponse? {
         val token = tokenManager.getAccessTokenBlocking() ?: run {
-            println("DEBUG: createOrder() - No token available")
+            android.util.Log.e("OrderRepository", "❌ createOrder() - No token available")
             return null
         }
 
-        println("DEBUG: createOrder() - request = $request")
+        android.util.Log.d("OrderRepository", "📤 Creating order with ${request.items.size} items")
+        request.items.forEachIndexed { itemIndex, item ->
+            android.util.Log.d("OrderRepository", "  Item $itemIndex: ${item.name} (qty=${item.quantity})")
+            android.util.Log.d("OrderRepository", "    Ingredients: ${item.chosenIngredients?.size ?: 0}")
+            item.chosenIngredients?.forEach { ingredient ->
+                android.util.Log.d("OrderRepository", "      - ${ingredient.name}: intensityValue=${ingredient.intensityValue}, type=${ingredient.intensityType}")
+            }
+        }
 
         val response = api.createOrder(request, "Bearer $token")
 
-        println("DEBUG: createOrder() - response code = ${response.code()}")
-        println("DEBUG: createOrder() - body = ${response.body()}")
-        println("DEBUG: createOrder() - error = ${response.errorBody()?.string()}")
-
-        return if (response.isSuccessful) response.body() else null
+        android.util.Log.d("OrderRepository", "📥 Response code: ${response.code()}")
+        
+        if (response.isSuccessful) {
+            val orderResponse = response.body()
+            if (orderResponse != null) {
+                android.util.Log.d("OrderRepository", "✅ Order created: ${orderResponse._id}")
+                android.util.Log.d("OrderRepository", "  Items in response: ${orderResponse.items.size}")
+                orderResponse.items.forEachIndexed { itemIndex, item ->
+                    android.util.Log.d("OrderRepository", "    Item $itemIndex: ${item.name}")
+                    android.util.Log.d("OrderRepository", "      Ingredients: ${item.chosenIngredients?.size ?: 0}")
+                    item.chosenIngredients?.forEach { ingredient ->
+                        android.util.Log.d("OrderRepository", "        - ${ingredient.name}: intensityValue=${ingredient.intensityValue}, type=${ingredient.intensityType}")
+                    }
+                }
+            } else {
+                android.util.Log.e("OrderRepository", "❌ Response body is null")
+            }
+            return orderResponse
+        } else {
+            val errorBody = response.errorBody()?.string()
+            android.util.Log.e("OrderRepository", "❌ Order creation failed: ${response.code()}")
+            android.util.Log.e("OrderRepository", "  Error body: $errorBody")
+            return null
+        }
     }
 
 
@@ -131,5 +157,83 @@ class OrderRepository(
         println("DEBUG: getOrderById() - response body = ${response.body()}")
 
         return if (response.isSuccessful) response.body() else null
+    }
+
+    // -----------------------------------------------------
+    // DELETE SINGLE ORDER
+    // -----------------------------------------------------
+    suspend fun deleteOrder(orderId: String): Boolean {
+        val token = tokenManager.getAccessTokenBlocking() ?: run {
+            android.util.Log.e("OrderRepository", "❌ deleteOrder() - No token available")
+            return false
+        }
+
+        android.util.Log.d("OrderRepository", "🗑️ Deleting order: $orderId")
+
+        val response = api.deleteOrder(orderId, "Bearer $token")
+
+        android.util.Log.d("OrderRepository", "📥 Delete response code: ${response.code()}")
+
+        if (response.isSuccessful) {
+            android.util.Log.d("OrderRepository", "✅ Order deleted successfully")
+            return true
+        } else {
+            val errorBody = response.errorBody()?.string()
+            android.util.Log.e("OrderRepository", "❌ Delete failed: ${response.code()}")
+            android.util.Log.e("OrderRepository", "  Error body: $errorBody")
+            return false
+        }
+    }
+
+    // -----------------------------------------------------
+    // DELETE ALL ORDERS FOR USER
+    // -----------------------------------------------------
+    suspend fun deleteAllOrdersByUser(userId: String): Boolean {
+        val token = tokenManager.getAccessTokenBlocking() ?: run {
+            android.util.Log.e("OrderRepository", "❌ deleteAllOrdersByUser() - No token available")
+            return false
+        }
+
+        android.util.Log.d("OrderRepository", "🗑️ Deleting all orders for user: $userId")
+
+        val response = api.deleteAllOrdersByUser(userId, "Bearer $token")
+
+        android.util.Log.d("OrderRepository", "📥 Delete all response code: ${response.code()}")
+
+        if (response.isSuccessful) {
+            android.util.Log.d("OrderRepository", "✅ All orders deleted successfully")
+            return true
+        } else {
+            val errorBody = response.errorBody()?.string()
+            android.util.Log.e("OrderRepository", "❌ Delete all failed: ${response.code()}")
+            android.util.Log.e("OrderRepository", "  Error body: $errorBody")
+            return false
+        }
+    }
+
+    // -----------------------------------------------------
+    // DELETE ALL ORDERS FOR PROFESSIONAL
+    // -----------------------------------------------------
+    suspend fun deleteAllOrdersByProfessional(professionalId: String): Boolean {
+        val token = tokenManager.getAccessTokenBlocking() ?: run {
+            android.util.Log.e("OrderRepository", "❌ deleteAllOrdersByProfessional() - No token available")
+            return false
+        }
+
+        android.util.Log.d("OrderRepository", "🗑️ Deleting all orders for professional: $professionalId")
+
+        val response = api.deleteAllOrdersByProfessional(professionalId, "Bearer $token")
+
+        android.util.Log.d("OrderRepository", "📥 Delete all response code: ${response.code()}")
+
+        if (response.isSuccessful) {
+            android.util.Log.d("OrderRepository", "✅ All orders deleted successfully")
+            return true
+        } else {
+            val errorBody = response.errorBody()?.string()
+            android.util.Log.e("OrderRepository", "❌ Delete all failed: ${response.code()}")
+            android.util.Log.e("OrderRepository", "  Error body: $errorBody")
+            return false
+        }
     }
 }

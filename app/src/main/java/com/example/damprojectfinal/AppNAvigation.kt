@@ -78,7 +78,6 @@ import com.example.damprojectfinal.professional.feature_event.EventDetailScreen
 import com.example.damprojectfinal.user.feature_deals.DealDetailScreen
 import com.example.damprojectfinal.user.feature_deals.DealsListScreen
 import com.example.damprojectfinal.user.feature_chat.ui.ChatManagementScreen
-import com.example.damprojectfinal.user.feature_pro_profile.ui.RestaurantProfileView
 import com.example.damprojectfinal.user.feature_pro_profile.ui.RestaurantProfileViewScreen
 import com.example.damprojectfinal.user.feature_profile.ui.UserViewModel
 import com.example.damprojectfinal.core.`object`.KtorClient
@@ -966,7 +965,7 @@ fun AppNavigation(
             )
         }
 
-        // Order Details Route
+        // Order Details Route (User)
         composable(
             route = "order_details/{orderId}",
             arguments = listOf(navArgument("orderId") { type = NavType.StringType })
@@ -986,6 +985,27 @@ fun AppNavigation(
                 navController = navController,
                 orderViewModel = orderViewModel,
                 userId = userId
+            )
+        }
+
+        // Professional Order Details Route
+        composable(
+            route = "pro_order_details/{orderId}",
+            arguments = listOf(navArgument("orderId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+            val context = LocalContext.current
+            val tokenManager = remember { TokenManager(context) }
+            val orderApiService = remember { RetrofitClient.orderApi }
+            val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
+            val orderViewModel: OrderViewModel = viewModel(
+                factory = OrderViewModel.Factory(orderRepository)
+            )
+
+            com.example.damprojectfinal.professional.feature_order.ProfessionalOrderDetailsScreen(
+                orderId = orderId,
+                navController = navController,
+                orderViewModel = orderViewModel
             )
         }
 

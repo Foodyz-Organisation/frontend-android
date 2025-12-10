@@ -1,6 +1,5 @@
 package com.example.damprojectfinal.professional.feature_menu.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,7 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Delete // Kept for reference, but not used in the new card design
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -468,6 +467,31 @@ fun MenuItemGridCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+
+                // Show ingredients with intensity indicator
+                val intensityIngredients = item.ingredients.filter { it.supportsIntensity == true }
+                if (intensityIngredients.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Intensity",
+                            tint = BrandYellow,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "${intensityIngredients.size} adjustable",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = BrandYellow,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
 
                 // Starting From Text
                 Text(

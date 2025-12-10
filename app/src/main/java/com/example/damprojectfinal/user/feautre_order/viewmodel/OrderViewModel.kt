@@ -159,6 +159,84 @@ class OrderViewModel(
     }
 
 
+    // ---------------------------------------------------------
+    // DELETE SINGLE ORDER
+    // ---------------------------------------------------------
+    fun deleteOrder(orderId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            _loading.value = true
+            _error.value = null
+
+            val success = repository.deleteOrder(orderId)
+
+            if (success) {
+                // Remove from local state
+                _orders.value = _orders.value?.filter { it._id != orderId }
+                _singleOrder.value = null
+                onSuccess()
+            } else {
+                val errorMsg = "Failed to delete order"
+                _error.value = errorMsg
+                onError(errorMsg)
+            }
+
+            _loading.value = false
+        }
+    }
+
+
+    // ---------------------------------------------------------
+    // DELETE ALL ORDERS FOR USER
+    // ---------------------------------------------------------
+    fun deleteAllOrdersByUser(userId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            _loading.value = true
+            _error.value = null
+
+            val success = repository.deleteAllOrdersByUser(userId)
+
+            if (success) {
+                // Clear local state
+                _orders.value = emptyList()
+                _singleOrder.value = null
+                onSuccess()
+            } else {
+                val errorMsg = "Failed to delete all orders"
+                _error.value = errorMsg
+                onError(errorMsg)
+            }
+
+            _loading.value = false
+        }
+    }
+
+
+    // ---------------------------------------------------------
+    // DELETE ALL ORDERS FOR PROFESSIONAL
+    // ---------------------------------------------------------
+    fun deleteAllOrdersByProfessional(professionalId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            _loading.value = true
+            _error.value = null
+
+            val success = repository.deleteAllOrdersByProfessional(professionalId)
+
+            if (success) {
+                // Clear local state
+                _orders.value = emptyList()
+                _singleOrder.value = null
+                onSuccess()
+            } else {
+                val errorMsg = "Failed to delete all orders"
+                _error.value = errorMsg
+                onError(errorMsg)
+            }
+
+            _loading.value = false
+        }
+    }
+
+
     // ===================================================================
     // FACTORY
     // ===================================================================

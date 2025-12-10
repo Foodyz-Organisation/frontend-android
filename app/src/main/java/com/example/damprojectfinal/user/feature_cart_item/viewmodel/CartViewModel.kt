@@ -90,12 +90,40 @@ class CartViewModel(
     // Add Item to Cart
     // -----------------------------
     fun addItem(request: AddToCartRequest) {
+        android.util.Log.d("CartViewModel", "🛒 ========== addItem() CALLED ==========")
+        android.util.Log.d("CartViewModel", "Request: menuItemId=${request.menuItemId}, name=${request.name}, quantity=${request.quantity}")
+        android.util.Log.d("CartViewModel", "UserId: $userId")
+        android.util.Log.d("CartViewModel", "Ingredients: ${request.chosenIngredients.size}")
+        android.util.Log.d("CartViewModel", "Options: ${request.chosenOptions.size}")
+        android.util.Log.d("CartViewModel", "Price: ${request.calculatedPrice}")
+        
         viewModelScope.launch {
-            val cart = repository.addItemToCart(request, userId)
-            _uiState.value = when {
-                cart == null -> CartUiState.Error("Failed to add item")
-                cart.items.isEmpty() -> CartUiState.Empty
-                else -> CartUiState.Success(cart)
+            try {
+                android.util.Log.d("CartViewModel", "📡 Calling repository.addItemToCart()...")
+                val cart = repository.addItemToCart(request, userId)
+                
+                if (cart == null) {
+                    android.util.Log.e("CartViewModel", "❌ Repository returned null cart")
+                    _uiState.value = CartUiState.Error("Failed to add item")
+                } else {
+                    android.util.Log.d("CartViewModel", "✅ Repository returned cart with ${cart.items.size} items")
+                    cart.items.forEachIndexed { index, item ->
+                        android.util.Log.d("CartViewModel", "  Item $index: ${item.name} (qty=${item.quantity})")
+                    }
+                    _uiState.value = when {
+                        cart.items.isEmpty() -> {
+                            android.util.Log.d("CartViewModel", "⚠️ Cart is empty after add")
+                            CartUiState.Empty
+                        }
+                        else -> {
+                            android.util.Log.d("CartViewModel", "✅ Setting UI state to Success")
+                            CartUiState.Success(cart)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("CartViewModel", "❌ Exception in addItem(): ${e.message}", e)
+                _uiState.value = CartUiState.Error("Error: ${e.message}")
             }
         }
     }
@@ -173,15 +201,27 @@ class CartViewModel(
 
             // Convert cart items to order items
             val orderItems = cart.items.map { cartItem ->
-                OrderItemRequest(
+                android.util.Log.d("CartViewModel", "🛒 Converting cart item: ${cartItem.name}")
+                android.util.Log.d("CartViewModel", "  Ingredients count: ${cartItem.chosenIngredients.size}")
+                
+                cartItem.chosenIngredients.forEach { ingredient ->
+                    android.util.Log.d("CartViewModel", "    - ${ingredient.name}: intensityValue=${ingredient.intensityValue}, type=${ingredient.intensityType}, color=${ingredient.intensityColor}")
+                }
+                
+                val orderItem = OrderItemRequest(
                     menuItemId = cartItem.menuItemId,
                     name = cartItem.name,
                     quantity = cartItem.quantity,
                     chosenIngredients = cartItem.chosenIngredients.map {
-                        ChosenIngredientRequest(
+                        val request = ChosenIngredientRequest(
                             name = it.name,
-                            isDefault = it.isDefault
+                            isDefault = it.isDefault,
+                            intensityType = it.intensityType,
+                            intensityColor = it.intensityColor,
+                            intensityValue = it.intensityValue
                         )
+                        android.util.Log.d("CartViewModel", "      → Order ingredient: ${request.name}, intensityValue=${request.intensityValue}")
+                        request
                     },
                     chosenOptions = cartItem.chosenOptions.map {
                         ChosenOptionRequest(
@@ -191,6 +231,9 @@ class CartViewModel(
                     },
                     calculatedPrice = cartItem.calculatedPrice
                 )
+                
+                android.util.Log.d("CartViewModel", "  ✅ Created OrderItemRequest with ${orderItem.chosenIngredients?.size ?: 0} ingredients")
+                orderItem
             }
 
             // Calculate total price from cart items

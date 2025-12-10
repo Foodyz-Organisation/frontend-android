@@ -47,6 +47,7 @@ fun OrderHistoryScreen(
     val ordersState by orderViewModel.orders.collectAsState()
     val isLoading by orderViewModel.loading.collectAsState()
     var isSearchActive by remember { mutableStateOf(false) }
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(userId) {
         orderViewModel.loadOrdersByUser(userId)
@@ -87,6 +88,29 @@ fun OrderHistoryScreen(
                         contentPadding = PaddingValues(vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        // Delete All Button (only show if there are orders)
+                        if (!ordersState.isNullOrEmpty()) {
+                            item {
+                                Button(
+                                    onClick = { showDeleteAllDialog = true },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFEF4444),
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(
+                                        "Delete Completed Orders",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 16.sp
+                                    )
+                                }
+                            }
+                        }
+                        
                         items(ordersState!!, key = { it._id }) { order ->
                             OrderItemCard(order, onOrderClick)
                         }
@@ -97,6 +121,44 @@ fun OrderHistoryScreen(
             // --- Optional: Dynamic Search Overlay ---
             if (isSearchActive) {
                 // Import and use your DynamicSearchOverlay if needed
+            }
+            
+            // Delete All Confirmation Dialog
+            if (showDeleteAllDialog) {
+                val completedOrdersCount = ordersState?.count { it.status == com.example.damprojectfinal.core.dto.order.OrderStatus.COMPLETED } ?: 0
+                AlertDialog(
+                    onDismissRequest = { showDeleteAllDialog = false },
+                    title = { Text("Delete Completed Orders", fontWeight = FontWeight.Bold) },
+                    text = { Text("Are you sure you want to delete all completed orders? Only orders with status 'COMPLETED' will be deleted. This action cannot be undone.") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                orderViewModel.deleteAllOrdersByUser(
+                                    userId = userId,
+                                    onSuccess = {
+                                        showDeleteAllDialog = false
+                                    },
+                                    onError = { error ->
+                                        showDeleteAllDialog = false
+                                    }
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFEF4444),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Text("Delete All")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showDeleteAllDialog = false }
+                        ) {
+                            Text("Cancel", color = Color.Gray)
+                        }
+                    }
+                )
             }
         }
     )
