@@ -31,7 +31,10 @@ data class OrderItemRequest(
 
 data class ChosenIngredientRequest(
     @SerializedName("name") val name: String,
-    @SerializedName("isDefault") val isDefault: Boolean
+    @SerializedName("isDefault") val isDefault: Boolean,
+    @SerializedName("intensityType") val intensityType: com.example.damprojectfinal.core.dto.menu.IntensityType? = null,
+    @SerializedName("intensityColor") val intensityColor: String? = null,
+    @SerializedName("intensityValue") val intensityValue: Double? = null  // Changed to Double for JSON parsing consistency
 )
 
 data class ChosenOptionRequest(
@@ -124,7 +127,10 @@ data class OrderItemResponse(
 
 data class ChosenIngredientResponse(
     @SerializedName("name") val name: String,
-    @SerializedName("isDefault") val isDefault: Boolean
+    @SerializedName("isDefault") val isDefault: Boolean,
+    @SerializedName("intensityType") val intensityType: com.example.damprojectfinal.core.dto.menu.IntensityType? = null,
+    @SerializedName("intensityColor") val intensityColor: String? = null,
+    @SerializedName("intensityValue") val intensityValue: Double? = null  // Changed to Double for JSON parsing
 )
 
 data class ChosenOptionResponse(

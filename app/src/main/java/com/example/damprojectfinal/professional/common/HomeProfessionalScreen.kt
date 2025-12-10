@@ -157,6 +157,7 @@ fun HomeScreenPro(
 
     // State for filter
     var selectedFilter by remember { mutableStateOf<OrderType?>(null) }
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
 
     // Load orders on start
     LaunchedEffect(professionalId) {
@@ -327,19 +328,40 @@ fun HomeScreenPro(
                     else -> {
                         // Header
                         item {
-                            Text(
-                                text = "Pending Orders",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1F2A37),
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                            Text(
-                                text = "${filteredOrders.size} orders waiting for confirmation",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.Gray,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Pending Orders",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1F2A37),
+                                        modifier = Modifier.padding(top = 8.dp)
+                                    )
+                                    Text(
+                                        text = "${filteredOrders.size} orders waiting for confirmation",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.Gray,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                }
+                                
+                                // Delete All Button
+                                if (filteredOrders.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = { showDeleteAllDialog = true }
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Delete All Orders",
+                                            tint = Color(0xFFEF4444)
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         // Order List
@@ -384,6 +406,10 @@ fun HomeScreenPro(
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         }
+                                    },
+                                    onOrderClick = {
+                                        // Navigate to order details screen
+                                        navController.navigate("pro_order_details/${order.id}")
                                     }
                                 )
                             }
@@ -392,6 +418,50 @@ fun HomeScreenPro(
                 }
                 // --- 3. Navigation Cards & Recent Activity REMOVED ---
 
+            }
+            
+            // Delete All Confirmation Dialog
+            if (showDeleteAllDialog) {
+                val completedOrdersCount = ordersFromBackend?.count { it.status == OrderStatus.COMPLETED } ?: 0
+                AlertDialog(
+                    onDismissRequest = { showDeleteAllDialog = false },
+                    title = { Text("Delete Completed Orders", fontWeight = FontWeight.Bold) },
+                    text = { Text("Are you sure you want to delete all completed orders? Only orders with status 'COMPLETED' will be deleted. This action cannot be undone.") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                orderViewModel.deleteAllOrdersByProfessional(
+                                    professionalId = professionalId,
+                                    onSuccess = {
+                                        showDeleteAllDialog = false
+                                        Toast.makeText(context, "All orders deleted", Toast.LENGTH_SHORT).show()
+                                        // Reload orders after deletion
+                                        scope.launch {
+                                            orderViewModel.loadOrdersByProfessional(professionalId)
+                                        }
+                                    },
+                                    onError = { error ->
+                                        showDeleteAllDialog = false
+                                        Toast.makeText(context, "Failed to delete orders: $error", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFEF4444),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Text("Delete All")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showDeleteAllDialog = false }
+                        ) {
+                            Text("Cancel", color = Color.Gray)
+                        }
+                    }
+                )
             }
         }
     }
@@ -503,14 +573,16 @@ fun BottomBarChip(
 fun OrderCardWithStatusDropdown(
     order: Order,
     currentStatus: OrderStatus,
-    onStatusChange: (OrderStatus) -> Unit
+    onStatusChange: (OrderStatus) -> Unit,
+    onOrderClick: () -> Unit = {} // Add click handler
 ) {
     var expanded by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp)),
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onOrderClick), // Make card clickable
         elevation = CardDefaults.cardElevation(1.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {

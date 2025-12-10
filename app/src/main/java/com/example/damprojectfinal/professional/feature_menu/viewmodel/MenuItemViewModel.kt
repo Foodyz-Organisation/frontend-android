@@ -87,6 +87,25 @@ class MenuViewModel(
         }
     }
 
+    // --- UPDATE WITH IMAGE ---
+    fun updateMenuItemWithImage(
+        id: String,
+        professionalId: String,
+        payload: UpdateMenuItemDto,
+        imageFile: FileWithMime,
+        authToken: String
+    ) {
+        _uiState.value = MenuItemUiState.Loading
+        viewModelScope.launch {
+            repository.updateMenuItemWithImage(id, payload, imageFile, authToken)
+                .onSuccess {
+                    _uiState.value = MenuItemUiState.Success(it)
+                    fetchGroupedMenu(professionalId, authToken) // Refresh list
+                }
+                .onFailure { _uiState.value = MenuItemUiState.Error(it.message ?: "Update with Image Error") }
+        }
+    }
+
     // --- CREATE ---
     fun createMenuItem(payload: CreateMenuItemDto, imageFile: FileWithMime, authToken: String) {
         _uiState.value = MenuItemUiState.Loading

@@ -51,4 +51,25 @@ interface OrderApiService {
         @Header("Authorization") token: String
     ): Response<OrderResponse>
 
+    // DELETE SINGLE ORDER
+    @DELETE("orders/{orderId}")
+    suspend fun deleteOrder(
+        @Path("orderId") orderId: String,
+        @Header("Authorization") token: String
+    ): Response<Unit>
+
+    // DELETE ALL ORDERS FOR USER
+    @DELETE("orders/user/{userId}")
+    suspend fun deleteAllOrdersByUser(
+        @Path("userId") userId: String,
+        @Header("Authorization") token: String
+    ): Response<Unit>
+
+    // DELETE ALL ORDERS FOR PROFESSIONAL
+    @DELETE("orders/professional/{professionalId}")
+    suspend fun deleteAllOrdersByProfessional(
+        @Path("professionalId") professionalId: String,
+        @Header("Authorization") token: String
+    ): Response<Unit>
+
 }

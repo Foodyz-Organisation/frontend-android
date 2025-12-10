@@ -12,6 +12,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,6 +22,14 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.delay
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -45,10 +55,14 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.damprojectfinal.core.dto.menu.Category
 import com.example.damprojectfinal.core.dto.menu.CreateMenuItemDto
 import com.example.damprojectfinal.core.dto.menu.IngredientDto
+import com.example.damprojectfinal.core.dto.menu.IntensityType
 import com.example.damprojectfinal.core.dto.menu.OptionDto
+import com.example.damprojectfinal.core.api.MenuItemApi
+import com.example.damprojectfinal.core.api.IntensityTypeConfig
 import com.example.damprojectfinal.core.`object`.FileUtil // Ensure this import is correct
 import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuItemUiState
 import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewModel
+import kotlinx.coroutines.launch
 
 // Note: Ensure your project has the R.raw file and Lottie dependency if using LottieAnimation.
 // If R.raw is not available in this scope, you might need to use a hardcoded Int resource value
@@ -58,6 +72,13 @@ import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewM
 
 // Helper class for UI state (String price for user input)
 data class CreateOptionUi(var name: String = "", var priceStr: String = "")
+
+// Helper class for ingredient UI state (includes supportsIntensity flag and intensityType)
+data class CreateIngredientUi(
+    var name: String = "", 
+    var supportsIntensity: Boolean = false,
+    var intensityType: com.example.damprojectfinal.core.dto.menu.IntensityType? = null
+)
 
 // ---------- Modern Food App Colors (UPDATED) ----------
 // Primary Color: A vibrant "Food Delivery" Yellow (0xFFFFC107)
@@ -143,10 +164,13 @@ fun CreateMenuItemScreen(
     var priceText by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf("") }
 
-    val ingredients = remember { mutableStateListOf<String>() }
+    val ingredients = remember { mutableStateListOf<CreateIngredientUi>() }
     val options = remember { mutableStateListOf<CreateOptionUi>() }
 
     var newIngredient by remember { mutableStateOf("") }
+    var newIngredientSupportsIntensity by remember { mutableStateOf(false) }
+    var newIngredientIntensityType by remember { mutableStateOf<IntensityType?>(null) }
+    var showIntensityTypeSelector by remember { mutableStateOf(false) }
     var newOptionName by remember { mutableStateOf("") }
     var newOptionPrice by remember { mutableStateOf("") }
 
@@ -166,11 +190,22 @@ fun CreateMenuItemScreen(
 
     // ---------- ViewModel State ----------
     val uiState by viewModel.uiState.collectAsState()
+    val scope = rememberCoroutineScope()
+    var showSuccessDialog by remember { mutableStateOf(false) }
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
 
     LaunchedEffect(uiState) {
-        if (uiState is MenuItemUiState.Success) {
-            navController.popBackStack()
-            viewModel.resetUiState()
+        val currentState = uiState
+        when (currentState) {
+            is MenuItemUiState.Success -> {
+                showSuccessDialog = true
+            }
+            is MenuItemUiState.Error -> {
+                errorMessage = currentState.message
+                showErrorDialog = true
+            }
+            else -> { /* Loading or Idle - do nothing */ }
         }
     }
 
@@ -261,7 +296,14 @@ fun CreateMenuItemScreen(
                                 description = description.trim(),
                                 price = mainPrice,
                                 category = selectedCategory!!,
-                                ingredients = ingredients.map { IngredientDto(it.trim(), isDefault = true) },
+                                ingredients = ingredients.map { 
+                                    IngredientDto(
+                                        name = it.name.trim(), 
+                                        isDefault = true,
+                                        supportsIntensity = if (it.supportsIntensity) true else null,
+                                        intensityType = it.intensityType
+                                    ) 
+                                },
                                 options = options.mapNotNull {
                                     val price = it.priceStr.toDoubleOrNull()
                                     if (it.name.isBlank() || price == null) null
@@ -475,31 +517,76 @@ fun CreateMenuItemScreen(
                         .padding(16.dp)
                 ) {
                     // Input Row
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            FoodAppTextField(
-                                value = newIngredient,
-                                onValueChange = { newIngredient = it },
-                                placeholder = "Add ingredient...",
-                                bgColor = InputBackground
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                FoodAppTextField(
+                                    value = newIngredient,
+                                    onValueChange = { newIngredient = it },
+                                    placeholder = "Add ingredient...",
+                                    bgColor = InputBackground
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            // Enhanced 'Add' Button Style with Random Icon
+                            IconButton(
+                                onClick = {
+                                    val trimmedName = newIngredient.trim()
+                                    if (trimmedName.isNotBlank() && !ingredients.any { it.name == trimmedName }) {
+                                        ingredients.add(CreateIngredientUi(
+                                            name = trimmedName,
+                                            supportsIntensity = newIngredientSupportsIntensity,
+                                            intensityType = if (newIngredientSupportsIntensity) newIngredientIntensityType else null
+                                        ))
+                                        newIngredient = ""
+                                        newIngredientSupportsIntensity = false
+                                        newIngredientIntensityType = null
+                                    }
+                                },
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(PrimaryBrand) // Solid Yellow background
+                                    .size(48.dp)
+                            ) {
+                                // CHANGED: Tint set to Color.White
+                                Icon(ingredientAddIcon, "Add Ingredient", tint = Color.White)
+                            }
                         }
-                        Spacer(Modifier.width(8.dp))
-                        // Enhanced 'Add' Button Style with Random Icon
-                        IconButton(
-                            onClick = {
-                                if (newIngredient.isNotBlank() && !ingredients.contains(newIngredient.trim())) {
-                                    ingredients.add(newIngredient.trim())
-                                    newIngredient = ""
-                                }
-                            },
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(PrimaryBrand) // Solid Yellow background
-                                .size(48.dp)
-                        ) {
-                            // CHANGED: Tint set to Color.White
-                            Icon(ingredientAddIcon, "Add Ingredient", tint = Color.White)
+                        // Intensity Toggle
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Checkbox(
+                                    checked = newIngredientSupportsIntensity,
+                                    onCheckedChange = { 
+                                        newIngredientSupportsIntensity = it
+                                        if (!it) {
+                                            newIngredientIntensityType = null
+                                        }
+                                    },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = PrimaryBrand,
+                                        uncheckedColor = TextSecondary
+                                    )
+                                )
+                                Text(
+                                    text = "Enable intensity slider",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary,
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
+                            
+                            // Intensity Type Selector (shown only when intensity is enabled)
+                            if (newIngredientSupportsIntensity) {
+                                IntensityTypeSelector(
+                                    selectedType = newIngredientIntensityType,
+                                    onTypeSelected = { newIngredientIntensityType = it },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
 
@@ -519,7 +606,7 @@ fun CreateMenuItemScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                         // Small circular indicator (now yellow)
                                         Box(
                                             modifier = Modifier
@@ -527,7 +614,17 @@ fun CreateMenuItemScreen(
                                                 .background(PrimaryBrand, CircleShape)
                                         )
                                         Spacer(Modifier.width(12.dp))
-                                        Text(item, fontWeight = FontWeight.Medium, color = TextPrimary)
+                                        Column {
+                                            Text(item.name, fontWeight = FontWeight.Medium, color = TextPrimary)
+                                            if (item.supportsIntensity) {
+                                                Text(
+                                                    "Intensity: Adjustable",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = PrimaryBrand,
+                                                    fontSize = 10.sp
+                                                )
+                                            }
+                                        }
                                     }
 
                                     IconButton(
@@ -676,6 +773,28 @@ fun CreateMenuItemScreen(
             item { Spacer(Modifier.height(80.dp)) }
         }
     }
+    
+    // Success Dialog
+    if (showSuccessDialog) {
+        CreateSuccessDialog(
+            onDismiss = {
+                showSuccessDialog = false
+                scope.launch {
+                    delay(300)
+                    navController.popBackStack()
+                    viewModel.resetUiState()
+                }
+            }
+        )
+    }
+    
+    // Error Dialog
+    if (showErrorDialog) {
+        CreateErrorDialog(
+            message = errorMessage,
+            onDismiss = { showErrorDialog = false }
+        )
+    }
 }
 
 // --------------------------------------------------------------------------------------
@@ -742,6 +861,291 @@ fun FoodAppTextField(
             trailingIcon = trailingIcon,
             interactionSource = interactionSource
         )
+    }
+}
+
+// --------------------------------------------------
+// COMPONENT: Success Dialog for Create Screen
+// --------------------------------------------------
+@Composable
+fun CreateSuccessDialog(
+    onDismiss: () -> Unit
+) {
+    val scale = rememberInfiniteTransition(label = "scale").animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Animated Success Icon
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .scale(scale.value)
+                        .background(
+                            PrimaryBrand.copy(alpha = 0.15f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Success",
+                        tint = PrimaryBrand,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+                
+                // Success Title
+                Text(
+                    text = "Success!",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                
+                // Success Message
+                Text(
+                    text = "Item created successfully!",
+                    fontSize = 16.sp,
+                    color = TextSecondary
+                )
+                
+                Spacer(Modifier.height(8.dp))
+                
+                // OK Button
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PrimaryBrand,
+                        contentColor = TextPrimary
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "OK",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
+// --------------------------------------------------
+// COMPONENT: Error Dialog for Create Screen
+// --------------------------------------------------
+@Composable
+fun CreateErrorDialog(
+    message: String,
+    onDismiss: () -> Unit
+) {
+    val scale = rememberInfiniteTransition(label = "scale").animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Animated Error Icon
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .scale(scale.value)
+                        .background(
+                            ErrorColor.copy(alpha = 0.15f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Error,
+                        contentDescription = "Error",
+                        tint = ErrorColor,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+                
+                // Error Title
+                Text(
+                    text = "Creation Failed",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                
+                // Error Message
+                Text(
+                    text = message,
+                    fontSize = 14.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                
+                Spacer(Modifier.height(8.dp))
+                
+                // OK Button
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ErrorColor,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "OK",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// INTENSITY TYPE SELECTOR COMPONENT
+// -----------------------------------------------------------------------------
+
+@Composable
+fun IntensityTypeSelector(
+    selectedType: IntensityType?,
+    onTypeSelected: (IntensityType?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // Map intensity types to emoji icons and labels
+    val intensityTypes = listOf(
+        IntensityType.COFFEE to ("☕" to "Coffee"),
+        IntensityType.HARISSA to ("🌶️" to "Harissa"),
+        IntensityType.SAUCE to ("🍯" to "Sauce"),
+        IntensityType.SPICE to ("🌿" to "Spice"),
+        IntensityType.SUGAR to ("🍬" to "Sugar"),
+        IntensityType.SALT to ("🧂" to "Salt"),
+        IntensityType.PEPPER to ("🫚" to "Pepper"),
+        IntensityType.CHILI to ("🌶️" to "Chili"),
+        IntensityType.GARLIC to ("🧄" to "Garlic"),
+        IntensityType.LEMON to ("🍋" to "Lemon"),
+        IntensityType.CUSTOM to ("⭐" to "Custom")
+    )
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "Select Intensity Type:",
+            style = MaterialTheme.typography.bodySmall,
+            color = TextSecondary,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        
+        // Horizontal scrollable row of type chips
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp)
+        ) {
+            items(intensityTypes.size) { index ->
+                val typePair = intensityTypes[index]
+                val type = typePair.first
+                val emojiLabelPair = typePair.second
+                val emoji = emojiLabelPair.first
+                val label = emojiLabelPair.second
+                val isSelected = selectedType == type
+                
+                Surface(
+                    onClick = { 
+                        onTypeSelected(if (isSelected) null else type)
+                    },
+                    modifier = Modifier
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(20.dp)),
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isSelected) PrimaryBrand else InputBackground,
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = if (isSelected) 2.dp else 1.dp,
+                        color = if (isSelected) PrimaryBrand else Color(0xFFE0E0E0)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = emoji,
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = label,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isSelected) TextPrimary else TextSecondary
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

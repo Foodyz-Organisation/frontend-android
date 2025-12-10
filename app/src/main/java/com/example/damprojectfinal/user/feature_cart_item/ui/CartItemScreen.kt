@@ -10,8 +10,10 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -36,6 +38,12 @@ import com.example.damprojectfinal.R
 import com.google.gson.Gson
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.*
+import com.example.damprojectfinal.core.dto.menu.IntensityType
+import com.example.damprojectfinal.core.dto.cart.IngredientDto
 
 private const val BASE_URL = "http://10.0.2.2:3000/"
 
@@ -65,6 +73,384 @@ fun DetailsList(title: String, details: List<String>) {
                 color = Color.Gray,
                 modifier = Modifier.padding(start = 8.dp)
             )
+        }
+    }
+}
+
+// ---------------- Animated Bouncing Icon for Intensity ----------------
+@Composable
+fun AnimatedBouncingIcon(
+    emoji: String,
+    fontSize: TextUnit,
+    delayMillis: Int = 0
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "bounce")
+    
+    val bounceOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 600,
+                delayMillis = delayMillis,
+                easing = FastOutSlowInEasing
+            ),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bounce_offset"
+    )
+    
+    Text(
+        text = emoji,
+        fontSize = fontSize,
+        modifier = Modifier
+            .graphicsLayer {
+                translationY = bounceOffset
+            }
+    )
+}
+
+// ---------------- Helper: Get Emoji for Intensity Type ----------------
+fun getEmojiForIntensityType(type: IntensityType?): String {
+    return when (type) {
+        IntensityType.COFFEE -> "☕"
+        IntensityType.HARISSA -> "🌶️"
+        IntensityType.SAUCE -> "🍯"
+        IntensityType.SPICE -> "🌿"
+        IntensityType.SUGAR -> "🍬"
+        IntensityType.SALT -> "🧂"
+        IntensityType.PEPPER -> "🫚"
+        IntensityType.CHILI -> "🌶️"
+        IntensityType.GARLIC -> "🧄"
+        IntensityType.LEMON -> "🍋"
+        else -> "⭐" // Default for CUSTOM or null
+    }
+}
+
+// ---------------- Helper: Get Intensity Color ----------------
+fun parseColor(hexColor: String?): Color {
+    return try {
+        hexColor?.let { Color(android.graphics.Color.parseColor(it)) } ?: Color.Gray
+    } catch (e: IllegalArgumentException) {
+        Color.Gray // Fallback
+    }
+}
+
+fun getIntensityColor(intensityType: IntensityType?, intensityColorHex: String?, intensityValue: Float): Color {
+    // If backend provided a color, parse it and adjust by intensity
+    if (intensityColorHex != null) {
+        try {
+            val baseColor = Color(android.graphics.Color.parseColor(intensityColorHex))
+            // Adjust brightness based on intensity
+            return Color(
+                red = (baseColor.red * (0.5f + intensityValue * 0.5f)).coerceIn(0f, 1f),
+                green = (baseColor.green * (0.5f + intensityValue * 0.5f)).coerceIn(0f, 1f),
+                blue = (baseColor.blue * (0.5f + intensityValue * 0.5f)).coerceIn(0f, 1f)
+            )
+        } catch (e: Exception) {
+            // Fall through to default colors
+        }
+    }
+    
+    // Default colors based on type
+    return when (intensityType) {
+        IntensityType.COFFEE -> {
+            Color(
+                red = (0.2f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                green = (0.15f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                blue = (0.1f + intensityValue * 0.1f).coerceIn(0f, 1f)
+            )
+        }
+        IntensityType.HARISSA, IntensityType.CHILI -> {
+            Color(
+                red = (0.6f + intensityValue * 0.4f).coerceIn(0f, 1f),
+                green = (0.2f - intensityValue * 0.2f).coerceIn(0f, 1f),
+                blue = (0.2f - intensityValue * 0.2f).coerceIn(0f, 1f)
+            )
+        }
+        IntensityType.SAUCE -> {
+            Color(
+                red = (0.9f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                green = (0.6f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                blue = (0.2f - intensityValue * 0.1f).coerceIn(0f, 1f)
+            )
+        }
+        IntensityType.SPICE -> {
+            Color(
+                red = (0.8f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                green = (0.5f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                blue = (0.2f - intensityValue * 0.1f).coerceIn(0f, 1f)
+            )
+        }
+        IntensityType.SUGAR -> {
+            Color(
+                red = (0.95f + intensityValue * 0.05f).coerceIn(0f, 1f),
+                green = (0.9f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                blue = (0.7f + intensityValue * 0.2f).coerceIn(0f, 1f)
+            )
+        }
+        IntensityType.SALT -> {
+            Color(
+                red = (0.85f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                green = (0.85f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                blue = (0.9f + intensityValue * 0.1f).coerceIn(0f, 1f)
+            )
+        }
+        IntensityType.PEPPER -> {
+            Color(
+                red = (0.2f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                green = (0.2f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                blue = (0.2f + intensityValue * 0.2f).coerceIn(0f, 1f)
+            )
+        }
+        IntensityType.GARLIC -> {
+            Color(
+                red = (0.95f + intensityValue * 0.05f).coerceIn(0f, 1f),
+                green = (0.95f + intensityValue * 0.05f).coerceIn(0f, 1f),
+                blue = (0.9f + intensityValue * 0.1f).coerceIn(0f, 1f)
+            )
+        }
+        IntensityType.LEMON -> {
+            Color(
+                red = (0.95f + intensityValue * 0.05f).coerceIn(0f, 1f),
+                green = (0.9f + intensityValue * 0.1f).coerceIn(0f, 1f),
+                blue = (0.4f - intensityValue * 0.2f).coerceIn(0f, 1f)
+            )
+        }
+        IntensityType.CUSTOM, null -> {
+            Color(
+                red = (0.6f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                green = (0.6f + intensityValue * 0.2f).coerceIn(0f, 1f),
+                blue = (0.6f + intensityValue * 0.2f).coerceIn(0f, 1f)
+            )
+        }
+    }
+}
+
+// Custom Slider with Vertical Bar Thumb Design
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CustomIntensitySlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    activeColor: Color,
+    inactiveColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val trackHeight = 6.dp
+    val thumbWidth = 3.dp
+    val thumbHeight = 20.dp
+    val density = LocalDensity.current
+    
+    BoxWithConstraints(modifier = modifier.height(thumbHeight)) {
+        val trackWidthPx = with(density) { maxWidth.toPx() }
+        val thumbWidthPx = with(density) { thumbWidth.toPx() }
+        val thumbOffsetPx = value * (trackWidthPx - thumbWidthPx)
+        val thumbOffset = with(density) { thumbOffsetPx.toDp() }
+        val activeTrackWidth = with(density) { (thumbOffsetPx + thumbWidthPx / 2).toDp() }
+        
+        // Inactive track (background) - rounded
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(trackHeight)
+                .clip(RoundedCornerShape(8.dp))
+                .background(inactiveColor)
+                .align(Alignment.Center)
+        )
+        
+        // Active track (filled portion) - rounded left side
+        Box(
+            modifier = Modifier
+                .width(activeTrackWidth)
+                .height(trackHeight)
+                .clip(
+                    RoundedCornerShape(
+                        topStart = 8.dp,
+                        bottomStart = 8.dp,
+                        topEnd = if (value >= 1f) 8.dp else 0.dp,
+                        bottomEnd = if (value >= 1f) 8.dp else 0.dp
+                    )
+                )
+                .background(activeColor)
+                .align(Alignment.CenterStart)
+        )
+        
+        // Vertical bar thumb
+        Box(
+            modifier = Modifier
+                .width(thumbWidth)
+                .height(thumbHeight)
+                .offset(x = thumbOffset)
+                .background(activeColor)
+                .align(Alignment.CenterStart)
+        )
+        
+        // Small dot at the end of inactive track
+        if (value < 1f) {
+            Box(
+                modifier = Modifier
+                    .size(4.dp)
+                    .clip(CircleShape)
+                    .background(inactiveColor)
+                    .offset(x = maxWidth - 4.dp)
+                    .align(Alignment.CenterEnd)
+            )
+        }
+        
+        // Invisible touch target for interaction (disabled for read-only)
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = 0f..1f,
+            modifier = Modifier.fillMaxSize(),
+            enabled = false,
+            colors = SliderDefaults.colors(
+                thumbColor = Color.Transparent,
+                activeTrackColor = Color.Transparent,
+                inactiveTrackColor = Color.Transparent
+            ),
+            thumb = {
+                Box(modifier = Modifier.size(0.dp))
+            },
+            track = {
+                Box(modifier = Modifier.fillMaxSize())
+            }
+        )
+    }
+}
+
+// ---------------- Ingredients Display with Intensity ----------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun IngredientsListWithIntensity(ingredients: List<IngredientDto>) {
+    if (ingredients.isEmpty()) return
+    
+    Text(
+        text = "Ingredients:",
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        color = DarkText,
+        modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+    )
+    
+    ingredients.forEach { ingredient ->
+            if (ingredient.intensityType != null) {
+                // Convert Double to Float, or use default if null
+                val intensityValue = ingredient.intensityValue?.toFloat() ?: 0.5f
+                
+                // Debug logging to see actual values
+                android.util.Log.d("CartDetails", "Ingredient: ${ingredient.name}, intensityValue (Double): ${ingredient.intensityValue}, intensityValue (Float): $intensityValue")
+                
+                val primaryColor = getIntensityColor(ingredient.intensityType, ingredient.intensityColor, intensityValue)
+                val baseEmoji = getEmojiForIntensityType(ingredient.intensityType)
+            
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                ) {
+                    // Ingredient name
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(PrimaryYellow)
+                            )
+                            Text(
+                                text = ingredient.name,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = DarkText
+                            )
+                            if (ingredient.isDefault) {
+                                Text(
+                                    text = "(Default)",
+                                    fontSize = 11.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Intensity slider (read-only display)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CustomIntensitySlider(
+                            value = intensityValue,
+                            onValueChange = { }, // Read-only
+                            activeColor = primaryColor,
+                            inactiveColor = primaryColor.copy(alpha = 0.3f),
+                            modifier = Modifier.weight(1f)
+                        )
+                        // Intensity icons on the right
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(start = 12.dp)
+                        ) {
+                            when {
+                                intensityValue >= 0.8f -> {
+                                    AnimatedBouncingIcon(baseEmoji, fontSize = 18.sp, delayMillis = 0)
+                                    if (ingredient.intensityType == IntensityType.HARISSA || ingredient.intensityType == IntensityType.CHILI) {
+                                        AnimatedBouncingIcon("🔥", fontSize = 18.sp, delayMillis = 100)
+                                    }
+                                }
+                                intensityValue >= 0.3f -> {
+                                    AnimatedBouncingIcon(baseEmoji, fontSize = 16.sp, delayMillis = 0)
+                                    AnimatedBouncingIcon(baseEmoji, fontSize = 16.sp, delayMillis = 150)
+                                }
+                                else -> {
+                                    AnimatedBouncingIcon(baseEmoji, fontSize = 16.sp, delayMillis = 0)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Regular ingredient without intensity
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp, horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "• ${ingredient.name}",
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
+                if (ingredient.isDefault) {
+                    Text(
+                        text = " (Default)",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
         }
     }
 }
@@ -151,11 +537,12 @@ fun CartItemCard(
                 .background(Color(0xFFF3F4F6))
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            DetailsList(
-                "Ingredients",
-                item.chosenIngredients.map { "${it.name} (${if (it.isDefault) "Default" else "Added"})" }
-            )
+            // Show ingredients with intensity information
+            if (item.chosenIngredients.isNotEmpty()) {
+                IngredientsListWithIntensity(item.chosenIngredients)
+            }
             if (item.chosenOptions.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
                 DetailsList(
                     "Options",
                     item.chosenOptions.map { "${it.name} (+${"%.3f".format(it.price)} TND)" }
@@ -323,10 +710,8 @@ fun ShoppingCartScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.Start
                         ) {
-                            DetailsList(
-                                "Ingredients",
-                                selectedItem!!.chosenIngredients.map { "${it.name} (${if (it.isDefault) "Default" else "Added"})" }
-                            )
+                            // Display ingredients with intensity information
+                            IngredientsListWithIntensity(selectedItem!!.chosenIngredients)
                             if (selectedItem!!.chosenOptions.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 DetailsList(

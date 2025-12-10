@@ -1,6 +1,7 @@
-package com.example.damprojectfinal.user.feautre_order.ui
+package com.example.damprojectfinal.professional.feature_order
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,7 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,6 +34,7 @@ import com.example.damprojectfinal.core.dto.order.OrderItemResponse
 import com.example.damprojectfinal.core.dto.order.OrderResponse
 import com.example.damprojectfinal.core.dto.order.OrderStatus
 import com.example.damprojectfinal.core.dto.order.ChosenIngredientResponse
+import com.example.damprojectfinal.core.dto.order.UpdateOrderStatusRequest
 import com.example.damprojectfinal.core.dto.menu.IntensityType
 import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
 import java.text.SimpleDateFormat
@@ -50,25 +52,21 @@ private val LightGrayText = Color(0xFF9CA3AF)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OrderDetailsScreen(
+fun ProfessionalOrderDetailsScreen(
     orderId: String,
     navController: NavController,
-    orderViewModel: OrderViewModel,
-    userId: String  // Add userId parameter
+    orderViewModel: OrderViewModel
 ) {
-    val ordersState by orderViewModel.orders.collectAsState()
+    val singleOrderState by orderViewModel.singleOrder.collectAsState()
     val isLoading by orderViewModel.loading.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
     
-    // Load orders when screen opens
-    LaunchedEffect(userId) {
-        orderViewModel.loadOrdersByUser(userId)
+    // Load order by ID when screen opens
+    LaunchedEffect(orderId) {
+        orderViewModel.loadOrderById(orderId)
     }
     
-    val order = remember(ordersState, orderId) {
-        ordersState?.find { it._id == orderId }
-    }
+    val order = singleOrderState
 
     Scaffold(
         containerColor = BackgroundLight,
@@ -82,8 +80,8 @@ fun OrderDetailsScreen(
                 },
                 actions = {
                     // Only show delete button if order status is CONFIRMED or PENDING
-                    if (order != null && (order.status == com.example.damprojectfinal.core.dto.order.OrderStatus.CONFIRMED || 
-                        order.status == com.example.damprojectfinal.core.dto.order.OrderStatus.PENDING)) {
+                    if (order != null && (order.status == OrderStatus.CONFIRMED || 
+                        order.status == OrderStatus.PENDING)) {
                         IconButton(
                             onClick = { showDeleteDialog = true }
                         ) {
@@ -129,7 +127,7 @@ fun OrderDetailsScreen(
             ) {
                 // Header Section
                 item {
-                    OrderHeaderCard(order)
+                    ProfessionalOrderHeaderCard(order, orderViewModel)
                 }
 
                 // Items Section
@@ -143,12 +141,12 @@ fun OrderDetailsScreen(
                 }
 
                 items(order.items) { item ->
-                    OrderItemDetailCard(item)
+                    ProfessionalOrderItemDetailCard(item)
                 }
 
                 // Summary Section
                 item {
-                    OrderSummaryCard(order)
+                    ProfessionalOrderSummaryCard(order)
                 }
 
                 // Spacing at bottom
@@ -199,8 +197,12 @@ fun OrderDetailsScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OrderHeaderCard(order: OrderResponse) {
+fun ProfessionalOrderHeaderCard(order: OrderResponse, orderViewModel: OrderViewModel) {
+    var expanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -252,8 +254,14 @@ fun OrderHeaderCard(order: OrderResponse) {
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
                 dateFormat.timeZone = TimeZone.getTimeZone("UTC")
                 val createdDate = dateFormat.parse(order.createdAt)
-                val displayFormat = SimpleDateFormat("MMM dd, yyyy • hh:mm a", Locale.US)
-                displayFormat.format(createdDate ?: Date())
+                val currentDate = Date()
+                val diffInMillis = currentDate.time - (createdDate?.time ?: 0)
+                val minutes = diffInMillis / (1000 * 60)
+                when {
+                    minutes < 1 -> "Received just now"
+                    minutes < 60 -> "Received $minutes minutes ago"
+                    else -> "Received ${minutes / 60} hours ago"
+                }
             } catch (e: Exception) {
                 "Date unavailable"
             }
@@ -285,12 +293,113 @@ fun OrderHeaderCard(order: OrderResponse) {
                     fontSize = 14.sp
                 )
             }
+            
+            Spacer(Modifier.height(16.dp))
+            
+            // Status Update Dropdown (for professionals)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Order Status:",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DarkText
+                )
+
+                val validStatuses = getValidStatusTransitions(order.status)
+                val canChangeStatus = validStatuses.isNotEmpty()
+
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { if (canChangeStatus) expanded = !expanded }
+                ) {
+                    OutlinedTextField(
+                        value = getStatusDisplayName(order.status),
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = canChangeStatus,
+                        trailingIcon = {
+                            if (canChangeStatus) {
+                                Icon(
+                                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = "Dropdown"
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Final State",
+                                    tint = Color.Gray
+                                )
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = getStatusColor(order.status).copy(alpha = 0.1f),
+                            unfocusedContainerColor = getStatusColor(order.status).copy(alpha = 0.1f),
+                            disabledContainerColor = getStatusColor(order.status).copy(alpha = 0.1f),
+                            unfocusedBorderColor = getStatusColor(order.status),
+                            focusedBorderColor = getStatusColor(order.status),
+                            disabledBorderColor = getStatusColor(order.status).copy(alpha = 0.5f),
+                            disabledTextColor = getStatusColor(order.status)
+                        ),
+                        modifier = Modifier
+                            .menuAnchor()
+                            .width(160.dp)
+                            .height(56.dp),
+                        textStyle = LocalTextStyle.current.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = getStatusColor(order.status)
+                        )
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        validStatuses.forEach { status ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(12.dp)
+                                                .clip(CircleShape)
+                                                .background(getStatusColor(status))
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = getStatusDisplayName(status),
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    if (status != order.status) {
+                                        scope.launch {
+                                            orderViewModel.updateOrderStatus(
+                                                order._id,
+                                                UpdateOrderStatusRequest(status)
+                                            )
+                                            // Reload order after update
+                                            orderViewModel.loadOrderById(order._id)
+                                        }
+                                    }
+                                    expanded = false
+                                },
+                                enabled = status != order.status
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-fun OrderItemDetailCard(item: OrderItemResponse) {
+fun ProfessionalOrderItemDetailCard(item: OrderItemResponse) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -335,7 +444,7 @@ fun OrderItemDetailCard(item: OrderItemResponse) {
 
                 // Ingredients with Intensity Display
                 if (!item.chosenIngredients.isNullOrEmpty()) {
-                    OrderIngredientsListWithIntensity(item.chosenIngredients)
+                    ProfessionalOrderIngredientsListWithIntensity(item.chosenIngredients)
                 }
 
                 // Options
@@ -349,7 +458,7 @@ fun OrderItemDetailCard(item: OrderItemResponse) {
                     )
                     item.chosenOptions.forEach { option ->
                         Text(
-                            "  + ${option.name} (+${"%.2f".format(option.price)} DT)",
+                            "  + ${option.name} (+${"%.2f".format(option.price)} TND)",
                             fontSize = 11.sp,
                             color = PrimaryColor
                         )
@@ -371,7 +480,7 @@ fun OrderItemDetailCard(item: OrderItemResponse) {
 }
 
 @Composable
-fun OrderSummaryCard(order: OrderResponse) {
+fun ProfessionalOrderSummaryCard(order: OrderResponse) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -427,6 +536,44 @@ fun OrderSummaryCard(order: OrderResponse) {
     }
 }
 
+// ---------------- Helper Functions ----------------
+private fun getStatusColor(status: OrderStatus): Color {
+    return when (status) {
+        OrderStatus.PENDING -> Color(0xFFFFA500)
+        OrderStatus.CONFIRMED -> Color(0xFF4CAF50)
+        OrderStatus.COMPLETED -> Color(0xFF2196F3)
+        OrderStatus.CANCELLED -> Color(0xFF9E9E9E)
+        OrderStatus.REFUSED -> Color(0xFFF44336)
+    }
+}
+
+private fun getStatusDisplayName(status: OrderStatus): String {
+    return when (status) {
+        OrderStatus.PENDING -> "Pending"
+        OrderStatus.CONFIRMED -> "Confirmed"
+        OrderStatus.COMPLETED -> "Completed"
+        OrderStatus.CANCELLED -> "Cancelled"
+        OrderStatus.REFUSED -> "Refused"
+    }
+}
+
+private fun getValidStatusTransitions(currentStatus: OrderStatus): List<OrderStatus> {
+    return when (currentStatus) {
+        OrderStatus.PENDING -> listOf(
+            OrderStatus.CONFIRMED,
+            OrderStatus.REFUSED,
+            OrderStatus.CANCELLED
+        )
+        OrderStatus.CONFIRMED -> listOf(
+            OrderStatus.COMPLETED,
+            OrderStatus.CANCELLED
+        )
+        OrderStatus.COMPLETED -> emptyList()
+        OrderStatus.CANCELLED -> emptyList()
+        OrderStatus.REFUSED -> emptyList()
+    }
+}
+
 // ---------------- Animated Bouncing Icon for Intensity ----------------
 @Composable
 fun AnimatedBouncingIcon(
@@ -473,28 +620,25 @@ fun getEmojiForIntensityType(type: IntensityType?): String {
         IntensityType.CHILI -> "🌶️"
         IntensityType.GARLIC -> "🧄"
         IntensityType.LEMON -> "🍋"
-        else -> "⭐" // Default for CUSTOM or null
+        else -> "⭐"
     }
 }
 
 // ---------------- Helper: Get Intensity Color ----------------
 fun getIntensityColor(intensityType: IntensityType?, intensityColorHex: String?, intensityValue: Float): Color {
-    // If backend provided a color, parse it and adjust by intensity
     if (intensityColorHex != null) {
         try {
             val baseColor = Color(android.graphics.Color.parseColor(intensityColorHex))
-            // Adjust brightness based on intensity
             return Color(
                 red = (baseColor.red * (0.5f + intensityValue * 0.5f)).coerceIn(0f, 1f),
                 green = (baseColor.green * (0.5f + intensityValue * 0.5f)).coerceIn(0f, 1f),
                 blue = (baseColor.blue * (0.5f + intensityValue * 0.5f)).coerceIn(0f, 1f)
             )
         } catch (e: Exception) {
-            // Fall through to default colors
+            // Fall through
         }
     }
     
-    // Default colors based on type
     return when (intensityType) {
         IntensityType.COFFEE -> {
             Color(
@@ -665,7 +809,7 @@ fun CustomIntensitySlider(
 // ---------------- Ingredients Display with Intensity for Orders ----------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OrderIngredientsListWithIntensity(ingredients: List<ChosenIngredientResponse>) {
+fun ProfessionalOrderIngredientsListWithIntensity(ingredients: List<ChosenIngredientResponse>) {
     if (ingredients.isEmpty()) return
     
     Text(
@@ -700,7 +844,6 @@ fun OrderIngredientsListWithIntensity(ingredients: List<ChosenIngredientResponse
                         .fillMaxWidth()
                         .padding(12.dp)
                 ) {
-                    // Ingredient name
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -713,7 +856,7 @@ fun OrderIngredientsListWithIntensity(ingredients: List<ChosenIngredientResponse
                             Box(
                                 modifier = Modifier
                                     .size(6.dp)
-                                    .clip(RoundedCornerShape(50))
+                                    .clip(CircleShape)
                                     .background(PrimaryColor)
                             )
                             Text(
@@ -734,7 +877,6 @@ fun OrderIngredientsListWithIntensity(ingredients: List<ChosenIngredientResponse
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    // Intensity slider (read-only display)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -747,7 +889,6 @@ fun OrderIngredientsListWithIntensity(ingredients: List<ChosenIngredientResponse
                             inactiveColor = primaryColor.copy(alpha = 0.3f),
                             modifier = Modifier.weight(1f)
                         )
-                        // Intensity icons on the right
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -773,7 +914,6 @@ fun OrderIngredientsListWithIntensity(ingredients: List<ChosenIngredientResponse
                 }
             }
         } else {
-            // Regular ingredient without intensity
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -789,3 +929,4 @@ fun OrderIngredientsListWithIntensity(ingredients: List<ChosenIngredientResponse
         }
     }
 }
+

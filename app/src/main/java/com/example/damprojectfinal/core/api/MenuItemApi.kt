@@ -33,11 +33,21 @@ interface MenuItemApi {
         @Header("Authorization") token: String
     ): Response<MenuItemResponseDto>
 
-    // PUT: Update
+    // PUT: Update (JSON only, no image)
     @PUT("menu-items/{id}")
     suspend fun updateMenuItem(
         @Path("id") id: String,
         @Body updateDto: UpdateMenuItemDto,
+        @Header("Authorization") token: String
+    ): Response<MenuItemResponseDto>
+
+    // PUT: Update with Image (Multipart - needs backend endpoint)
+    @Multipart
+    @PUT("menu-items/{id}/with-image")
+    suspend fun updateMenuItemWithImage(
+        @Path("id") id: String,
+        @Part("updateMenuItemDto") updateDto: RequestBody,
+        @Part image: MultipartBody.Part,
         @Header("Authorization") token: String
     ): Response<MenuItemResponseDto>
 
@@ -47,4 +57,18 @@ interface MenuItemApi {
         @Path("id") id: String,
         @Header("Authorization") token: String
     ): Response<MenuItemResponseDto>
+
+    // GET: Intensity Types Configuration
+    @GET("menu-items/intensity-types/config")
+    suspend fun getIntensityTypesConfig(
+        @Header("Authorization") token: String
+    ): Response<Map<String, IntensityTypeConfig>>
 }
+
+// Data class for intensity type configuration from backend
+data class IntensityTypeConfig(
+    val type: String,
+    val icon: String,
+    val defaultColor: String,
+    val label: String
+)

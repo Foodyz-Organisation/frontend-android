@@ -331,7 +331,7 @@ fun PostDetailsScreen(
                             onClick = {
                                 if (newCommentText.isBlank()) return@FloatingActionButton
                                 if (isSubmittingComment) return@FloatingActionButton
-                                scope.launch {
+                                    scope.launch {
                                     isSubmittingComment = true
                                     try {
                                         val createdComment = postsViewModel.createCommentImmediate(
