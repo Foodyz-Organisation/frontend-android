@@ -2,16 +2,19 @@ package com.example.damprojectfinal.user.feature_chat.ui
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -51,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.example.damprojectfinal.core.api.UserDto
 import com.example.damprojectfinal.core.api.PeerDto
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.model.ChatListItem
@@ -94,14 +98,11 @@ fun ChatManagementScreen(
     val isStarting by vm.isStartingConversation.collectAsState(initial = false)
     val startConversationError by vm.startConversationError.collectAsState(initial = null)
 
-    val filteredChats = remember(searchQuery, chatList) {
-        if (searchQuery.isBlank()) {
-            chatList
-        } else {
-            chatList.filter { chat ->
-                chat.title.contains(searchQuery, ignoreCase = true) ||
-                        chat.subtitle.contains(searchQuery, ignoreCase = true)
-            }
+    val searchResults by vm.searchResults.collectAsState()
+
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isNotBlank() && accessToken != null) {
+            vm.searchUsers(accessToken!!, searchQuery)
         }
     }
 
@@ -122,16 +123,34 @@ fun ChatManagementScreen(
                     tint = Color.Red,
                     icon = "⚠️"
                 )
-                filteredChats.isEmpty() -> StatusCard(
-                    text = if (searchQuery.isNotBlank())
-                        "No conversations found"
-                    else
-                        "No conversations yet. Start one from the + button.",
+                searchQuery.isNotBlank() -> {
+                    if (searchResults.isEmpty()) {
+                        StatusCard(
+                            text = "No users found matching '$searchQuery'",
+                            tint = Color(0xFFF59E0B),
+                            icon = "\uD83D\uDD0D"
+                        )
+                    } else {
+                        UserList(
+                            users = searchResults,
+                            onUserClick = { user ->
+                                accessToken?.let { token ->
+                                    vm.onUserSelected(token, currentUserId ?: "", user) { convId ->
+                                        val title = user.fullName ?: user.username
+                                        navController.navigate("chatDetail/$convId/$title/${currentUserId ?: "unknown"}")
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+                chatList.isEmpty() -> StatusCard(
+                    text = "No conversations yet. Start one from the + button.",
                     tint = Color(0xFFF59E0B),
                     icon = "\uD83D\uDCAC"
                 )
                 else -> ConversationList(
-                    chats = filteredChats,
+                    chats = chatList,
                     currentUserId = currentUserId ?: "unknown",
                     navController = navController
                 )
@@ -421,6 +440,65 @@ private fun StatusCard(text: String, tint: Color, icon: String) {
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun ChatManagementScreenPreview() {
-    val navController = rememberNavController()
-    ChatManagementScreen(navController = navController)
+    MaterialTheme {
+        val navController = rememberNavController()
+        // Note: Preview will not show actual data as it requires context and network
+        // This preview shows the UI structure only
+        ChatManagementScreen(navController = navController)
+    }
+}
+
+@Composable
+private fun UserList(
+    users: List<UserDto>,
+    onUserClick: (UserDto) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 12.dp),
+        contentPadding = PaddingValues(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(users) { user ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White, RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onUserClick(user) }
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Avatar
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .background(Color.LightGray, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = (user.fullName ?: user.username).take(1).uppercase(),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Column {
+                    Text(
+                        text = user.fullName ?: user.username,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = user.email,
+                        color = Color.Gray,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
+    }
 }

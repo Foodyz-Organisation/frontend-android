@@ -28,7 +28,12 @@ data class MessageDto(
     val type: String = "text",
     val createdAt: String? = null,
     val updatedAt: String? = null,
-    val meta: Map<String, String>? = null
+    val meta: Map<String, String>? = null,
+    // Bad Words Detection
+    val hasBadWords: Boolean? = false,
+    val moderatedContent: String? = null,
+    val isSpam: Boolean? = false,
+    val spamConfidence: Double? = 0.0
 )
 
 data class CreateConversationDto(
@@ -51,9 +56,40 @@ data class PeerDto(
     val avatarUrl: String? = null
 )
 
+data class UserDto(
+    @SerializedName("_id") val id: String,
+    val username: String,
+    val fullName: String?,
+    val email: String,
+    val profilePictureUrl: String?
+)
+
+data class ChatSummaryDto(
+    val id: String,
+    val name: String,
+    val avatarUrl: String?,
+    val message: String,
+    val time: String,
+    val unreadCount: Int,
+    val online: Boolean
+)
+
 // ===== API Service Interface =====
 
 interface ChatApiService {
+    // ... existing methods ...
+
+    @GET("users/search")
+    suspend fun searchUsers(
+        @Header("Authorization") bearerToken: String,
+        @Query("q") query: String
+    ): List<UserDto>
+    
+    @GET("chat/chats")
+    suspend fun getChats(
+        @Header("Authorization") bearerToken: String
+    ): List<ChatSummaryDto>
+    
     // Conversations (aligned with iOS usage)
     @GET("chat/conversations")
     suspend fun getConversations(

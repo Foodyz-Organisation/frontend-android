@@ -10,6 +10,7 @@ import com.example.damprojectfinal.core.api.CreateConversationDto
 import com.example.damprojectfinal.core.api.MessageDto
 import com.example.damprojectfinal.core.api.PeerDto
 import com.example.damprojectfinal.core.api.SendMessageDto
+import com.example.damprojectfinal.core.api.UserDto
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.model.ChatListItem
 import com.example.damprojectfinal.core.model.ChatMessage
@@ -67,6 +68,18 @@ class ChatViewModel : ViewModel() {
     val isSocketConnected: StateFlow<Boolean> = _isSocketConnected
 
     private var socketManager: ChatSocketManager? = null
+    
+    // ===== WebRTC =====
+    private var webRtcClient: com.example.damprojectfinal.core.webrtc.WebRtcClient? = null
+    private val _incomingCall = MutableStateFlow<Boolean>(false)
+    val incomingCall: StateFlow<Boolean> = _incomingCall
+    
+    private val _isInCall = MutableStateFlow<Boolean>(false)
+    val isInCall: StateFlow<Boolean> = _isInCall
+    
+    // Context needed for WebRTC initialization - passed via initWebRtc
+    private var applicationContext: android.content.Context? = null
+    private var eglBaseContext: org.webrtc.EglBase.Context? = null
 
     // =======================
     //      API REST
@@ -83,17 +96,32 @@ class ChatViewModel : ViewModel() {
 
             if (showLoading) _isLoading.value = true
             try {
-                // Aligne les endpoints avec iOS: liste des conversations
-                val response: List<ConversationDto> =
-                    chatApiService.getConversations("Bearer $authToken")
-
-                // Filter out conversations with null IDs
-                val validConversations = response.filter { it.id != null }
+                // Use getChats to get pre-resolved names and avatars
+                val response = chatApiService.getChats("Bearer $authToken")
 
                 // Mapping DTO -> modèle UI
-                conversations = validConversations
-                _chats.value = validConversations.map { it.toChatMessage() }
-                _chatItems.value = validConversations.map { it.toChatListItem(currentUserId) }
+                _chatItems.value = response.map { summary ->
+                    ChatListItem(
+                        id = summary.id,
+                        title = summary.name,
+                        subtitle = summary.message,
+                        updatedTime = formatTimestamp(summary.time),
+                        unreadCount = summary.unreadCount,
+                        isOnline = summary.online,
+                        avatarUrl = summary.avatarUrl,
+                        initials = initialsFrom(summary.name)
+                    )
+                }
+                
+                // Also fetch full conversations for internal logic if needed (e.g. participants for calls)
+                // But for the list, we are good.
+                // We might want to fetch conversations in background to populate 'conversations' list for 'onUserSelected' logic
+                try {
+                    val convs = chatApiService.getConversations("Bearer $authToken")
+                    conversations = convs.filter { it.id != null }
+                } catch (e: Exception) {
+                    // Ignore error here, main list is already loaded
+                }
 
                 _errorMessage.value = null
             } catch (e: Exception) {
@@ -118,6 +146,65 @@ class ChatViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to load peers: ${e.message}"
+            }
+        }
+    }
+
+    // ===== User Search =====
+    private val _searchResults = MutableStateFlow<List<UserDto>>(emptyList())
+    val searchResults: StateFlow<List<UserDto>> = _searchResults
+
+    fun searchUsers(authToken: String, query: String) {
+        viewModelScope.launch {
+            if (query.isBlank()) {
+                _searchResults.value = emptyList()
+                return@launch
+            }
+            try {
+                val results = chatApiService.searchUsers("Bearer $authToken", query)
+                _searchResults.value = results
+            } catch (e: Exception) {
+                // Handle error silently or show toast
+                _searchResults.value = emptyList()
+            }
+        }
+    }
+
+    fun onUserSelected(
+        authToken: String, 
+        currentUserId: String, 
+        selectedUser: UserDto, 
+        onConversationReady: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isStartingConversation.value = true
+            try {
+                // 1. Check if conversation exists
+                val existing = conversations.find { conv ->
+                    conv.kind == "private" && 
+                    conv.participants.contains(selectedUser.id) && 
+                    conv.participants.contains(currentUserId)
+                }
+
+                if (existing != null && existing.id != null) {
+                    onConversationReady(existing.id)
+                } else {
+                    // 2. Create new conversation
+                    val dto = CreateConversationDto(
+                        kind = "private",
+                        participants = listOf(selectedUser.id)
+                    )
+                    val newConv = chatApiService.createConversation("Bearer $authToken", dto)
+                    if (newConv.id != null) {
+                        onConversationReady(newConv.id)
+                        // Refresh list
+                        loadConversations(authToken, currentUserId, false)
+                    }
+                }
+            } catch (e: Exception) {
+                _startConversationError.value = "Failed to start chat: ${e.message}"
+            } finally {
+                _isStartingConversation.value = false
             }
         }
     }
@@ -231,9 +318,56 @@ class ChatViewModel : ViewModel() {
             setOnMessageReceived { msg ->
                 _messages.value = _messages.value + msg
             }
+            
+            // WebRTC Signaling
+            setOnCallMade { data ->
+                // Incoming call
+                _incomingCall.value = true
+                // Store offer to answer later
+                pendingOffer = data.optJSONObject("offer")
+                callerSocketId = data.optString("socket")
+            }
+            
+            setOnAnswerMade { data ->
+                val answerJson = data.optJSONObject("answer")
+                answerJson?.let {
+                    val sdp = org.webrtc.SessionDescription(
+                        org.webrtc.SessionDescription.Type.ANSWER,
+                        it.optString("sdp")
+                    )
+                    webRtcClient?.onRemoteSessionReceived(sdp)
+                }
+            }
+            
+            setOnIceCandidateReceived { data ->
+                val candidateJson = data.optJSONObject("candidate")
+                candidateJson?.let {
+                    val candidate = org.webrtc.IceCandidate(
+                        it.optString("sdpMid"),
+                        it.optInt("sdpMLineIndex"),
+                        it.optString("candidate")
+                    )
+                    webRtcClient?.addIceCandidate(candidate)
+                }
+            }
+            
+            setOnCallEnded {
+                endCall()
+            }
+            
+            setOnCallDeclined {
+                viewModelScope.launch {
+                    endCall()
+                }
+            }
         }
 
         socketManager?.connect()
+    }
+
+    fun disconnectSocket() {
+        socketManager?.disconnect()
+        _isSocketConnected.value = false
     }
 
     fun sendSocketMessage(
@@ -437,6 +571,209 @@ class ChatViewModel : ViewModel() {
             .take(2)
             .mapNotNull { it.firstOrNull()?.uppercaseChar()?.toString() }
             .joinToString("")
+    }
+
+    // =======================
+    //        WebRTC
+    // =======================
+    
+    private var pendingOffer: org.json.JSONObject? = null
+    private var callerSocketId: String? = null
+    
+    fun initWebRtc(context: android.content.Context) {
+        this.applicationContext = context.applicationContext
+        val eglBase = org.webrtc.EglBase.create()
+        this.eglBaseContext = eglBase.eglBaseContext
+        
+        webRtcClient = com.example.damprojectfinal.core.webrtc.WebRtcClient(
+            context = context,
+            eglBaseContext = eglBase.eglBaseContext,
+            onIceCandidate = { candidate ->
+                val json = org.json.JSONObject().apply {
+                    put("sdpMid", candidate.sdpMid)
+                    put("sdpMLineIndex", candidate.sdpMLineIndex)
+                    put("candidate", candidate.sdp)
+                }
+                callerSocketId?.let { socketManager?.emitIceCandidate(it, json) }
+            },
+            onSessionDescription = { sdp ->
+                val json = org.json.JSONObject().apply {
+                    put("type", sdp.type.canonicalForm())
+                    put("sdp", sdp.description)
+                }
+                
+                if (sdp.type == org.webrtc.SessionDescription.Type.OFFER) {
+                    currentCallConversationId?.let { cid ->
+                        socketManager?.emitCallUser(cid, json)
+                    }
+                } else {
+                    callerSocketId?.let { socketManager?.emitMakeAnswer(it, json) }
+                }
+            }
+        )
+    }
+    
+    private val _isVideoCall = MutableStateFlow(false)
+    val isVideoCall: StateFlow<Boolean> = _isVideoCall
+
+    fun startCall(conversationId: String, isVideo: Boolean = false) {
+        if (webRtcClient == null && applicationContext != null) {
+            initWebRtc(applicationContext!!)
+        }
+        
+        _isInCall.value = true
+        _isVideoCall.value = isVideo
+        webRtcClient?.startLocalStream(isVideo = isVideo)
+        
+        webRtcClient?.createPeerConnection(object : org.webrtc.PeerConnection.Observer {
+            override fun onSignalingChange(p0: org.webrtc.PeerConnection.SignalingState?) {}
+            override fun onIceConnectionChange(p0: org.webrtc.PeerConnection.IceConnectionState?) {}
+            override fun onIceConnectionReceivingChange(p0: Boolean) {}
+            override fun onIceGatheringChange(p0: org.webrtc.PeerConnection.IceGatheringState?) {}
+            override fun onIceCandidate(p0: org.webrtc.IceCandidate?) {}
+            override fun onIceCandidatesRemoved(p0: Array<out org.webrtc.IceCandidate>?) {}
+            override fun onAddStream(p0: org.webrtc.MediaStream?) {
+                // Handle remote stream
+                p0?.let { stream ->
+                    if (stream.videoTracks.isNotEmpty()) {
+                        // Notify UI to attach renderer
+                        _remoteVideoTrackStream.value = stream
+                    }
+                }
+            }
+            override fun onRemoveStream(p0: org.webrtc.MediaStream?) {}
+            override fun onDataChannel(p0: org.webrtc.DataChannel?) {}
+            override fun onRenegotiationNeeded() {}
+            override fun onAddTrack(p0: org.webrtc.RtpReceiver?, p1: Array<out org.webrtc.MediaStream>?) {}
+        })
+        
+        currentCallConversationId = conversationId
+        webRtcClient?.call()
+    }
+    
+    private var currentCallConversationId: String? = null
+    
+    // We need to update initWebRtc to use currentCallConversationId
+
+    
+    // Helper to actually send the offer since the callback is generic
+    fun sendOffer(conversationId: String, sdp: org.webrtc.SessionDescription) {
+        val json = org.json.JSONObject().apply {
+            put("type", sdp.type.canonicalForm())
+            put("sdp", sdp.description)
+        }
+        socketManager?.emitCallUser(conversationId, json)
+    }
+
+    private val _remoteVideoTrackStream = MutableStateFlow<org.webrtc.MediaStream?>(null)
+    val remoteVideoTrackStream: StateFlow<org.webrtc.MediaStream?> = _remoteVideoTrackStream
+
+    fun acceptCall(isVideo: Boolean = false) {
+        if (webRtcClient == null && applicationContext != null) {
+            initWebRtc(applicationContext!!)
+        }
+        
+        _incomingCall.value = false
+        _isInCall.value = true
+        _isVideoCall.value = isVideo
+        
+        webRtcClient?.startLocalStream(isVideo = isVideo)
+        
+        webRtcClient?.createPeerConnection(object : org.webrtc.PeerConnection.Observer {
+            override fun onSignalingChange(p0: org.webrtc.PeerConnection.SignalingState?) {}
+            override fun onIceConnectionChange(p0: org.webrtc.PeerConnection.IceConnectionState?) {}
+            override fun onIceConnectionReceivingChange(p0: Boolean) {}
+            override fun onIceGatheringChange(p0: org.webrtc.PeerConnection.IceGatheringState?) {}
+            override fun onIceCandidate(p0: org.webrtc.IceCandidate?) {}
+            override fun onIceCandidatesRemoved(p0: Array<out org.webrtc.IceCandidate>?) {}
+            override fun onAddStream(p0: org.webrtc.MediaStream?) {
+                 p0?.let { stream ->
+                    if (stream.videoTracks.isNotEmpty()) {
+                        _remoteVideoTrackStream.value = stream
+                    }
+                }
+            }
+            override fun onRemoveStream(p0: org.webrtc.MediaStream?) {}
+            override fun onDataChannel(p0: org.webrtc.DataChannel?) {}
+            override fun onRenegotiationNeeded() {}
+            override fun onAddTrack(p0: org.webrtc.RtpReceiver?, p1: Array<out org.webrtc.MediaStream>?) {}
+        })
+        
+        pendingOffer?.let { offerJson ->
+            val sdp = org.webrtc.SessionDescription(
+                org.webrtc.SessionDescription.Type.OFFER,
+                offerJson.getString("sdp")
+            )
+            webRtcClient?.onRemoteSessionReceived(sdp)
+            webRtcClient?.answer()
+        }
+    }
+    
+    fun declineCall() {
+        _incomingCall.value = false
+        currentCallConversationId?.let { cid ->
+            socketManager?.emit("decline_call", org.json.JSONObject().put("conversationId", cid))
+        }
+        endCall()
+    }
+
+    fun endCall() {
+        currentCallConversationId?.let { cid ->
+            socketManager?.emitEndCall(cid)
+        }
+        webRtcClient?.close()
+        _isInCall.value = false
+        _incomingCall.value = false
+        _remoteVideoTrackStream.value = null
+        _isVideoCall.value = false
+        
+        // Reset mute states
+        _isMicMuted.value = false
+        _isVideoMuted.value = false
+        _isSpeakerOn.value = false
+    }
+    
+    fun attachLocalVideo(renderer: org.webrtc.SurfaceViewRenderer) {
+        webRtcClient?.attachLocalVideo(renderer)
+    }
+    
+    fun attachRemoteVideo(renderer: org.webrtc.SurfaceViewRenderer) {
+        _remoteVideoTrackStream.value?.let { stream ->
+            webRtcClient?.attachRemoteVideo(stream, renderer)
+        }
+    }
+    
+    // ===== Call Controls =====
+    private val _isMicMuted = MutableStateFlow(false)
+    val isMicMuted: StateFlow<Boolean> = _isMicMuted
+    
+    private val _isVideoMuted = MutableStateFlow(false)
+    val isVideoMuted: StateFlow<Boolean> = _isVideoMuted
+    
+    private val _isSpeakerOn = MutableStateFlow(false)
+    val isSpeakerOn: StateFlow<Boolean> = _isSpeakerOn
+    
+    fun toggleMic() {
+        val newState = !_isMicMuted.value
+        _isMicMuted.value = newState
+        webRtcClient?.toggleAudio(newState)
+    }
+    
+    fun toggleVideo() {
+        val newState = !_isVideoMuted.value
+        _isVideoMuted.value = newState
+        webRtcClient?.toggleVideo(newState)
+    }
+    
+    fun switchCamera() {
+        webRtcClient?.switchCamera()
+    }
+    
+    fun toggleSpeaker(context: android.content.Context) {
+        val newState = !_isSpeakerOn.value
+        _isSpeakerOn.value = newState
+        val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+        audioManager.isSpeakerphoneOn = newState
     }
 
     // =======================

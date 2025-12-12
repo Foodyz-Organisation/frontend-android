@@ -17,12 +17,20 @@ class ChatSocketManager(
     private var onMessageReceived: ((MessageDto) -> Unit)? = null
     private var onConnectionChange: ((Boolean) -> Unit)? = null
     private var onError: ((String) -> Unit)? = null
+    
+    // WebRTC Callbacks
+    private var onCallMade: ((JSONObject) -> Unit)? = null
+    private var onAnswerMade: ((JSONObject) -> Unit)? = null
+    private var onIceCandidateReceived: ((JSONObject) -> Unit)? = null
+    private var onCallEnded: ((JSONObject) -> Unit)? = null
+    private var onCallDeclined: ((JSONObject) -> Unit)? = null
 
     fun connect() {
         try {
             val options = IO.Options.builder()
                 .setAuth(mapOf("token" to authToken))
                 .setPath(socketPath)
+                .setTransports(arrayOf("websocket")) // Force websocket transport
                 .setReconnection(true)
                 .setReconnectionDelay(1000)
                 .setReconnectionDelayMax(5000)
@@ -58,6 +66,32 @@ class ChatSocketManager(
                 val error = if (args.isNotEmpty()) args[0].toString() else "Unknown error"
                 Log.e(TAG, "Connection error: $error")
                 onError?.invoke("Connection error: $error")
+            }
+
+            // WebRTC Events
+            socket?.on("call_made") { args ->
+                val data = args[0] as? JSONObject
+                if (data != null) onCallMade?.invoke(data)
+            }
+
+            socket?.on("answer_made") { args ->
+                val data = args[0] as? JSONObject
+                if (data != null) onAnswerMade?.invoke(data)
+            }
+
+            socket?.on("ice_candidate_received") { args ->
+                val data = args[0] as? JSONObject
+                if (data != null) onIceCandidateReceived?.invoke(data)
+            }
+            
+            socket?.on("call_ended") { args ->
+                val data = args[0] as? JSONObject
+                if (data != null) onCallEnded?.invoke(data)
+            }
+
+            socket?.on("call_declined") { args ->
+                val data = args[0] as? JSONObject
+                if (data != null) onCallDeclined?.invoke(data)
             }
 
             socket?.connect()
@@ -118,6 +152,48 @@ class ChatSocketManager(
         onError = listener
     }
 
+    // WebRTC Signaling Methods
+    fun emitCallUser(conversationId: String, offer: JSONObject) {
+        val payload = JSONObject().apply {
+            put("conversationId", conversationId)
+            put("offer", offer)
+        }
+        socket?.emit("call_user", payload)
+    }
+
+    fun emitMakeAnswer(toSocketId: String, answer: JSONObject) {
+        val payload = JSONObject().apply {
+            put("to", toSocketId)
+            put("answer", answer)
+        }
+        socket?.emit("make_answer", payload)
+    }
+
+    fun emitIceCandidate(toSocketId: String, candidate: JSONObject) {
+        val payload = JSONObject().apply {
+            put("to", toSocketId)
+            put("candidate", candidate)
+        }
+        socket?.emit("ice_candidate", payload)
+    }
+    
+    fun emitEndCall(conversationId: String) {
+        val payload = JSONObject().apply {
+            put("conversationId", conversationId)
+        }
+        socket?.emit("end_call", payload)
+    }
+
+    fun setOnCallMade(listener: (JSONObject) -> Unit) { onCallMade = listener }
+    fun setOnAnswerMade(listener: (JSONObject) -> Unit) { onAnswerMade = listener }
+    fun setOnIceCandidateReceived(listener: (JSONObject) -> Unit) { onIceCandidateReceived = listener }
+    fun setOnCallEnded(listener: (JSONObject) -> Unit) { onCallEnded = listener }
+    fun setOnCallDeclined(listener: (JSONObject) -> Unit) { onCallDeclined = listener }
+    
+    fun emit(event: String, data: JSONObject) {
+        socket?.emit(event, data)
+    }
+
     fun isConnected(): Boolean = socket?.connected() ?: false
 
     private fun parseMessage(json: JSONObject): MessageDto {
@@ -140,7 +216,11 @@ class ChatSocketManager(
             content = json.optString("content", ""),
             type = json.optString("type", "text"),
             createdAt = json.optString("createdAt", ""),
-            meta = null
+            meta = null,
+            hasBadWords = json.optBoolean("hasBadWords", false),
+            moderatedContent = if (json.has("moderatedContent") && !json.isNull("moderatedContent")) json.getString("moderatedContent") else null,
+            isSpam = json.optBoolean("isSpam", false),
+            spamConfidence = json.optDouble("spamConfidence", 0.0)
         )
     }
 }
