@@ -7,7 +7,10 @@ import com.google.gson.annotations.SerializedName
 data class CreatePostDto(
     val caption: String,
     val mediaUrls: List<String>,
-    val mediaType: String // "image", "reel", or "carousel"
+    val mediaType: String, // "image", "reel", or "carousel"
+    val foodType: String, // Required: One of FoodType enum values
+    val price: Double? = null, // Optional: Price in TND, must be >= 0 if provided
+    val preparationTime: Int? = null // Optional: Preparation time in minutes, must be >= 0 if provided
 )
 
 // Data class for the response when a post is successfully created
@@ -39,5 +42,10 @@ data class PostResponse(
     val ingredients: List<String>? = null, // Optional list of ingredients
     val postRating: Double? = null, // Optional overall rating for the post
     val reviewsCount: Int? = null, // Optional count of reviews for the post
+
+    // --- NEW FIELDS FOR FOOD TYPE, PRICE, AND PREPARATION TIME ---
+    val foodType: String? = null, // Required: One of FoodType enum values
+    val price: Double? = null, // Optional: Price in TND
+    val preparationTime: Int? = null // Optional: Preparation time in minutes
 
 )
