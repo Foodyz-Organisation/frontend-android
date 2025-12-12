@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +36,8 @@ import com.example.damprojectfinal.core.dto.order.OrderStatus
 import com.example.damprojectfinal.core.dto.order.ChosenIngredientResponse
 import com.example.damprojectfinal.core.dto.menu.IntensityType
 import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
+import com.example.damprojectfinal.user.feautre_order.viewmodel.LocationTrackingViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -61,6 +64,10 @@ fun OrderDetailsScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     
+    // Location tracking ViewModel
+    val locationViewModel: LocationTrackingViewModel = viewModel()
+    val locationState by locationViewModel.state.collectAsState()
+    
     // Load orders when screen opens
     LaunchedEffect(userId) {
         orderViewModel.loadOrdersByUser(userId)
@@ -68,6 +75,26 @@ fun OrderDetailsScreen(
     
     val order = remember(ordersState, orderId) {
         ordersState?.find { it._id == orderId }
+    }
+    
+    // Connect to location tracking if order is PENDING/CONFIRMED and EAT_IN/TAKEAWAY
+    LaunchedEffect(order) {
+        order?.let { ord ->
+            if ((ord.status == com.example.damprojectfinal.core.dto.order.OrderStatus.PENDING || 
+                 ord.status == com.example.damprojectfinal.core.dto.order.OrderStatus.CONFIRMED) &&
+                (ord.orderType == com.example.damprojectfinal.core.dto.order.OrderType.EAT_IN ||
+                 ord.orderType == com.example.damprojectfinal.core.dto.order.OrderType.TAKEAWAY)) {
+                // Connect to order tracking WebSocket
+                locationViewModel.connectToOrder(ord._id, userId, "user")
+            }
+        }
+    }
+    
+    // Cleanup on screen exit
+    DisposableEffect(orderId) {
+        onDispose {
+            locationViewModel.disconnect()
+        }
     }
 
     Scaffold(
@@ -130,6 +157,112 @@ fun OrderDetailsScreen(
                 // Header Section
                 item {
                     OrderHeaderCard(order)
+                }
+                
+                // Live Tracking Map (for EAT_IN and TAKEAWAY orders)
+                if ((order.orderType == com.example.damprojectfinal.core.dto.order.OrderType.EAT_IN ||
+                     order.orderType == com.example.damprojectfinal.core.dto.order.OrderType.TAKEAWAY) &&
+                    (order.status == com.example.damprojectfinal.core.dto.order.OrderStatus.PENDING ||
+                     order.status == com.example.damprojectfinal.core.dto.order.OrderStatus.CONFIRMED)) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                            elevation = CardDefaults.cardElevation(2.dp)
+                        ) {
+                            Column {
+                                // Map Header
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Live Location Tracking",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = DarkText
+                                    )
+                                    // Connection status
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                                .background(
+                                                    if (locationState.isConnected) Color(0xFF10B981)
+                                                    else Color(0xFFEF4444)
+                                                )
+                                        )
+                                        Text(
+                                            text = if (locationState.isConnected) "Connected" else "Connecting...",
+                                            fontSize = 12.sp,
+                                            color = if (locationState.isConnected) Color(0xFF10B981) else Color(0xFFEF4444)
+                                        )
+                                    }
+                                }
+                                
+                                // Map
+                                OrderTrackingMap(
+                                    restaurantLocation = RestaurantLocation(
+                                        lat = 36.8065, // TODO: Fetch from professional data
+                                        lng = 10.1815, // TODO: Fetch from professional data
+                                        name = "Restaurant"
+                                    ),
+                                    userLocation = locationState.currentLocation?.let {
+                                        UserLocation(
+                                            lat = it.lat,
+                                            lng = it.lng,
+                                            accuracy = it.accuracy
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(400.dp)
+                                )
+                                
+                                // Tracking info
+                                if (locationState.isSharing) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "📍 Sharing your location",
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF10B981),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        TextButton(
+                                            onClick = { locationViewModel.stopSharingLocation() }
+                                        ) {
+                                            Text("Stop Sharing", color = Color(0xFFEF4444))
+                                        }
+                                    }
+                                } else if (locationState.isConnected) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        TextButton(
+                                            onClick = { locationViewModel.startSharingLocation() }
+                                        ) {
+                                            Text("Start Sharing Location", color = PrimaryColor)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Items Section
