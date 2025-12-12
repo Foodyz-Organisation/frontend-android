@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -226,7 +227,7 @@ fun PostDetailsScreen(
                     )
                 }
 
-                // 3. Post Details (Caption, Price, Rating/Reviews)
+                // 3. Post Details (Caption, Food Type, Price, Preparation Time, Rating/Reviews)
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = currentPost.caption,
@@ -240,18 +241,42 @@ fun PostDetailsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "29 TND", // Hardcoded price
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = Color(0xFF111827)
-                        )
+                        // Price (if available)
+                        if (currentPost.price != null) {
+                            Text(
+                                text = "${currentPost.price}TND",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp,
+                                color = Color(0xFF111827)
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.width(1.dp))
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFFACC15), modifier = Modifier.size(18.dp))
                             Text(
                                 text = "${currentPost.postRating ?: "4.9"} • ${currentPost.reviewsCount ?: 5} reviews", // Placeholder rating/reviews
                                 fontSize = 16.sp,
                                 color = Color.Gray
+                            )
+                        }
+                    }
+                    
+                    // Preparation Time (if available)
+                    currentPost.preparationTime?.let { prepTime ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Outlined.AccessTime,
+                                contentDescription = "Preparation Time",
+                                tint = Color(0xFF6B7280),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$prepTime minutes",
+                                fontSize = 14.sp,
+                                color = Color(0xFF6B7280)
                             )
                         }
                     }

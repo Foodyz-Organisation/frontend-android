@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -53,6 +55,7 @@ import kotlinx.coroutines.flow.StateFlow
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.UserRoutes // <--- Ensure this imports the UserRoutes object correctly
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsScreen
+import com.example.damprojectfinal.core.retro.RetrofitClient
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,6 +73,26 @@ fun HomeScreen(
     val tokenManager = remember { TokenManager(context) }
 
     var isSearchActive by remember { mutableStateOf(false) }
+    
+    // State for food types
+    var foodTypes by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isLoadingFoodTypes by remember { mutableStateOf(false) }
+    
+    // State for selected food type filter (null means "All")
+    var selectedFoodType by remember { mutableStateOf<String?>(null) }
+    
+    // Fetch food types when screen loads
+    LaunchedEffect(Unit) {
+        isLoadingFoodTypes = true
+        try {
+            foodTypes = RetrofitClient.postsApiService.getFoodTypes()
+        } catch (e: Exception) {
+            // Handle error silently or show a message
+            android.util.Log.e("HomeUserScreen", "Failed to fetch food types: ${e.message}")
+        } finally {
+            isLoadingFoodTypes = false
+        }
+    }
 
     val currentUserId: String by remember {
         mutableStateOf(tokenManager.getUserIdBlocking() ?: "placeholder_user_id_123")
@@ -135,6 +158,7 @@ fun HomeScreen(
                 Box(modifier = Modifier.padding(horizontal = 2.dp)) {
                     PostsScreen(
                         navController = navController,
+                        selectedFoodType = selectedFoodType,
                         headerContent = {
                             Column(
                                 modifier = Modifier
@@ -147,10 +171,40 @@ fun HomeScreen(
                                     modifier = Modifier
                                         .padding(horizontal = 20.dp, vertical = 16.dp)
                                 ) {
-                                    item { FilterChipItem("All", selected = true) }
-                                    item { FilterChipItem("🔥 Spicy", selected = false) }
-                                    item { FilterChipItem("🥗 Healthy", selected = false) }
-                                    item { FilterChipItem("🍰 Sweet", selected = false) }
+                                    // Always show "All" as the first item
+                                    item { 
+                                        FilterChipItem(
+                                            text = "All", 
+                                            selected = selectedFoodType == null,
+                                            onClick = { 
+                                                selectedFoodType = null
+                                            }
+                                        ) 
+                                    }
+                                    
+                                    // Display fetched food types dynamically
+                                    if (isLoadingFoodTypes) {
+                                        // Show loading indicator or nothing while loading
+                                        item { 
+                                            Box(modifier = Modifier.padding(horizontal = 8.dp)) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(20.dp),
+                                                    strokeWidth = 2.dp
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        // Display all fetched food types
+                                        items(foodTypes) { foodType ->
+                                            FilterChipItem(
+                                                text = foodType, 
+                                                selected = selectedFoodType == foodType,
+                                                onClick = { 
+                                                    selectedFoodType = foodType
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
                                 Spacer(Modifier.height(8.dp))
                             }
@@ -365,7 +419,7 @@ private fun HighlightCardItem(
     }
 }
 @Composable
-fun FilterChipItem(text: String, selected: Boolean) {
+fun FilterChipItem(text: String, selected: Boolean, onClick: () -> Unit = {}) {
     val backgroundColor by animateColorAsState(if (selected) Color(0xFF111827) else Color(0xFFF3F4F6))
     val textColor by animateColorAsState(if (selected) Color.White else Color(0xFF111827))
 
@@ -373,6 +427,7 @@ fun FilterChipItem(text: String, selected: Boolean) {
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(backgroundColor)
+            .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 10.dp)
     ) {
         Text(

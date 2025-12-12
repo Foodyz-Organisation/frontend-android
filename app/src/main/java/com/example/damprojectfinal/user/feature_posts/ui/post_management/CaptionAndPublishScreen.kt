@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.CreatePostDto
+import com.example.damprojectfinal.core.dto.posts.FoodType
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -55,6 +58,12 @@ fun CaptionAndPublishScreen(
     var captionText by remember { mutableStateOf("") }
     var isPublishing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    
+    // New fields for food type, price, and preparation time
+    var selectedFoodType by remember { mutableStateOf<String?>(null) }
+    var priceText by remember { mutableStateOf("") }
+    var preparationTimeText by remember { mutableStateOf("") }
+    var showFoodTypeDropdown by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -74,6 +83,9 @@ fun CaptionAndPublishScreen(
                                     context = context,
                                     mediaUri = mediaUri,
                                     caption = captionText,
+                                    foodType = selectedFoodType ?: "",
+                                    price = priceText.toDoubleOrNull(),
+                                    preparationTime = preparationTimeText.toIntOrNull(),
                                     ownerId = currentUserId,   // <-- Pass currentUserId
                                     ownerType = currentUserType, // <-- Pass currentUserType
                                     onPublishing = { isPublishing = it },
@@ -89,7 +101,7 @@ fun CaptionAndPublishScreen(
                                 )
                             }
                         },
-                        enabled = !isPublishing && captionText.isNotBlank(),
+                        enabled = !isPublishing && captionText.isNotBlank() && selectedFoodType != null,
                         colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF6A5ACD))
                     ) {
                         if (isPublishing) {
@@ -166,6 +178,114 @@ fun CaptionAndPublishScreen(
                 minLines = 3
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Food Type Dropdown (Required)
+            Box(modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)) {
+                ExposedDropdownMenuBox(
+                    expanded = showFoodTypeDropdown,
+                    onExpandedChange = { showFoodTypeDropdown = !showFoodTypeDropdown }
+                ) {
+                    OutlinedTextField(
+                        value = selectedFoodType ?: "",
+                        onValueChange = { },
+                        readOnly = true,
+                        label = { Text("Type de nourriture *", color = Color.LightGray) },
+                        placeholder = { Text("Sélectionnez un type...", color = Color.Gray) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showFoodTypeDropdown) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        textStyle = LocalTextStyle.current.copy(color = Color.White),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF6A5ACD),
+                            unfocusedBorderColor = if (selectedFoodType == null) Color(0xFFFF6B6B) else Color.Gray,
+                            cursorColor = Color(0xFF6A5ACD),
+                            focusedLabelColor = Color(0xFF6A5ACD),
+                            unfocusedLabelColor = Color.LightGray,
+                            focusedContainerColor = Color(0xFF1E1E1E),
+                            unfocusedContainerColor = Color(0xFF1E1E1E)
+                        )
+                    )
+                    ExposedDropdownMenu(
+                        expanded = showFoodTypeDropdown,
+                        onDismissRequest = { showFoodTypeDropdown = false },
+                        modifier = Modifier.background(Color(0xFF2E2E2E))
+                    ) {
+                        FoodType.values().forEach { foodType ->
+                            DropdownMenuItem(
+                                text = { Text(foodType.value, color = Color.White) },
+                                onClick = {
+                                    selectedFoodType = foodType.value
+                                    showFoodTypeDropdown = false
+                                },
+                                modifier = Modifier.background(Color(0xFF2E2E2E))
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Price Input (Optional)
+            OutlinedTextField(
+                value = priceText,
+                onValueChange = { newValue ->
+                    // Only allow numbers and one decimal point
+                    if (newValue.isEmpty() || newValue.matches(Regex("^\\d*\\.?\\d*$"))) {
+                        priceText = newValue
+                    }
+                },
+                label = { Text("Prix (TND)", color = Color.LightGray) },
+                placeholder = { Text("Ex: 30.0", color = Color.Gray) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                textStyle = LocalTextStyle.current.copy(color = Color.White),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6A5ACD),
+                    unfocusedBorderColor = Color.Gray,
+                    cursorColor = Color(0xFF6A5ACD),
+                    focusedLabelColor = Color(0xFF6A5ACD),
+                    unfocusedLabelColor = Color.LightGray,
+                    focusedContainerColor = Color(0xFF1E1E1E),
+                    unfocusedContainerColor = Color(0xFF1E1E1E)
+                ),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Preparation Time Input (Optional)
+            OutlinedTextField(
+                value = preparationTimeText,
+                onValueChange = { newValue ->
+                    // Only allow positive integers
+                    if (newValue.isEmpty() || newValue.matches(Regex("^\\d+$"))) {
+                        preparationTimeText = newValue
+                    }
+                },
+                label = { Text("Temps de préparation (minutes)", color = Color.LightGray) },
+                placeholder = { Text("Ex: 15", color = Color.Gray) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                textStyle = LocalTextStyle.current.copy(color = Color.White),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6A5ACD),
+                    unfocusedBorderColor = Color.Gray,
+                    cursorColor = Color(0xFF6A5ACD),
+                    focusedLabelColor = Color(0xFF6A5ACD),
+                    unfocusedLabelColor = Color.LightGray,
+                    focusedContainerColor = Color(0xFF1E1E1E),
+                    unfocusedContainerColor = Color(0xFF1E1E1E)
+                ),
+                singleLine = true
+            )
+
             Spacer(modifier = Modifier.weight(1f))
         }
     }
@@ -223,6 +343,9 @@ private suspend fun publishPost(
     context: Context,
     mediaUri: Uri?,
     caption: String,
+    foodType: String,
+    price: Double?,
+    preparationTime: Int?,
     ownerId: String?, // <-- NEW PARAMETER DEFINITION
     ownerType: String?, // <-- NEW PARAMETER DEFINITION
     onPublishing: (Boolean) -> Unit,
@@ -236,6 +359,24 @@ private suspend fun publishPost(
 
     if (caption.isBlank()) {
         onError("Caption cannot be empty.")
+        return
+    }
+
+    // Validate foodType (required)
+    if (foodType.isBlank()) {
+        onError("Food type is required. Please select a food type.")
+        return
+    }
+
+    // Validate price if provided (must be >= 0)
+    if (price != null && price < 0) {
+        onError("Price must be greater than or equal to 0.")
+        return
+    }
+
+    // Validate preparationTime if provided (must be >= 0)
+    if (preparationTime != null && preparationTime < 0) {
+        onError("Preparation time must be greater than or equal to 0.")
         return
     }
 
@@ -272,7 +413,10 @@ private suspend fun publishPost(
         val createPostDto = CreatePostDto(
             caption = caption,
             mediaUrls = uploadedMediaUrls,
-            mediaType = mediaType
+            mediaType = mediaType,
+            foodType = foodType,
+            price = price,
+            preparationTime = preparationTime
         )
 
         // --- MODIFIED API CALL: Pass ownerType ---

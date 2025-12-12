@@ -49,6 +49,7 @@ fun PostsScreen(
     navController: NavController,
     modifier: Modifier = Modifier,
     postsViewModel: PostsViewModel = viewModel(),
+    selectedFoodType: String? = null,
     headerContent: @Composable () -> Unit
 ) {
     val posts by postsViewModel.posts.collectAsState()
@@ -56,6 +57,17 @@ fun PostsScreen(
     val errorMessage by postsViewModel.errorMessage.collectAsState()
 
     val swipeRefreshState = rememberSwipeRefreshState(isRefreshing = isLoading)
+    
+    // Fetch posts when food type filter changes
+    LaunchedEffect(selectedFoodType) {
+        if (selectedFoodType == null) {
+            // Fetch all posts
+            postsViewModel.fetchPosts()
+        } else {
+            // Fetch posts filtered by food type
+            postsViewModel.fetchPostsByFoodType(selectedFoodType)
+        }
+    }
 
     Column(
         modifier = modifier.fillMaxSize(),
@@ -63,7 +75,13 @@ fun PostsScreen(
     ) {
         SwipeRefresh(
             state = swipeRefreshState,
-            onRefresh = { postsViewModel.fetchPosts() },
+            onRefresh = { 
+                if (selectedFoodType == null) {
+                    postsViewModel.fetchPosts()
+                } else {
+                    postsViewModel.fetchPostsByFoodType(selectedFoodType)
+                }
+            },
             modifier = Modifier.fillMaxSize()
         ) {
             LazyColumn(
@@ -207,30 +225,33 @@ fun RecipeCard(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(12.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.9f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.AccessTime,
-                        contentDescription = "Preparation Time",
-                        tint = Color(0xFF6B7280),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "Prepare 15 min",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                        color = Color(0xFF111827)
-                    )
+                // Preparation Time Badge (if available)
+                post.preparationTime?.let { prepTime ->
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(12.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.9f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AccessTime,
+                            contentDescription = "Preparation Time",
+                            tint = Color(0xFF6B7280),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "$prepTime minutes",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            color = Color(0xFF111827)
+                        )
+                    }
                 }
-
+                
                 Icon(
                     imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                     contentDescription = "Favorite",
@@ -264,6 +285,7 @@ fun RecipeCard(
                         }
                 )
 
+                // Rating Badge
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -342,9 +364,6 @@ fun RecipeCard(
                     }
                 }
 
-                Spacer(Modifier.height(4.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { /* Placeholder for tags */ }
                 Spacer(Modifier.height(12.dp))
 
                 Row(
@@ -352,12 +371,17 @@ fun RecipeCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "28 DT",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = Color(0xFF111827)
-                    )
+                    // Price (if available)
+                    if (post.price != null) {
+                        Text(
+                            text = "${post.price}TND",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = Color(0xFF111827)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.width(1.dp))
+                    }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

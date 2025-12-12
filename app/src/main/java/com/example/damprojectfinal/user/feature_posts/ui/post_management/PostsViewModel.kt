@@ -50,6 +50,24 @@ open class PostsViewModel : ViewModel() {
         }
     }
 
+    // Function to fetch posts filtered by food type
+    open fun fetchPostsByFoodType(foodType: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            try {
+                // URL encode the food type to handle spaces (e.g., "Street food" -> "Street%20food")
+                val encodedFoodType = java.net.URLEncoder.encode(foodType, "UTF-8")
+                val fetchedPosts = postsApiService.getPostsByFoodType(encodedFoodType)
+                _posts.value = fetchedPosts
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to load posts: ${e.localizedMessage ?: e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     // Corrected: Make this a suspend function and call the API
     open suspend fun getPostById (postId: String): PostResponse { // <--- ADD 'suspend'
         return postsApiService.getPostById(postId) // <--- Call the API service

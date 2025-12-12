@@ -81,5 +81,13 @@ interface PostsApiService {
     
     @GET("posts/trends")
     suspend fun getTrendingPosts(@Query("limit") limit: Int = 10): List<PostResponse>
+    
+    // --- NEW: Endpoint for fetching all food types (GET /posts/food-types) ---
+    @GET("posts/food-types")
+    suspend fun getFoodTypes(): List<String> // Returns a list of food type strings
+
+    // --- NEW: Endpoint for fetching posts by food type (GET /posts/by-food-type/:foodType) ---
+    @GET("posts/by-food-type/{foodType}")
+    suspend fun getPostsByFoodType(@Path("foodType") foodType: String): List<PostResponse> // Returns filtered posts by food type
 
 }
