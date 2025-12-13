@@ -174,14 +174,15 @@ fun AppNavigation(
 
     val ServiceLocator = KtorClient
     val postsApiService = remember { PostsRetrofitClient.postsApiService }
-    val startDestination = AuthRoutes.SPLASH
+    // Changed start destination to LOGIN to ensure users always start at login screen
+    val startDestination = AuthRoutes.LOGIN
 
     NavHost(
         navController = navController,
         startDestination = startDestination,
         modifier = modifier,
     ) {
-        // 1️⃣ Splash Screen
+        // 1️⃣ Splash Screen (kept for potential future use, but not used as start destination)
         composable(AuthRoutes.SPLASH) {
             SplashScreen(
                 durationMs = 1600,
