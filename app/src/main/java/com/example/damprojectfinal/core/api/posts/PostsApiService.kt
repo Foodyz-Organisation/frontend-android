@@ -90,4 +90,11 @@ interface PostsApiService {
     @GET("posts/by-food-type/{foodType}")
     suspend fun getPostsByFoodType(@Path("foodType") foodType: String): List<PostResponse> // Returns filtered posts by food type
 
+    // --- NEW: Endpoint for preferring a post's food type (POST /posts/:postId/prefer-foodtype) ---
+    @POST("posts/{postId}/prefer-foodtype")
+    suspend fun preferFoodType(
+        @Path("postId") postId: String
+        // x-user-id header is automatically added by AuthInterceptor
+    ): com.example.damprojectfinal.core.dto.normalUser.UserProfile // Returns updated user profile with preferredFoodTypes
+
 }

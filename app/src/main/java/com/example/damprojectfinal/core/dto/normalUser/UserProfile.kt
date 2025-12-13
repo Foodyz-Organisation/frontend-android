@@ -14,6 +14,7 @@ data class UserProfile(
     val phone: String? = null, // Not in JSON, but nullable, so okay
     val address: String? = null, // Not in JSON, but nullable, so okay
     val email: String? = null, // Not in JSON, but nullable, so okay
-    val isActive: Boolean = false // Not in JSON, but nullable, so okay
+    val isActive: Boolean = false, // Not in JSON, but nullable, so okay
+    val preferredFoodTypes: List<String> = emptyList() // User's preferred food types for personalized feed
 )
 

@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -31,6 +32,8 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import android.widget.Toast
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import com.example.damprojectfinal.core.api.TokenManager // <-- Ensure this import is here
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -48,7 +51,15 @@ fun CaptionAndPublishScreen(
     mediaUriString: String?,
     postsViewModel: PostsViewModel = viewModel()
 ) {
-    val mediaUri = mediaUriString?.let { Uri.parse(it) }
+    // Parse multiple URIs from comma-separated string
+    val mediaUris = mediaUriString?.split(",")?.mapNotNull { 
+        try {
+            Uri.parse(java.net.URLDecoder.decode(it, "UTF-8"))
+        } catch (e: Exception) {
+            null
+        }
+    } ?: emptyList()
+    
     val context = LocalContext.current
 
     val tokenManager = remember { TokenManager(context) }
@@ -81,7 +92,7 @@ fun CaptionAndPublishScreen(
                                 // --- MODIFIED CALL TO publishPost: Pass ownerId and ownerType ---
                                 publishPost(
                                     context = context,
-                                    mediaUri = mediaUri,
+                                    mediaUris = mediaUris,
                                     caption = captionText,
                                     foodType = selectedFoodType ?: "",
                                     price = priceText.toDoubleOrNull(),
@@ -131,17 +142,56 @@ fun CaptionAndPublishScreen(
                 .background(Color(0xFF1E1E1E)),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (mediaUri != null) {
-                Log.d("CaptionAndPublishScreen", "Attempting to display media: $mediaUri")
-                AsyncImage(
-                    model = mediaUri,
-                    contentDescription = "Selected Media",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(250.dp)
-                        .background(Color.Black),
-                    contentScale = ContentScale.Crop
-                )
+            if (mediaUris.isNotEmpty()) {
+                Log.d("CaptionAndPublishScreen", "Attempting to display ${mediaUris.size} media items")
+                
+                // Display carousel preview if multiple images, single image if one
+                if (mediaUris.size > 1) {
+                    // Carousel preview - show first image with indicator
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(250.dp)
+                            .background(Color.Black)
+                    ) {
+                        AsyncImage(
+                            model = mediaUris.first(),
+                            contentDescription = "Carousel Preview",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        
+                        // Carousel indicator overlay
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(8.dp)
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                                .background(Color.Black.copy(alpha = 0.7f))
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Carousel: ${mediaUris.size} photos",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                } else {
+                    // Single media preview
+                    AsyncImage(
+                        model = mediaUris.first(),
+                        contentDescription = "Selected Media",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(250.dp)
+                            .background(Color.Black),
+                        contentScale = ContentScale.Crop
+                    )
+                }
             } else {
                 Box(
                     modifier = Modifier
@@ -341,7 +391,7 @@ private fun getTempFileFromUri(context: Context, uri: Uri): File {
 
 private suspend fun publishPost(
     context: Context,
-    mediaUri: Uri?,
+    mediaUris: List<Uri>,
     caption: String,
     foodType: String,
     price: Double?,
@@ -352,7 +402,7 @@ private suspend fun publishPost(
     onSuccess: () -> Unit,
     onError: (String) -> Unit
 ) {
-    if (mediaUri == null) {
+    if (mediaUris.isEmpty()) {
         onError("No media selected to publish.")
         return
     }
@@ -389,12 +439,14 @@ private suspend fun publishPost(
     onPublishing(true)
 
     try {
-        // Step 1: Upload Media
-        val file = getTempFileFromUri(context, mediaUri)
-        val requestFile = file.asRequestBody(context.contentResolver.getType(mediaUri)?.toMediaTypeOrNull())
-        val multipartBodyPart = MultipartBody.Part.createFormData("files", file.name, requestFile)
+        // Step 1: Upload Multiple Media Files
+        val multipartBodyParts = mediaUris.map { uri ->
+            val file = getTempFileFromUri(context, uri)
+            val requestFile = file.asRequestBody(context.contentResolver.getType(uri)?.toMediaTypeOrNull())
+            MultipartBody.Part.createFormData("files", file.name, requestFile)
+        }
 
-        val uploadResponse = RetrofitClient.postsApiService.uploadFiles(listOf(multipartBodyPart))
+        val uploadResponse = RetrofitClient.postsApiService.uploadFiles(multipartBodyParts)
         val uploadedMediaUrls = uploadResponse.urls
 
         if (uploadedMediaUrls.isEmpty()) {
@@ -402,11 +454,20 @@ private suspend fun publishPost(
             return
         }
 
-        // Determine media type (simple heuristic for now)
-        val mediaType = if (context.contentResolver.getType(mediaUri)?.startsWith("video") == true) {
-            AppMediaType.REEL.value
-        } else {
-            AppMediaType.IMAGE.value
+        // Determine media type based on number of files and content type
+        val mediaType = when {
+            // Check if any file is a video
+            mediaUris.any { context.contentResolver.getType(it)?.startsWith("video") == true } -> {
+                AppMediaType.REEL.value
+            }
+            // Multiple images = carousel
+            mediaUris.size > 1 -> {
+                AppMediaType.CAROUSEL.value
+            }
+            // Single image
+            else -> {
+                AppMediaType.IMAGE.value
+            }
         }
 
         // Step 2: Create Post
@@ -455,7 +516,8 @@ private suspend fun publishPost(
         onError("Failed to publish post: ${e.localizedMessage ?: errorMessage}")
     } finally {
         onPublishing(false)
-        mediaUri?.let { uri ->
+        // Clean up temporary files
+        mediaUris.forEach { uri ->
             try {
                 // Attempt to delete temporary file
                 val tempFile = File(context.cacheDir, uri.pathSegments.lastOrNull() ?: "temp_file")

@@ -2,9 +2,12 @@ package com.example.damprojectfinal.user.feature_posts.ui.post_management
 
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,6 +72,10 @@ fun PostDetailsScreen(
     var isSubmittingComment by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    
+    // State for fullscreen image viewer
+    var showFullscreenImage by remember { mutableStateOf(false) }
+    var initialImageIndex by remember { mutableStateOf(0) }
 
 
     // --- Fetch Post Details ---
@@ -214,17 +221,65 @@ fun PostDetailsScreen(
                             .padding(vertical = 8.dp)
                     )
                 } else {
-                    // Show image for non-reel posts
-                    val imageUrlToLoad = BaseUrlProvider.getFullImageUrl(currentPost.mediaUrls.firstOrNull())
-                    AsyncImage(
-                        model = imageUrlToLoad,
-                        contentDescription = currentPost.caption,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(250.dp) // Adjust height as needed
-                            .padding(vertical = 8.dp)
-                    )
+                    // Show image(s) for non-reel posts - support carousel
+                    val isCarousel = currentPost.mediaType == "carousel" && currentPost.mediaUrls.size > 1
+                    
+                    if (isCarousel) {
+                        // Carousel preview - show first image with indicator
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(250.dp)
+                                .padding(vertical = 8.dp)
+                                .clickable {
+                                    initialImageIndex = 0
+                                    showFullscreenImage = true
+                                }
+                        ) {
+                            val firstImageUrl = BaseUrlProvider.getFullImageUrl(currentPost.mediaUrls.firstOrNull())
+                            AsyncImage(
+                                model = firstImageUrl,
+                                contentDescription = currentPost.caption,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            
+                            // Carousel indicator overlay
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(8.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.Black.copy(alpha = 0.6f))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Carousel: ${currentPost.mediaUrls.size} photos",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    } else {
+                        // Single image
+                        val imageUrlToLoad = BaseUrlProvider.getFullImageUrl(currentPost.mediaUrls.firstOrNull())
+                        AsyncImage(
+                            model = imageUrlToLoad,
+                            contentDescription = currentPost.caption,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(250.dp)
+                                .padding(vertical = 8.dp)
+                                .clickable {
+                                    initialImageIndex = 0
+                                    showFullscreenImage = true
+                                }
+                        )
+                    }
                 }
 
                 // 3. Post Details (Caption, Food Type, Price, Preparation Time, Rating/Reviews)
@@ -393,11 +448,23 @@ fun PostDetailsScreen(
                 }
             }
         }
+        
+        // Fullscreen Image Viewer Dialog
+        if (showFullscreenImage) {
+            val currentPostForViewer = post // Local variable to avoid smart cast issue
+            if (currentPostForViewer != null) {
+                FullscreenImageViewer(
+                    imageUrls = currentPostForViewer.mediaUrls.mapNotNull { BaseUrlProvider.getFullImageUrl(it) },
+                    initialIndex = initialImageIndex,
+                    onDismiss = { showFullscreenImage = false }
+                )
+            }
+        }
     }
 }
 
 // Video Player Composable for Post Details
-@OptIn(UnstableApi::class)
+@androidx.media3.common.util.UnstableApi
 @Composable
 fun PostVideoPlayer(
     videoUrl: String,
@@ -450,7 +517,7 @@ fun PostVideoPlayer(
 }
 
 // Fullscreen Video Player Dialog
-@OptIn(UnstableApi::class)
+@androidx.media3.common.util.UnstableApi
 @Composable
 fun FullscreenVideoPlayer(
     exoPlayer: ExoPlayer,
@@ -493,6 +560,118 @@ fun FullscreenVideoPlayer(
                     tint = Color.White,
                     modifier = Modifier.size(32.dp)
                 )
+            }
+        }
+    }
+}
+
+// Fullscreen Image Viewer with Carousel Support
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun FullscreenImageViewer(
+    imageUrls: List<String>,
+    initialIndex: Int = 0,
+    onDismiss: () -> Unit
+) {
+    val pagerState = rememberPagerState(
+        initialPage = if (imageUrls.isNotEmpty()) initialIndex.coerceIn(0, imageUrls.size - 1) else 0,
+        pageCount = { imageUrls.size }
+    )
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            if (imageUrls.size == 1) {
+                // Single image - no pager needed
+                AsyncImage(
+                    model = imageUrls.first(),
+                    contentDescription = "Fullscreen Image",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { onDismiss() }
+                )
+            } else {
+                // Carousel - use HorizontalPager
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    AsyncImage(
+                        model = imageUrls[page],
+                        contentDescription = "Carousel Image ${page + 1}",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                
+                // Page indicator for carousel
+                if (imageUrls.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(16.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${pagerState.currentPage + 1} / ${imageUrls.size}",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+            
+            // Close button
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Close",
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+            
+            // Navigation dots for carousel (bottom center)
+            if (imageUrls.size > 1) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 32.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    repeat(imageUrls.size) { index ->
+                        val isSelected = pagerState.currentPage == index
+                        Box(
+                            modifier = Modifier
+                                .size(if (isSelected) 10.dp else 8.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isSelected) Color.White else Color.White.copy(alpha = 0.5f)
+                                )
+                        )
+                    }
+                }
             }
         }
     }
