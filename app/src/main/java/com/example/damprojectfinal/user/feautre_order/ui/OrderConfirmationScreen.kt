@@ -29,6 +29,14 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.example.damprojectfinal.R
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.damprojectfinal.user.feautre_order.viewmodel.LocationTrackingViewModel
+import com.example.damprojectfinal.core.api.TokenManager
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 private const val BASE_URL = "http://10.0.2.2:3000/"
 
@@ -45,6 +53,32 @@ fun OrderConfirmationScreen(
     // State for command type selection
     var selectedCommand by remember { mutableStateOf<OrderType?>(null) }
     val context = LocalContext.current
+    
+    // Location sharing state
+    var showLocationDialog by remember { mutableStateOf(false) }
+    var isLocationSharingEnabled by remember { mutableStateOf(false) }
+    var createdOrderId by remember { mutableStateOf<String?>(null) }
+    
+    // Location tracking ViewModel
+    val locationViewModel: LocationTrackingViewModel = viewModel()
+    val locationState by locationViewModel.state.collectAsState()
+    
+    // Token manager for user ID
+    val tokenManager = remember { TokenManager(context) }
+    val userId = remember { tokenManager.getUserId() ?: "" }
+    
+    // Permission launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            // Permission granted, prepare for sharing (will start after order creation)
+            isLocationSharingEnabled = true
+        } else {
+            Toast.makeText(context, "Location permission is required for tracking", Toast.LENGTH_SHORT).show()
+            isLocationSharingEnabled = false
+        }
+    }
     
     // Load cart state from ViewModel
     val cartState by cartViewModel.uiState.collectAsState()
@@ -81,8 +115,30 @@ fun OrderConfirmationScreen(
                         cartViewModel.checkout(
                             professionalId = professionalId,
                             orderType = type,
-                            onSuccess = {
+                            onSuccess = { orderResponse ->
                                 Toast.makeText(context, "Order placed successfully!", Toast.LENGTH_SHORT).show()
+                                
+                                // If user agreed to share location, start tracking
+                                if (isLocationSharingEnabled && (type == OrderType.EAT_IN || type == OrderType.TAKEAWAY)) {
+                                    val orderId = orderResponse._id
+                                    createdOrderId = orderId
+                                    
+                                    // Connect to WebSocket and start sharing
+                                    locationViewModel.connectToOrder(orderId, userId, "user")
+                                    
+                                    // Check permission again before starting
+                                    val hasPermission = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.ACCESS_FINE_LOCATION
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    
+                                    if (hasPermission) {
+                                        locationViewModel.startSharingLocation()
+                                    } else {
+                                        Toast.makeText(context, "Location permission required for tracking", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                
                                 onOrderSuccess()
                             },
                             onError = { error ->
@@ -128,8 +184,42 @@ fun OrderConfirmationScreen(
                     // 2. Command Type Selection
                     CommandTypeSelection(
                         selectedType = selectedCommand,
-                        onSelect = { selectedCommand = it }
+                        onSelect = { type ->
+                            selectedCommand = type
+                            // Show location dialog for EAT_IN and TAKEAWAY
+                            if (type == OrderType.EAT_IN || type == OrderType.TAKEAWAY) {
+                                showLocationDialog = true
+                            } else {
+                                // For DELIVERY, no location sharing
+                                isLocationSharingEnabled = false
+                            }
+                        }
                     )
+                    
+                    // Location Sharing Dialog
+                    if (showLocationDialog) {
+                        LocationSharingDialog(
+                            onShareLocation = {
+                                showLocationDialog = false
+                                // Check if permission is already granted
+                                val hasPermission = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.ACCESS_FINE_LOCATION
+                                ) == PackageManager.PERMISSION_GRANTED
+                                
+                                if (hasPermission) {
+                                    isLocationSharingEnabled = true
+                                } else {
+                                    // Request permission
+                                    locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                                }
+                            },
+                            onSkip = {
+                                showLocationDialog = false
+                                isLocationSharingEnabled = false
+                            }
+                        )
+                    }
                 }
             }
         }

@@ -7,6 +7,8 @@ import androidx.navigation.NavHostController
 import com.example.damprojectfinal.AuthRoutes
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.dto.auth.ProfessionalSignupRequest
+import com.example.damprojectfinal.core.dto.auth.LocationDto
+import com.example.damprojectfinal.professional.feature_event.LocationData
 
 import kotlinx.coroutines.launch
 
@@ -23,6 +25,10 @@ class ProSignupViewModel(
     val errorMessage = mutableStateOf<String?>(null)
     val isSignupSuccess = mutableStateOf(false)
     val licenseNumber = mutableStateOf("")
+    
+    // Location data
+    val selectedLocation = mutableStateOf<LocationData?>(null)
+    val showLocationPicker = mutableStateOf(false)
 
     fun signup() {
         if (email.value.isBlank() || password.value.isBlank() || fullName.value.isBlank()) {
@@ -35,11 +41,24 @@ class ProSignupViewModel(
 
         viewModelScope.launch {
             try {
+                // Build locations array if location is selected
+                val locations = selectedLocation.value?.let { location ->
+                    listOf(
+                        LocationDto(
+                            name = null, // Optional branch name (can be set later)
+                            address = location.name.ifEmpty { null }, // Full address from geocoding
+                            lat = location.latitude,
+                            lon = location.longitude
+                        )
+                    )
+                }
+
                 val request = ProfessionalSignupRequest(
                     email = email.value,
                     password = password.value,
                     fullName = fullName.value,
-                    licenseNumber = licenseNumber.value // now dynamic
+                    licenseNumber = licenseNumber.value, // now dynamic
+                    locations = locations
                 )
 
                 val response = authApiService.professionalSignup(request)
