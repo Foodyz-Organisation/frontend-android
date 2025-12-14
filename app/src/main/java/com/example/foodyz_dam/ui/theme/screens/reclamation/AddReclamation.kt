@@ -58,13 +58,18 @@ fun ReclamationTemplateScreen(
     restaurantNames: List<String>, // Liste des noms de clients
     complaintTypes: List<String>,
     commandeconcernees: List<String>,
+<<<<<<< Updated upstream:app/src/main/java/com/example/foodyz_dam/ui/theme/screens/reclamation/AddReclamation.kt
     onSubmit: (nomClient: String, commandeConcernee: String, complaintType: String, description: String, photos: List<Uri>) -> Unit = { _, _, _, _, _ -> }
+=======
+    onSubmit: (commandeConcernee: String, complaintType: String, description: String, photos: List<Uri>) -> Unit,
+    initialOrderId: String? = null
+>>>>>>> Stashed changes:app/src/main/java/com/example/damprojectfinal/user/feature_relamation/AddReclamation.kt
 ) {
     val context = LocalContext.current
 
     var nomClient by remember { mutableStateOf("") }
     var complaintType by remember { mutableStateOf("") }
-    var commandeconcernee by remember { mutableStateOf("") }
+    var commandeconcernee by remember { mutableStateOf(initialOrderId ?: "") }
     var description by remember { mutableStateOf("") }
     var agree by remember { mutableStateOf(false) }
     var photos by remember { mutableStateOf<List<Uri>>(emptyList()) }

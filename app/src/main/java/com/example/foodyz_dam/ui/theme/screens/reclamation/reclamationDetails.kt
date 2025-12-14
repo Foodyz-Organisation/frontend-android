@@ -27,6 +27,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.example.foodyz_dam.ui.theme.screens.reclamation.BrandColors
 
+// ✅ Base URL pour les images
+private const val BASE_URL = "http://10.0.2.2:3000/"
+
 // ------------------ Détails de la Réclamation
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,9 +133,13 @@ fun ReclamationDetailScreen(
             SectionLabel("Description")
             InfoCard(reclamation.description ?: "Aucune description")
 
-            // Photos
+            // Photos - ✅ FIX: Meilleure gestion des URLs
             reclamation.photos?.takeIf { it.isNotEmpty() }?.let { photosList ->
                 SectionLabel("Photos (${photosList.size})")
+
+                // Debug: Afficher les URLs dans les logs
+                android.util.Log.d("ReclamationDetail", "Photos list: $photosList")
+
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier
@@ -142,15 +149,37 @@ fun ReclamationDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     userScrollEnabled = false
                 ) {
-                    items(photosList) { uri ->
-                        AsyncImage(
-                            model = uri,
-                            contentDescription = null,
+                    items(photosList) { photoPath ->
+                        // Construire l'URL complète
+                        val imageUrl = if (photoPath.startsWith("http")) {
+                            photoPath // URL déjà complète
+                        } else {
+                            // Nettoyer le chemin (enlever le / au début si présent)
+                            val cleanPath = photoPath.trimStart('/')
+                            BASE_URL + cleanPath
+                        }
+
+                        android.util.Log.d("ReclamationDetail", "Loading image: $imageUrl")
+
+                        Card(
                             modifier = Modifier
                                 .aspectRatio(1f)
-                                .clip(RoundedCornerShape(16.dp))
-                                .shadow(2.dp, RoundedCornerShape(16.dp))
-                        )
+                                .shadow(2.dp, RoundedCornerShape(16.dp)),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            AsyncImage(
+                                model = imageUrl,
+                                contentDescription = "Photo de réclamation",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                onError = { error ->
+                                    android.util.Log.e("ReclamationDetail", "Error loading image: $imageUrl", error.result.throwable)
+                                },
+                                onSuccess = {
+                                    android.util.Log.d("ReclamationDetail", "Successfully loaded: $imageUrl")
+                                }
+                            )
+                        }
                     }
                 }
             }

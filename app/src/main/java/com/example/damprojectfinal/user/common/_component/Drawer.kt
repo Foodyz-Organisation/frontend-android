@@ -1,0 +1,292 @@
+package com.example.damprojectfinal.user.common._component
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.damprojectfinal.R
+import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
+import androidx.navigation.compose.rememberNavController
+
+// Define the items for the drawer
+data class DrawerItem(
+    val icon: ImageVector,
+    val label: String,
+    val route: String
+)
+
+val drawerItems = listOf(
+    DrawerItem(Icons.Default.List, "Mes Réclamations", "list_reclamation_route"),
+    DrawerItem(Icons.Default.Event, "Événements", "event_list"),
+    DrawerItem(Icons.Default.ShoppingCart, "Liste des Deals", "deals")  // ✅ Navigue vers DealsListScreen
+)
+
+// 🔑 NEW: Define the Professional Signup Item
+val proSignupItem = DrawerItem(
+    Icons.Default.Fastfood,
+    "Signup as Professional",
+    "pro_signup_route"
+)
+
+@Composable
+fun AppDrawer(
+    onCloseDrawer: () -> Unit,
+    navigateTo: (String) -> Unit,
+    currentRoute: String, // Used to highlight the current screen
+    onLogoutClick: () -> Unit,
+    loyaltyPoints: Int? = null // ✅ NOUVEAU: Points de fidélité
+) {
+    ModalDrawerSheet(
+        drawerContainerColor = Color(0xFFFFFFFF),
+        modifier = Modifier.width(300.dp)
+    ) {
+        // --- Header ---
+        DrawerHeader(onProfileClick = {
+            navigateTo("user_profile_route")
+            onCloseDrawer()
+        })
+
+        // --- ✅ Section Points de Fidélité (toujours affichée) ---
+        LoyaltyPointsSection(
+            points = loyaltyPoints ?: 0, // Affiche 0 si pas encore chargé
+            onClick = {
+                navigateTo("loyalty_points_route")
+                onCloseDrawer()
+            }
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        // --- Navigation Items ---
+        drawerItems.forEach { item ->
+            DrawerMenuItem(
+                item = item,
+                isSelected = currentRoute == item.route,
+                onClick = {
+                    navigateTo(item.route)
+                    onCloseDrawer()
+                }
+            )
+        }
+
+        // --- 🔑 3. Pro Application Button ---
+        Spacer(Modifier.height(16.dp))
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+            Divider(color = Color.LightGray, thickness = 0.5.dp)
+            Spacer(Modifier.height(8.dp))
+            DrawerMenuItem(
+                item = proSignupItem,
+                isSelected = currentRoute == proSignupItem.route,
+                onClick = {
+                    navigateTo(proSignupItem.route)
+                    onCloseDrawer()
+                }
+            )
+        }
+
+        // --- Footer ---
+        Spacer(Modifier.weight(1f))
+        Divider(color = Color.LightGray, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+        DrawerFooter(onClickLogout = {
+            onLogoutClick()
+            onCloseDrawer()
+        })
+    }
+}
+
+@Composable
+fun DrawerHeader(onProfileClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFF0F0F0))
+            .padding(24.dp)
+            .clickable(onClick = onProfileClick)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.profile),
+            contentDescription = "User Profile",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .border(2.dp, Color(0xFFFFCC00), CircleShape)
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "John Doe",
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            color = Color(0xFF1F2A37)
+        )
+        Text(
+            text = "john.doe@example.com",
+            fontSize = 14.sp,
+            color = Color(0xFF6B7280)
+        )
+    }
+}
+
+@Composable
+fun DrawerMenuItem(item: DrawerItem, isSelected: Boolean, onClick: () -> Unit) {
+    val backgroundColor = if (isSelected) Color(0xFFFFCC00).copy(alpha = 0.2f) else Color.Transparent
+    val contentColor = if (isSelected) Color(0xFF1F2A37) else Color(0xFF334155)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp, horizontal = 8.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(backgroundColor)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = item.icon,
+            contentDescription = item.label,
+            tint = contentColor,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(Modifier.width(16.dp))
+        Text(
+            text = item.label,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+            color = contentColor,
+            fontSize = 16.sp
+        )
+    }
+}
+
+// ✅ NOUVEAU: Section Points de Fidélité
+@Composable
+fun LoyaltyPointsSection(
+    points: Int,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF6200EA).copy(alpha = 0.1f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = "Points de fidélité",
+                    tint = Color(0xFFFFCC00),
+                    modifier = Modifier.size(32.dp)
+                )
+                Column {
+                    Text(
+                        text = "$points Points",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color(0xFF6200EA)
+                    )
+                    Text(
+                        text = "Points de Fidélité",
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "Voir détails",
+                tint = Color(0xFF9CA3AF),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun DrawerFooter(onClickLogout: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClickLogout)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.ExitToApp,
+            contentDescription = "Logout",
+            tint = Color.Red,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(Modifier.width(16.dp))
+        Text(
+            text = "Logout",
+            fontWeight = FontWeight.SemiBold,
+            color = Color.Red,
+            fontSize = 16.sp
+        )
+    }
+}
+
+
+// user/common/_component/AppDrawer.kt
+
+// ... (existing code for AppDrawer, DrawerHeader, DrawerMenuItem, DrawerFooter) ...
+
+// --- NEW PREVIEW COMPOSABLE ---
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun AppDrawerPreview() {
+    // For previews, we provide mock implementations of NavController and callbacks
+    val dummyNavController = rememberNavController() // Provides a mock NavController
+    val dummyCurrentRoute = drawerItems.first().route // Simulate being on the first remaining route
+    val dummyOnCloseDrawer: () -> Unit = {} // Empty lambda for closing drawer
+    val dummyNavigateTo: (String) -> Unit = { route -> println("Navigating to $route") } // Log navigation
+
+    DamProjectFinalTheme { // Wrap in your app's theme for accurate rendering
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            // Because AppDrawer expects to be inside a ModalNavigationDrawer,
+            // we'll call it directly for preview purposes.
+            // In a real app, it would be passed as drawerContent to ModalNavigationDrawer.
+            AppDrawer(
+                onCloseDrawer = dummyOnCloseDrawer,
+                navigateTo = dummyNavigateTo,
+                currentRoute = dummyCurrentRoute,
+                onLogoutClick = {}, // Dummy logout action for preview
+                loyaltyPoints = 1250 // ✅ Points de démonstration
+            )
+        }
+    }
+}
+// --- END NEW PREVIEW COMPOSABLE ---
+

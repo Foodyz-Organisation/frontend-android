@@ -11,35 +11,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+<<<<<<< Updated upstream:app/src/main/java/com/example/foodyz_dam/ui/theme/screens/events/EventListScreenRemote.kt
 import kotlinx.coroutines.launch
+=======
+import com.example.damprojectfinal.feature_event.BrandColors
+import com.example.damprojectfinal.feature_event.Event
+import com.example.damprojectfinal.user.feature_event.EmptyState
+import com.example.damprojectfinal.user.feature_event.EventCard
+>>>>>>> Stashed changes:app/src/main/java/com/example/damprojectfinal/professional/feature_event/EventListScreenRemote.kt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventListScreenRemote(
+    events: List<Event>,
+    isLoading: Boolean,
+    error: String?,
     onEventClick: (Event) -> Unit,
     onBackClick: () -> Unit = {},
-    onAddEventClick: () -> Unit = {}
+    onAddEventClick: () -> Unit = {},
+    onEditEventClick: (Event) -> Unit = {},
+    onDeleteEventClick: (String) -> Unit = {}
 ) {
-    var events by remember { mutableStateOf(listOf<Event>()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    val scope = rememberCoroutineScope()
-
-    // Chargement des événements
-    LaunchedEffect(Unit) {
-        scope.launch {
-            try {
-                events = EventRetrofitClient.api.getEvents() // ✅ Changé ici
-            } catch (e: Exception) {
-                e.printStackTrace()
-                errorMessage = "Erreur: ${e.localizedMessage}"
-            } finally {
-                isLoading = false
-            }
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -47,7 +39,7 @@ fun EventListScreenRemote(
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack, // ✅ Corrigé
+                            imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
                             tint = BrandColors.TextPrimary
                         )
@@ -83,7 +75,7 @@ fun EventListScreenRemote(
                         CircularProgressIndicator(color = BrandColors.Yellow)
                     }
                 }
-                errorMessage != null -> {
+                error != null -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -99,31 +91,14 @@ fun EventListScreenRemote(
                                 tint = BrandColors.Red
                             )
                             Text(
-                                text = errorMessage ?: "Erreur inconnue",
+                                text = error ?: "Erreur inconnue",
                                 color = BrandColors.TextSecondary
                             )
-                            Button(
-                                onClick = {
-                                    isLoading = true
-                                    errorMessage = null
-                                    scope.launch {
-                                        try {
-                                            events = EventRetrofitClient.api.getEvents()
-                                        } catch (e: Exception) {
-                                            errorMessage = "Erreur: ${e.localizedMessage}"
-                                        } finally {
-                                            isLoading = false
-                                        }
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = BrandColors.Yellow
-                                )
-                            ) {
-                                Icon(Icons.Default.Refresh, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Réessayer", color = BrandColors.TextPrimary)
-                            }
+                            Text(
+                                "Veuillez réessayer",
+                                color = BrandColors.TextSecondary,
+                                modifier = Modifier.padding(16.dp)
+                            )
                         }
                     }
                 }
@@ -137,13 +112,65 @@ fun EventListScreenRemote(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         items(events) { event ->
-                            EventCard(
+                            EventCardWithActions(
                                 event = event,
-                                onClick = { onEventClick(event) }
+                                onClick = { onEventClick(event) },
+                                onEdit = { onEditEventClick(event) },
+                                onDelete = {
+                                    event._id?.let { eventId ->
+                                        onDeleteEventClick(eventId)
+                                    }
+                                }
                             )
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventCardWithActions(
+    event: Event,
+    onClick: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Box {
+        EventCard(
+            event = event,
+            onClick = onClick
+        )
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            IconButton(
+                onClick = onEdit,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Modifier l'événement",
+                    tint = BrandColors.Yellow,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Supprimer l'événement",
+                    tint = BrandColors.Red,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }

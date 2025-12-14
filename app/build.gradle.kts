@@ -50,7 +50,37 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+<<<<<<< Updated upstream
     implementation(libs.androidx.compose.foundation)
+=======
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.navigation:navigation-compose:2.8.3")
+
+    // Retrofit & OkHttp (Your Existing)
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.10.0")
+    implementation("javax.inject:javax.inject:1")
+    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0") // Keeping your version, but consider updating to 4.12.0 for OkHttp consistency
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    // Socket.IO dependency removed (websockets not used)
+    // Font Awesome icons (Your Existing)
+    implementation("br.com.devsrsouza.compose.icons:font-awesome:1.1.0")
+    implementation("io.ktor:ktor-client-cio:2.3.5")
+    implementation(libs.androidx.ui)
+    // ===== Testing =====
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.05.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+/////
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+>>>>>>> Stashed changes
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.navigation.runtime.ktx)
     implementation(libs.androidx.navigation.compose)
