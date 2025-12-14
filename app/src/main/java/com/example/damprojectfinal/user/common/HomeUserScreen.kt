@@ -53,9 +53,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.api.ReclamationRetrofitClient
 import com.example.damprojectfinal.UserRoutes // <--- Ensure this imports the UserRoutes object correctly
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsScreen
 import com.example.damprojectfinal.core.retro.RetrofitClient
+import android.util.Log
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,26 +75,48 @@ fun HomeScreen(
     val tokenManager = remember { TokenManager(context) }
 
     var isSearchActive by remember { mutableStateOf(false) }
-    
+
+    // ✅ NOUVEAU: État pour les points de fidélité
+    var loyaltyPoints by remember { mutableStateOf<Int?>(null) }
+
+    // ✅ NOUVEAU: Charger les points de fidélité au démarrage
+
     // State for food types
     var foodTypes by remember { mutableStateOf<List<String>>(emptyList()) }
     var isLoadingFoodTypes by remember { mutableStateOf(false) }
-    
+
     // State for selected food type filter (null means "All")
     var selectedFoodType by remember { mutableStateOf<String?>(null) }
-    
-    // Fetch food types when screen loads
+
+
+
     LaunchedEffect(Unit) {
-        isLoadingFoodTypes = true
-        try {
-            foodTypes = RetrofitClient.postsApiService.getFoodTypes()
-        } catch (e: Exception) {
-            // Handle error silently or show a message
-            android.util.Log.e("HomeUserScreen", "Failed to fetch food types: ${e.message}")
-        } finally {
-            isLoadingFoodTypes = false
-        }
-    }
+                isLoadingFoodTypes = true
+                try {
+                    Log.d("HomeScreen", "🔄 Début chargement points...")
+                    val token = tokenManager.getAccessTokenAsync()
+                    Log.d("HomeScreen", "🔑 Token: ${token?.take(20)}...")
+
+                    if (!token.isNullOrEmpty()) {
+                        val api = ReclamationRetrofitClient.createClient(token)
+                        val balance = api.getUserLoyalty()
+                        loyaltyPoints = balance?.loyaltyPoints
+                        Log.d("HomeScreen", "✅ Points chargés: $loyaltyPoints")
+                        Log.d("HomeScreen", "📊 Balance: $balance")
+                    } else {
+                        Log.e("HomeScreen", "❌ Token vide ou null")
+                    }
+                    foodTypes = RetrofitClient.postsApiService.getFoodTypes()
+                } catch (e: Exception) {
+                    // Log the error here, where 'e' is correctly in scope
+                    Log.e("HomeScreen", "❌ Erreur chargement points: ${e.message}")
+                    e.printStackTrace() // Don't forget the parentheses for the function call
+                } finally {
+                    // Use finally for cleanup, not for re-logging the error
+                    isLoadingFoodTypes = false
+                }
+            }
+
 
     val currentUserId: String by remember {
         mutableStateOf(tokenManager.getUserIdBlocking() ?: "placeholder_user_id_123")
@@ -124,7 +148,8 @@ fun HomeScreen(
                 onCloseDrawer = { scope.launch { drawerState.close() } },
                 navigateTo = navigateTo,
                 currentRoute = currentRoute,
-                onLogoutClick = onLogout
+                onLogoutClick = onLogout,
+                loyaltyPoints = loyaltyPoints // ✅ Passer les points au drawer
             )
         }
     ) {
@@ -172,20 +197,20 @@ fun HomeScreen(
                                         .padding(horizontal = 20.dp, vertical = 16.dp)
                                 ) {
                                     // Always show "All" as the first item
-                                    item { 
+                                    item {
                                         FilterChipItem(
-                                            text = "All", 
+                                            text = "All",
                                             selected = selectedFoodType == null,
-                                            onClick = { 
+                                            onClick = {
                                                 selectedFoodType = null
                                             }
-                                        ) 
+                                        )
                                     }
-                                    
+
                                     // Display fetched food types dynamically
                                     if (isLoadingFoodTypes) {
                                         // Show loading indicator or nothing while loading
-                                        item { 
+                                        item {
                                             Box(modifier = Modifier.padding(horizontal = 8.dp)) {
                                                 CircularProgressIndicator(
                                                     modifier = Modifier.size(20.dp),
@@ -197,9 +222,9 @@ fun HomeScreen(
                                         // Display all fetched food types
                                         items(foodTypes) { foodType ->
                                             FilterChipItem(
-                                                text = foodType, 
+                                                text = foodType,
                                                 selected = selectedFoodType == foodType,
-                                                onClick = { 
+                                                onClick = {
                                                     selectedFoodType = foodType
                                                 }
                                             )

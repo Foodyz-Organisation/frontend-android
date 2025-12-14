@@ -34,7 +34,6 @@ data class DrawerItem(
 )
 
 val drawerItems = listOf(
-    DrawerItem(Icons.Default.Add, "Ajouter Réclamation", "create_reclamation"),
     DrawerItem(Icons.Default.List, "Mes Réclamations", "list_reclamation_route"),
     DrawerItem(Icons.Default.Event, "Événements", "event_list"),
     DrawerItem(Icons.Default.ShoppingCart, "Liste des Deals", "deals")  // ✅ Navigue vers DealsListScreen
@@ -52,7 +51,8 @@ fun AppDrawer(
     onCloseDrawer: () -> Unit,
     navigateTo: (String) -> Unit,
     currentRoute: String, // Used to highlight the current screen
-    onLogoutClick: () -> Unit
+    onLogoutClick: () -> Unit,
+    loyaltyPoints: Int? = null // ✅ NOUVEAU: Points de fidélité
 ) {
     ModalDrawerSheet(
         drawerContainerColor = Color(0xFFFFFFFF),
@@ -63,6 +63,15 @@ fun AppDrawer(
             navigateTo("user_profile_route")
             onCloseDrawer()
         })
+
+        // --- ✅ Section Points de Fidélité (toujours affichée) ---
+        LoyaltyPointsSection(
+            points = loyaltyPoints ?: 0, // Affiche 0 si pas encore chargé
+            onClick = {
+                navigateTo("loyalty_points_route")
+                onCloseDrawer()
+            }
+        )
 
         Spacer(Modifier.height(8.dp))
 
@@ -167,6 +176,63 @@ fun DrawerMenuItem(item: DrawerItem, isSelected: Boolean, onClick: () -> Unit) {
     }
 }
 
+// ✅ NOUVEAU: Section Points de Fidélité
+@Composable
+fun LoyaltyPointsSection(
+    points: Int,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF6200EA).copy(alpha = 0.1f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = "Points de fidélité",
+                    tint = Color(0xFFFFCC00),
+                    modifier = Modifier.size(32.dp)
+                )
+                Column {
+                    Text(
+                        text = "$points Points",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color(0xFF6200EA)
+                    )
+                    Text(
+                        text = "Points de Fidélité",
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "Voir détails",
+                tint = Color(0xFF9CA3AF),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
 @Composable
 fun DrawerFooter(onClickLogout: () -> Unit) {
     Row(
@@ -216,7 +282,8 @@ fun AppDrawerPreview() {
                 onCloseDrawer = dummyOnCloseDrawer,
                 navigateTo = dummyNavigateTo,
                 currentRoute = dummyCurrentRoute,
-                onLogoutClick = {} // Dummy logout action for preview
+                onLogoutClick = {}, // Dummy logout action for preview
+                loyaltyPoints = 1250 // ✅ Points de démonstration
             )
         }
     }

@@ -148,11 +148,35 @@ fun EventCard(
                         .padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Edit button
+                    // Bouton éditer
+                    IconButton(
+                        onClick = { onEditClick(event) },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color.White, RoundedCornerShape(8.dp))
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Modifier",
+                            tint = BrandColors.Yellow,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
 
-
-                    // Delete button
-
+                    // Bouton supprimer
+                    IconButton(
+                        onClick = { showDeleteDialog = true },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color.White, RoundedCornerShape(8.dp))
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Supprimer",
+                            tint = BrandColors.Red,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 

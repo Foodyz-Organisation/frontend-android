@@ -32,6 +32,10 @@ import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.feature_event.BrandColors
 import com.example.damprojectfinal.feature_event.EventStatus
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Calendar
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,6 +69,17 @@ fun CreateEventScreen(
     // 🔥 NOUVEAU : État pour la carte
     var showMapPicker by remember { mutableStateOf(false) }
     var selectedLocation by remember { mutableStateOf<LocationData?>(null) }
+    
+    // 📅 États pour les DatePickers
+    var showDatePickerDebut by remember { mutableStateOf(false) }
+    var showTimePickerDebut by remember { mutableStateOf(false) }
+    var showDatePickerFin by remember { mutableStateOf(false) }
+    var showTimePickerFin by remember { mutableStateOf(false) }
+    
+    var selectedDateDebut by remember { mutableStateOf<LocalDate?>(null) }
+    var selectedTimeDebut by remember { mutableStateOf<LocalTime?>(null) }
+    var selectedDateFin by remember { mutableStateOf<LocalDate?>(null) }
+    var selectedTimeFin by remember { mutableStateOf<LocalTime?>(null) }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         imageUri = uri
@@ -151,25 +166,19 @@ fun CreateEventScreen(
                 fontSize = 12.sp
             )
 
-            // Dates
+            // Dates avec DatePicker
             FieldLabel("Date de début")
-            StyledTextField(
+            DatePickerField(
                 value = dateDebut,
-                onValueChange = { dateDebut = it },
-                placeholder = "2025-11-15T10:00:00",
-                leadingIcon = {
-                    Icon(Icons.Default.DateRange, contentDescription = null, tint = BrandColors.TextSecondary)
-                }
+                placeholder = "Sélectionnez la date et l'heure de début",
+                onDateClick = { showDatePickerDebut = true }
             )
 
             FieldLabel("Date de fin")
-            StyledTextField(
+            DatePickerField(
                 value = dateFin,
-                onValueChange = { dateFin = it },
-                placeholder = "2025-11-15T18:00:00",
-                leadingIcon = {
-                    Icon(Icons.Default.DateRange, contentDescription = null, tint = BrandColors.TextSecondary)
-                }
+                placeholder = "Sélectionnez la date et l'heure de fin",
+                onDateClick = { showDatePickerFin = true }
             )
 
             // 🔥 NOUVEAU : Lieu avec carte OSM
@@ -316,6 +325,64 @@ fun CreateEventScreen(
             onDismiss = { showMapPicker = false }
         )
     }
+    
+    // 📅 DatePicker pour Date de début
+    if (showDatePickerDebut) {
+        DatePickerDialog(
+            onDateSelected = { date ->
+                selectedDateDebut = date
+                showDatePickerDebut = false
+                showTimePickerDebut = true
+            },
+            onDismiss = { showDatePickerDebut = false }
+        )
+    }
+    
+    // ⏰ TimePicker pour Date de début
+    if (showTimePickerDebut) {
+        TimePickerDialog(
+            onTimeSelected = { time ->
+                selectedTimeDebut = time
+                showTimePickerDebut = false
+                // Formater la date et l'heure au format ISO
+                val dateTime = selectedDateDebut?.atTime(time)
+                dateDebut = dateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: ""
+            },
+            onDismiss = { 
+                showTimePickerDebut = false
+                selectedDateDebut = null
+            }
+        )
+    }
+    
+    // 📅 DatePicker pour Date de fin
+    if (showDatePickerFin) {
+        DatePickerDialog(
+            onDateSelected = { date ->
+                selectedDateFin = date
+                showDatePickerFin = false
+                showTimePickerFin = true
+            },
+            onDismiss = { showDatePickerFin = false }
+        )
+    }
+    
+    // ⏰ TimePicker pour Date de fin
+    if (showTimePickerFin) {
+        TimePickerDialog(
+            onTimeSelected = { time ->
+                selectedTimeFin = time
+                showTimePickerFin = false
+                // Formater la date et l'heure au format ISO
+                val dateTime = selectedDateFin?.atTime(time)
+                dateFin = dateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: ""
+            },
+            onDismiss = { 
+                showTimePickerFin = false
+                selectedDateFin = null
+            }
+        )
+    }
 }
 
 // 🔥 NOUVEAU : Dialog pour la carte OSM
@@ -373,6 +440,159 @@ fun StyledTextField(
             unfocusedIndicatorColor = Color.Transparent,
             cursorColor = BrandColors.TextPrimary
         )
+    )
+}
+
+// 📅 Composant pour le champ de date avec DatePicker
+@Composable
+fun DatePickerField(
+    value: String,
+    placeholder: String,
+    onDateClick: () -> Unit
+) {
+    // Formater la date pour l'affichage si elle existe
+    val displayValue = if (value.isNotBlank()) {
+        try {
+            val dateTime = LocalDate.parse(value.substringBefore("T"), DateTimeFormatter.ISO_LOCAL_DATE)
+            val time = if (value.contains("T")) {
+                val timeStr = value.substringAfter("T").substringBefore(".")
+                val parts = timeStr.split(":")
+                if (parts.size >= 2) "${parts[0]}:${parts[1]}" else ""
+            } else ""
+            val formattedDate = dateTime.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+            if (time.isNotBlank()) "$formattedDate à $time" else formattedDate
+        } catch (e: Exception) {
+            value
+        }
+    } else {
+        ""
+    }
+    
+    // Utiliser un OutlinedButton pour garantir que tout le champ est cliquable
+    OutlinedButton(
+        onClick = onDateClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(2.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = BrandColors.FieldFill
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.DateRange,
+                contentDescription = null,
+                tint = BrandColors.TextSecondary
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.Start
+            ) {
+                Text(
+                    text = displayValue.ifBlank { placeholder },
+                    color = if (displayValue.isNotBlank()) BrandColors.TextPrimary else BrandColors.TextSecondary,
+                    textAlign = TextAlign.Start
+                )
+            }
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = BrandColors.TextSecondary
+            )
+        }
+    }
+}
+
+// 📅 Dialog DatePicker
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DatePickerDialog(
+    onDateSelected: (LocalDate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = Calendar.getInstance().timeInMillis
+    )
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sélectionnez une date", color = BrandColors.TextPrimary) },
+        text = {
+            DatePicker(state = datePickerState)
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val calendar = Calendar.getInstance().apply {
+                            timeInMillis = millis
+                        }
+                        val date = LocalDate.of(
+                            calendar.get(Calendar.YEAR),
+                            calendar.get(Calendar.MONTH) + 1,
+                            calendar.get(Calendar.DAY_OF_MONTH)
+                        )
+                        onDateSelected(date)
+                    }
+                }
+            ) {
+                Text("OK", color = BrandColors.Yellow)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler", color = BrandColors.TextSecondary)
+            }
+        },
+        containerColor = Color.White
+    )
+}
+
+// ⏰ Dialog TimePicker
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimePickerDialog(
+    onTimeSelected: (LocalTime) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val timePickerState = rememberTimePickerState(
+        initialHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
+        initialMinute = Calendar.getInstance().get(Calendar.MINUTE),
+        is24Hour = true
+    )
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sélectionnez une heure", color = BrandColors.TextPrimary) },
+        text = {
+            TimePicker(state = timePickerState)
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val time = LocalTime.of(
+                        timePickerState.hour,
+                        timePickerState.minute
+                    )
+                    onTimeSelected(time)
+                }
+            ) {
+                Text("OK", color = BrandColors.Yellow)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler", color = BrandColors.TextSecondary)
+            }
+        },
+        containerColor = Color.White
     )
 }
 

@@ -1,7 +1,9 @@
 package com.example.damprojectfinal.core.api
 
 import android.util.Log
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.dto.reclamation.CreateReclamationRequest
+import com.example.damprojectfinal.core.dto.reclamation.LoyaltyPointsBalance
 import com.example.damprojectfinal.core.dto.reclamation.Reclamation
 import com.example.damprojectfinal.core.dto.reclamation.RespondReclamationRequest
 import retrofit2.Retrofit
@@ -50,11 +52,18 @@ interface ReclamationApi {
         @Path("id") id: String,
         @Body request: RespondReclamationRequest
     ): Reclamation
+
+    /**
+     * ✅ NOUVEAU: Récupère les points de fidélité de l'utilisateur
+     * Endpoint: GET /reclamation/user/loyalty
+     */
+    @GET("reclamation/user/loyalty")
+    suspend fun getUserLoyalty(): LoyaltyPointsBalance?
 }
 
 object ReclamationRetrofitClient {
     private const val TAG = "ReclamationClient"
-    private const val BASE_URL = "http://10.0.2.2:3000/"
+    private val BASE_URL = BaseUrlProvider.BASE_URL_WITH_SLASH
 
     fun createClient(token: String): ReclamationApi {
         val loggingInterceptor = HttpLoggingInterceptor().apply {

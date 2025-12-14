@@ -3,6 +3,8 @@ package com.example.damprojectfinal.user.feautre_order.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ReportProblem
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,6 +44,7 @@ fun OrderHistoryScreen(
     orderViewModel: OrderViewModel,
     userId: String,
     onOrderClick: (String) -> Unit,
+    onReclamationClick: (String) -> Unit,
     onLogout: () -> Unit
 ) {
     val ordersState by orderViewModel.orders.collectAsState()
@@ -110,9 +113,9 @@ fun OrderHistoryScreen(
                                 }
                             }
                         }
-                        
+
                         items(ordersState!!, key = { it._id }) { order ->
-                            OrderItemCard(order, onOrderClick)
+                            OrderItemCard(order, onOrderClick, onReclamationClick)
                         }
                     }
                 }
@@ -122,7 +125,7 @@ fun OrderHistoryScreen(
             if (isSearchActive) {
                 // Import and use your DynamicSearchOverlay if needed
             }
-            
+
             // Delete All Confirmation Dialog
             if (showDeleteAllDialog) {
                 val completedOrdersCount = ordersState?.count { it.status == com.example.damprojectfinal.core.dto.order.OrderStatus.COMPLETED } ?: 0
@@ -212,7 +215,11 @@ fun EmptyOrdersView(paddingValues: PaddingValues) {
 // ===============================================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OrderItemCard(order: OrderResponse, onClick: (String) -> Unit) {
+fun OrderItemCard(
+    order: OrderResponse,
+    onClick: (String) -> Unit,
+    onReclamationClick: (String) -> Unit
+) {
     Card(
         onClick = { onClick(order._id) },
         modifier = Modifier
@@ -230,10 +237,10 @@ fun OrderItemCard(order: OrderResponse, onClick: (String) -> Unit) {
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     // Show menu items instead of order ID
-                    val itemsSummary = order.items.take(2).joinToString(", ") { 
-                        "${it.name} x${it.quantity}" 
+                    val itemsSummary = order.items.take(2).joinToString(", ") {
+                        "${it.name} x${it.quantity}"
                     } + if (order.items.size > 2) ", +${order.items.size - 2} more" else ""
-                    
+
                     Text(
                         text = itemsSummary,
                         fontWeight = FontWeight.Bold,
@@ -305,23 +312,41 @@ fun OrderItemCard(order: OrderResponse, onClick: (String) -> Unit) {
                     color = AppDarkText
                 )
 
-                val statusColor = when (order.status) {
-                    OrderStatus.COMPLETED -> Color(0xFF10B981)
-                    OrderStatus.CANCELLED, OrderStatus.REFUSED -> Color(0xFFEF4444)
-                    OrderStatus.PENDING -> Color(0xFFF59E0B)
-                    OrderStatus.CONFIRMED -> Color(0xFF3B82F6)
-                }
-
-                Badge(
-                    containerColor = statusColor.copy(alpha = 0.15f),
-                    contentColor = statusColor
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = order.status.name,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                    )
+                    // Reclamation Icon Button
+                    IconButton(
+                        onClick = { onReclamationClick(order._id) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ReportProblem,
+                            contentDescription = "File a complaint",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    val statusColor = when (order.status) {
+                        OrderStatus.COMPLETED -> Color(0xFF10B981)
+                        OrderStatus.CANCELLED, OrderStatus.REFUSED -> Color(0xFFEF4444)
+                        OrderStatus.PENDING -> Color(0xFFF59E0B)
+                        OrderStatus.CONFIRMED -> Color(0xFF3B82F6)
+                    }
+
+                    Badge(
+                        containerColor = statusColor.copy(alpha = 0.15f),
+                        contentColor = statusColor
+                    ) {
+                        Text(
+                            text = order.status.name,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
                 }
             }
         }

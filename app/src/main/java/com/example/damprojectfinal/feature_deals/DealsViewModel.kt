@@ -62,9 +62,13 @@ class DealsViewModel(
                 result.onSuccess { deals ->
                     Log.d(TAG, "✅ API Success - ${deals.size} deals reçus")
 
-                    // ✅ TEMPORAIRE : Afficher TOUS les deals sans filtrage
-                    Log.d(TAG, "✅ ${deals.size} deals chargés (sans filtrage)")
-                    _dealsState.value = DealsUiState.Success(deals)
+                    // ✅ Automatically delete expired deals
+                    deleteExpiredDeals(deals)
+
+                    // Filter out expired deals from the list
+                    val activeDeals = deals.filter { !isDealExpired(it) }
+                    Log.d(TAG, "✅ ${activeDeals.size} deals actifs (${deals.size - activeDeals.size} expirés supprimés)")
+                    _dealsState.value = DealsUiState.Success(activeDeals)
                 }
 
                 result.onFailure { error ->
@@ -91,8 +95,15 @@ class DealsViewModel(
                 val result = repository.getDealById(id)
 
                 result.onSuccess { deal ->
-                    Log.d(TAG, "✅ Deal chargé: ${deal.restaurantName}")
-                    _dealDetailState.value = DealDetailUiState.Success(deal)
+                    // Check if deal is expired and delete it if so
+                    if (isDealExpired(deal)) {
+                        Log.d(TAG, "⚠️ Deal expiré détecté, suppression automatique...")
+                        deleteDeal(deal._id)
+                        _dealDetailState.value = DealDetailUiState.Error("Ce deal a expiré et a été supprimé")
+                    } else {
+                        Log.d(TAG, "✅ Deal chargé: ${deal.restaurantName}")
+                        _dealDetailState.value = DealDetailUiState.Success(deal)
+                    }
                 }
 
                 result.onFailure { error ->
@@ -200,6 +211,77 @@ class DealsViewModel(
     fun clearOperationResult() {
         Log.d(TAG, "🧹 Nettoyage operationResult")
         _operationResult.value = null
+    }
+
+    /**
+     * Checks if a deal has expired (endDate has passed)
+     */
+    private fun isDealExpired(deal: Deal): Boolean {
+        return try {
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
+            dateFormat.timeZone = TimeZone.getTimeZone("UTC")
+            val currentDate = Date()
+            val endDate = dateFormat.parse(deal.endDate)
+
+            if (endDate == null) {
+                Log.w(TAG, "⚠️ Impossible de parser endDate pour deal ${deal._id}")
+                return false
+            }
+
+            val isExpired = currentDate.after(endDate) || currentDate.equals(endDate)
+            
+            if (isExpired) {
+                Log.d(TAG, "⏰ Deal expiré détecté: ${deal.restaurantName} (endDate: ${deal.endDate})")
+            }
+            
+            isExpired
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erreur lors de la vérification d'expiration: ${e.message}", e)
+            // Try alternative date format
+            try {
+                val altDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                val currentDate = Date()
+                val endDate = altDateFormat.parse(deal.endDate)
+                if (endDate != null) {
+                    val isExpired = currentDate.after(endDate) || currentDate.equals(endDate)
+                    if (isExpired) {
+                        Log.d(TAG, "⏰ Deal expiré (format alternatif): ${deal.restaurantName}")
+                    }
+                    return isExpired
+                }
+            } catch (e2: Exception) {
+                Log.e(TAG, "❌ Erreur format alternatif: ${e2.message}")
+            }
+            false
+        }
+    }
+
+    /**
+     * Automatically deletes all expired deals from the list
+     */
+    private suspend fun deleteExpiredDeals(deals: List<Deal>) {
+        val expiredDeals = deals.filter { isDealExpired(it) }
+        
+        if (expiredDeals.isEmpty()) {
+            Log.d(TAG, "✅ Aucun deal expiré à supprimer")
+            return
+        }
+
+        Log.d(TAG, "🗑️ Suppression automatique de ${expiredDeals.size} deal(s) expiré(s)...")
+        
+        expiredDeals.forEach { deal ->
+            try {
+                val result = repository.deleteDeal(deal._id)
+                result.onSuccess {
+                    Log.d(TAG, "✅ Deal expiré supprimé: ${deal.restaurantName} (ID: ${deal._id})")
+                }
+                result.onFailure { error ->
+                    Log.e(TAG, "❌ Erreur lors de la suppression du deal expiré ${deal._id}: ${error.message}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Exception lors de la suppression du deal expiré ${deal._id}: ${e.message}")
+            }
+        }
     }
 
     private fun isValidDeal(deal: Deal): Boolean {

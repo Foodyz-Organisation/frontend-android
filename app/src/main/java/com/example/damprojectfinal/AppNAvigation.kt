@@ -17,11 +17,21 @@ import androidx.navigation.compose.rememberNavController
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import com.example.damprojectfinal.feature_auth.ui.*
 import com.example.damprojectfinal.core.repository.AuthRepository
 import com.example.damprojectfinal.feature_auth.viewmodels.*
@@ -78,6 +88,7 @@ import com.example.damprojectfinal.professional.feature_event.EventDetailScreen
 import com.example.damprojectfinal.user.feature_deals.DealDetailScreen
 import com.example.damprojectfinal.user.feature_deals.DealsListScreen
 import com.example.damprojectfinal.user.feature_chat.ui.ChatManagementScreen
+import com.example.damprojectfinal.user.feature_pro_profile.ui.RestaurantProfileView
 import com.example.damprojectfinal.user.feature_pro_profile.ui.RestaurantProfileViewScreen
 import com.example.damprojectfinal.user.feature_profile.ui.UserViewModel
 import com.example.damprojectfinal.core.`object`.KtorClient
@@ -93,11 +104,20 @@ import com.example.damprojectfinal.professional.feature_event.CreateEventScreen
 import com.example.damprojectfinal.professional.feature_event.EventListScreenRemote
 import com.example.damprojectfinal.user.feature_event.EventListScreen
 import com.example.damprojectfinal.feature_event.EventViewModel
+import com.example.damprojectfinal.feature_event.EventStatus
+import com.example.damprojectfinal.core.api.EventRetrofitClient
 import com.example.damprojectfinal.feature_relamation.ReclamationDetailScreen
 import com.example.damprojectfinal.core.repository.ReclamationRepository
 import com.example.damprojectfinal.feature_relamation.ReclamationViewModel
+import com.example.damprojectfinal.professional.feature_event.EditEventScreen
 import com.example.damprojectfinal.professional.feature_relamation.ReclamationListRestaurantScreen
 import com.example.damprojectfinal.user.feature_relamation.ReclamationListUserScreen
+import com.example.damprojectfinal.feature_relamation.LoyaltyPointsScreen
+import com.example.damprojectfinal.feature_relamation.LoyaltyData
+import com.example.damprojectfinal.feature_relamation.Reward
+import com.example.damprojectfinal.feature_relamation.PointsTransaction
+import com.example.damprojectfinal.core.api.ReclamationRetrofitClient
+import com.example.damprojectfinal.feature_event.Event
 
 object AuthRoutes {
     const val SPLASH = "splash_route"
@@ -174,14 +194,14 @@ fun AppNavigation(
 
     val ServiceLocator = KtorClient
     val postsApiService = remember { PostsRetrofitClient.postsApiService }
-    // Changed start destination to LOGIN to ensure users always start at login screen
-    val startDestination = AuthRoutes.LOGIN
+    val startDestination = AuthRoutes.SPLASH
 
     NavHost(
         navController = navController,
         startDestination = startDestination,
         modifier = modifier,
     ) {
+        // 1️⃣ Splash Screen
         // 1️⃣ Splash Screen (kept for potential future use, but not used as start destination)
         composable(AuthRoutes.SPLASH) {
             SplashScreen(
@@ -631,6 +651,87 @@ fun AppNavigation(
             error?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
         }
 
+        // 💰 Points de Fidélité
+        composable("loyalty_points_route") {
+            val context = LocalContext.current
+            val tokenManager = remember { TokenManager(context) }
+            var loyaltyData: LoyaltyData? by remember { mutableStateOf(null) }
+            var isLoading by remember { mutableStateOf(true) }
+            var errorMessage: String? by remember { mutableStateOf(null) }
+
+            LaunchedEffect(Unit) {
+                isLoading = true
+                errorMessage = null
+                try {
+                    val token = tokenManager.getAccessTokenAsync()
+                    if (!token.isNullOrEmpty()) {
+                        val api = ReclamationRetrofitClient.createClient(token)
+                        val balance = api.getUserLoyalty()
+
+                        loyaltyData = balance?.let {
+                            LoyaltyData(
+                                loyaltyPoints = it.loyaltyPoints,
+                                validReclamations = it.validReclamations,
+                                invalidReclamations = it.invalidReclamations,
+                                reliabilityScore = it.reliabilityScore,
+                                availableRewards = emptyList(),
+                                history = emptyList()
+                            )
+                        }
+
+                        if (loyaltyData == null) {
+                            errorMessage = "Aucune donnée disponible"
+                        }
+                    } else {
+                        errorMessage = "Token non disponible"
+                    }
+                } catch (e: Exception) {
+                    Log.e("LoyaltyRoute", "❌ Erreur: ${e.message}", e)
+                    errorMessage = "Erreur de chargement: ${e.message}"
+                } finally {
+                    isLoading = false
+                }
+            }
+
+            when {
+                isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                errorMessage != null -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = errorMessage ?: "Erreur inconnue",
+                                color = MaterialTheme.colorScheme.error,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(onClick = { navController.popBackStack() }) {
+                                Text("Retour")
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    LoyaltyPointsScreen(
+                        loyaltyData = loyaltyData,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+            }
+        }
+
         // 1️⃣1️⃣ Détail réclamation (CLIENT)
         composable(
             route = "reclamation_detail/{reclamationId}",
@@ -657,7 +758,145 @@ fun AppNavigation(
             }
         }
 
-        // 1️⃣2️⃣ Créer réclamation (CLIENT)
+        // 1️⃣2️⃣ Créer réclamation (CLIENT) - avec orderId
+        composable(
+            route = "create_reclamation/{orderId}",
+            arguments = listOf(
+                navArgument("orderId") {
+                    type = NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val orderId = backStackEntry.arguments?.getString("orderId")
+            val context = LocalContext.current
+            val tokenManager = TokenManager(context)
+            val userApiService = UserApiService(tokenManager)
+            val vm: ReclamationViewModel = viewModel(
+                factory = ReclamationViewModelFactory(userApiService, tokenManager, context)
+            )
+
+            // Log de l'orderId reçu
+            Log.d("ReclamationNav", "════════════════════════════════")
+            Log.d("ReclamationNav", "📥 OrderId reçu depuis navigation: $orderId")
+            Log.d("ReclamationNav", "════════════════════════════════")
+
+            // Charger les commandes de l'utilisateur
+            val orders by vm.orders.collectAsState()
+
+            // Log des commandes chargées
+            LaunchedEffect(orders.size) {
+                Log.d("ReclamationNav", "📋 Commandes chargées: ${orders.size}")
+                orders.take(3).forEach { order ->
+                    Log.d("ReclamationNav", "   - Commande ID: ${order.id}")
+                }
+            }
+
+            // Formater les commandes pour l'affichage avec l'ID complet ou les 8 derniers caractères
+            val commandeconcernees = remember(orders, orderId) {
+                val baseList = orders.map { order ->
+                    val orderIdDisplay = if (order.id.length >= 8) order.id.takeLast(8) else order.id
+                    "Commande #$orderIdDisplay"
+                }
+
+                // Si un orderId est fourni, l'ajouter en premier dans la liste avec le format "Commande #xxxxx"
+                if (orderId != null) {
+                    val orderIdSuffix = if (orderId.length >= 8) orderId.takeLast(8) else orderId
+                    val orderFormat = "Commande #$orderIdSuffix"
+                    // Vérifier si la commande existe déjà dans la liste
+                    val orderExists = baseList.any {
+                        it == orderFormat ||
+                        it.endsWith(orderIdSuffix) ||
+                        orders.any { o -> o.id == orderId || o.id.endsWith(orderIdSuffix) }
+                    }
+                    if (!orderExists) {
+                        // Ajouter la commande en premier dans la liste
+                        listOf(orderFormat) + baseList
+                    } else {
+                        // Si elle existe, la mettre en premier
+                        listOf(orderFormat) + baseList.filter {
+                            it != orderFormat && !it.endsWith(orderIdSuffix)
+                        }
+                    }
+                } else {
+                    baseList
+                }
+            }
+
+            // Observer les erreurs du ViewModel
+            val error by vm.errorMessage.collectAsState()
+            LaunchedEffect(error) {
+                error?.let { errorMsg ->
+                    Log.e("ReclamationNav", "❌ Erreur lors de la création: $errorMsg")
+                    Toast.makeText(context, "Erreur: $errorMsg", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            ReclamationTemplateScreen(
+                complaintTypes = listOf("Livraison en retard", "Article manquant", "Problème de qualité", "Autre"),
+                commandeconcernees = commandeconcernees,
+                initialOrderId = orderId,
+                onSubmit = { commandeConcernee, complaintType, description, photos ->
+                    // Extraire l'ID de la commande depuis le format "Commande #xxxxx"
+                    val selectedOrderId = if (commandeConcernee.startsWith("Commande #")) {
+                        val orderIdSuffix = commandeConcernee.substringAfter("#").trim()
+                        // Priorité 1: Utiliser l'orderId initial s'il existe (le plus fiable)
+                        if (orderId != null) {
+                            Log.d("ReclamationNav", "✅ Utilisation de l'orderId initial: $orderId")
+                            orderId
+                        } else {
+                            // Priorité 2: Chercher dans les commandes chargées par suffixe
+                            val foundOrder = orders.find { order ->
+                                val orderSuffix = if (order.id.length >= 8) order.id.takeLast(8) else order.id
+                                orderSuffix == orderIdSuffix || order.id.endsWith(orderIdSuffix)
+                            }
+                            if (foundOrder != null) {
+                                Log.d("ReclamationNav", "✅ Commande trouvée dans la liste: ${foundOrder.id}")
+                                foundOrder.id
+                            } else {
+                                // Priorité 3: Utiliser le suffixe directement (peut fonctionner si c'est l'ID complet)
+                                Log.d("ReclamationNav", "⚠️ Utilisation du suffixe directement: $orderIdSuffix")
+                                orderIdSuffix
+                            }
+                        }
+                    } else {
+                        // Si ce n'est pas au format "Commande #", utiliser directement ou l'orderId initial
+                        if (commandeConcernee.isNotBlank()) {
+                            commandeConcernee
+                        } else {
+                            orderId ?: ""
+                        }
+                    }
+
+                    // Validation: s'assurer qu'on a un ID valide
+                    if (selectedOrderId.isNotBlank()) {
+                        Log.d("ReclamationNav", "════════════════════════════════")
+                        Log.d("ReclamationNav", "📝 Données de la réclamation:")
+                        Log.d("ReclamationNav", "   Commande sélectionnée (affichage): $commandeConcernee")
+                        Log.d("ReclamationNav", "   Commande ID (envoyé): $selectedOrderId")
+                        Log.d("ReclamationNav", "   Type: $complaintType")
+                        Log.d("ReclamationNav", "   Description: ${description.take(50)}...")
+                        Log.d("ReclamationNav", "   Photos: ${photos.size}")
+                        Log.d("ReclamationNav", "════════════════════════════════")
+
+                        vm.createReclamation(
+                            commandeConcernee = selectedOrderId,
+                            complaintType = complaintType,
+                            description = description,
+                            photoUris = photos
+                        ) { reclamation ->
+                            Log.d("ReclamationNav", "✅ Réclamation créée avec succès: ${reclamation.id}")
+                            Toast.makeText(context, "Réclamation créée avec succès !", Toast.LENGTH_LONG).show()
+                            navController.popBackStack()
+                        }
+                    } else {
+                        Log.e("ReclamationNav", "❌ Erreur: Aucun ID de commande valide")
+                        Toast.makeText(context, "Erreur: Veuillez sélectionner une commande valide", Toast.LENGTH_LONG).show()
+                    }
+                }
+            )
+        }
+
+        // 1️⃣2️⃣-bis Créer réclamation (CLIENT) - sans orderId
         composable("create_reclamation") {
             val context = LocalContext.current
             val tokenManager = TokenManager(context)
@@ -666,12 +905,36 @@ fun AppNavigation(
                 factory = ReclamationViewModelFactory(userApiService, tokenManager, context)
             )
 
+            // Charger les commandes de l'utilisateur
+            val orders by vm.orders.collectAsState()
+
+            // Observer les erreurs du ViewModel
+            val error by vm.errorMessage.collectAsState()
+            LaunchedEffect(error) {
+                error?.let { errorMsg ->
+                    Log.e("ReclamationNav", "❌ Erreur lors de la création: $errorMsg")
+                    Toast.makeText(context, "Erreur: $errorMsg", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            // Formater les commandes pour l'affichage
+            val commandeconcernees = orders.map { "Commande #${it.id.takeLast(8)}" }
+
             ReclamationTemplateScreen(
                 complaintTypes = listOf("Livraison en retard", "Article manquant", "Problème de qualité", "Autre"),
-                commandeconcernees = listOf("Commande #12345", "Commande #12346", "Commande #12347", "Commande #12348"),
+                commandeconcernees = commandeconcernees,
+                initialOrderId = null,
                 onSubmit = { commandeConcernee, complaintType, description, photos ->
+                    // Extraire l'ID de la commande depuis le format "Commande #xxxxx"
+                    val selectedOrderId = if (commandeConcernee.startsWith("Commande #")) {
+                        val orderIdSuffix = commandeConcernee.substringAfter("#")
+                        orders.find { it.id.endsWith(orderIdSuffix) }?.id ?: commandeConcernee
+                    } else {
+                        commandeConcernee
+                    }
+
                     vm.createReclamation(
-                        commandeConcernee = commandeConcernee,
+                        commandeConcernee = selectedOrderId,
                         complaintType = complaintType,
                         description = description,
                         photoUris = photos
@@ -707,12 +970,84 @@ fun AppNavigation(
             arguments = listOf(navArgument("eventId") { type = NavType.StringType })
         ) { backStackEntry ->
             val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
+            val context = LocalContext.current
             val eventViewModel: EventViewModel = viewModel()
             val events by eventViewModel.events.collectAsState()
-            val selectedEvent = events.find { it._id == eventId }
+            val isLoading by eventViewModel.isLoading.collectAsState()
+            
+            var selectedEvent by remember { mutableStateOf<Event?>(null) }
+            var isLoadingEvent by remember { mutableStateOf(false) }
+            
+            // Charger les événements si la liste est vide
+            LaunchedEffect(Unit) {
+                if (events.isEmpty()) {
+                    eventViewModel.loadEvents()
+                }
+            }
+            
+            // Chercher l'événement dans la liste ou le charger depuis l'API
+            LaunchedEffect(eventId, events, isLoading) {
+                val foundEvent = events.find { it._id == eventId }
+                if (foundEvent != null) {
+                    selectedEvent = foundEvent
+                } else if (!isLoading && events.isNotEmpty() && selectedEvent == null && !isLoadingEvent) {
+                    // Si l'événement n'est pas dans la liste, le charger depuis l'API
+                    isLoadingEvent = true
+                    try {
+                        Log.d("AppNavigation", "🔍 Chargement de l'événement $eventId depuis l'API pour les détails")
+                        val event = EventRetrofitClient.api.getEventById(eventId)
+                        selectedEvent = event
+                        Log.d("AppNavigation", "✅ Événement chargé depuis l'API: ${event.nom}")
+                    } catch (e: Exception) {
+                        Log.e("AppNavigation", "❌ Erreur lors du chargement de l'événement: ${e.message}")
+                        Toast.makeText(context, "Erreur lors du chargement de l'événement: ${e.message}", Toast.LENGTH_LONG).show()
+                    } finally {
+                        isLoadingEvent = false
+                    }
+                }
+            }
 
-            if (selectedEvent != null) {
-                EventDetailScreen(event = selectedEvent, onBackClick = { navController.popBackStack() })
+            when {
+                isLoadingEvent || (isLoading && selectedEvent == null) -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                selectedEvent != null -> {
+                    EventDetailScreen(
+                        event = selectedEvent!!,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+                else -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Événement introuvable",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = "L'événement avec l'ID $eventId n'a pas pu être chargé.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(onClick = { navController.popBackStack() }) {
+                                Text("Retour")
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -720,28 +1055,321 @@ fun AppNavigation(
         composable("create_event") {
             val context = LocalContext.current
             val eventViewModel: EventViewModel = viewModel()
+            val events by eventViewModel.events.collectAsState()
+            val error by eventViewModel.error.collectAsState()
+            var previousEventsCount by remember { mutableStateOf(0) }
+
+            // Observe the ViewModel state for success/error
+            LaunchedEffect(error, events.size) {
+                if (error == null && events.size > previousEventsCount) {
+                    Toast.makeText(context, "Événement créé avec succès!", Toast.LENGTH_SHORT).show()
+                    navController.navigate("event_list") {
+                        popUpTo("create_event") { inclusive = true }
+                    }
+                } else if (error != null) {
+                    Toast.makeText(context, "Erreur: $error", Toast.LENGTH_LONG).show()
+                }
+                previousEventsCount = events.size
+            }
 
             CreateEventScreen(
                 navController = navController,
                 onSubmit = { nom, description, dateDebut, dateFin, image, lieu, categorie, statut ->
-                    eventViewModel.createEvent(nom, description, dateDebut, dateFin, image, lieu, categorie, statut)
-                    Toast.makeText(context, "Événement créé avec succès!", Toast.LENGTH_SHORT).show()
-                    navController.navigate("event_list") { popUpTo("create_event") { inclusive = true } }
+                    // ⚠️ Backend validation: image must be a valid URL (http/https).
+                    // Local content:// URIs will cause 400 Bad Request.
+                    // Temporary fix: Send null if not a web URL.
+                    val validImage = if (image?.startsWith("http") == true) image else null
+
+                    if (image != null && validImage == null) {
+                        Toast.makeText(context, "L'envoi d'images locales n'est pas encore supporté.", Toast.LENGTH_SHORT).show()
+                    }
+
+                    eventViewModel.createEvent(
+                        nom,
+                        description,
+                        dateDebut,
+                        dateFin,
+                        validImage,
+                        lieu,
+                        categorie,
+                        statut
+                    )
                 },
                 onBack = { navController.popBackStack() }
             )
         }
 
-        // 1️⃣5️⃣.1️⃣ Liste événements Remote (Professional)
+        // 1️⃣5️⃣ Liste événements (PROFESSIONAL) - ✅ AVEC ViewModel partagé
         composable("event_list_remote") {
+            val eventViewModel: EventViewModel = viewModel() // ✅ ViewModel partagé
+            val events by eventViewModel.events.collectAsState()
+            val context = LocalContext.current
+
+            LaunchedEffect(Unit) {
+                eventViewModel.loadEvents()
+            }
+
+            // Observe errors for deletion
+            LaunchedEffect(eventViewModel.error) {
+                val error = eventViewModel.error.value
+                if (error != null) {
+                    Toast.makeText(context, "Erreur: $error", Toast.LENGTH_LONG).show()
+                }
+            }
+
             EventListScreenRemote(
                 onEventClick = { event ->
-                    // Navigate to event detail if needed
-                    navController.navigate("event_detail/${event._id}")
+                    event._id?.let { eventId ->
+                        Log.d("AppNavigation", "👁️ Navigation vers event_detail/$eventId")
+                        navController.navigate("event_detail/$eventId")
+                    } ?: run {
+                        Log.e("AppNavigation", "❌ Événement sans _id, impossible de naviguer vers les détails")
+                        Toast.makeText(context, "Erreur: L'événement n'a pas d'ID", Toast.LENGTH_SHORT).show()
+                    }
                 },
-                onBackClick = { navController.popBackStack() },
-                onAddEventClick = { navController.navigate("create_event") }
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onAddEventClick = {
+                    navController.navigate("create_event")
+                },
+                onEditEventClick = { event ->
+                    event._id?.let { eventId ->
+                        Log.d("AppNavigation", "✏️ Navigation vers edit_event/$eventId")
+                        navController.navigate("edit_event/$eventId")
+                    } ?: run {
+                        Log.e("AppNavigation", "❌ Événement sans _id, impossible de naviguer vers l'édition")
+                        Toast.makeText(context, "Erreur: L'événement n'a pas d'ID", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onDeleteEventClick = { eventId ->
+                    eventViewModel.deleteEvent(eventId)
+                }
             )
+        }
+
+// 🆕 Route pour l'édition d'un événement - ✅ UTILISE le ViewModel partagé
+        composable(
+            route = "edit_event/{eventId}",
+            arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
+
+            val context = LocalContext.current
+
+            // Essayer de récupérer le ViewModel du parent si possible, sinon créer un nouveau
+            val parentEntry = remember(backStackEntry) {
+                try {
+                    navController.getBackStackEntry("event_list_remote")
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            val eventViewModel: EventViewModel = if (parentEntry != null) {
+                viewModel(parentEntry)
+            } else {
+                Log.d("AppNavigation", "⚠️ Parent entry non trouvé, création d'un nouveau ViewModel")
+                viewModel()
+            }
+
+            val events by eventViewModel.events.collectAsState()
+            val error by eventViewModel.error.collectAsState()
+            val isLoading by eventViewModel.isLoading.collectAsState()
+
+            // Charger les événements si nécessaire
+            LaunchedEffect(Unit) {
+                eventViewModel.loadEvents()
+            }
+
+            // Trouver ou charger l'événement à éditer
+            var selectedEvent by remember { mutableStateOf<Event?>(null) }
+            var isLoadingEvent by remember { mutableStateOf(false) }
+            var hasInitiatedUpdate by remember { mutableStateOf(false) }
+            var initialEventState by remember { mutableStateOf<Event?>(null) }
+            var updateStartTime by remember { mutableStateOf<Long?>(null) }
+            
+            LaunchedEffect(eventId, events, isLoading) {
+                // D'abord chercher dans la liste chargée
+                val foundEvent = events.find { it._id == eventId }
+                if (foundEvent != null) {
+                    selectedEvent = foundEvent
+                    // Sauvegarder l'état initial de l'événement pour détecter les changements
+                    if (initialEventState == null) {
+                        initialEventState = foundEvent
+                    }
+                    Log.d("AppNavigation", "✅ Événement trouvé dans la liste: ${foundEvent.nom}")
+                } else if (!isLoading && events.isNotEmpty() && selectedEvent == null && !isLoadingEvent) {
+                    // Si l'événement n'est pas dans la liste, le charger depuis l'API
+                    isLoadingEvent = true
+                    try {
+                        Log.d("AppNavigation", "🔍 Chargement de l'événement $eventId depuis l'API")
+                        val event = EventRetrofitClient.api.getEventById(eventId)
+                        selectedEvent = event
+                        initialEventState = event
+                        Log.d("AppNavigation", "✅ Événement chargé depuis l'API: ${event.nom}")
+                    } catch (e: Exception) {
+                        Log.e("AppNavigation", "❌ Erreur lors du chargement de l'événement: ${e.message}")
+                        Toast.makeText(context, "Erreur lors du chargement de l'événement: ${e.message}", Toast.LENGTH_LONG).show()
+                    } finally {
+                        isLoadingEvent = false
+                    }
+                }
+            }
+            
+            // Observer l'événement mis à jour dans la liste
+            var lastObservedEvent by remember { mutableStateOf<Event?>(null) }
+            
+            // Initialiser lastObservedEvent avec l'événement actuel
+            LaunchedEffect(selectedEvent) {
+                selectedEvent?.let {
+                    if (lastObservedEvent == null) {
+                        lastObservedEvent = it
+                        initialEventState = it
+                    }
+                }
+            }
+            
+            // Observer les changements dans la liste d'événements pour détecter la mise à jour
+            LaunchedEffect(events) {
+                if (hasInitiatedUpdate && updateStartTime != null) {
+                    val currentEvent = events.find { it._id == eventId }
+                    val previousEvent = lastObservedEvent
+                    
+                    if (currentEvent != null && previousEvent != null) {
+                        // Comparer les champs pour détecter un changement réel
+                        val hasChanged = currentEvent.nom != previousEvent.nom ||
+                                currentEvent.description != previousEvent.description ||
+                                currentEvent.date_debut != previousEvent.date_debut ||
+                                currentEvent.date_fin != previousEvent.date_fin ||
+                                currentEvent.lieu != previousEvent.lieu ||
+                                currentEvent.categorie != previousEvent.categorie ||
+                                currentEvent.statut != previousEvent.statut
+                        
+                        if (hasChanged) {
+                            Log.d("AppNavigation", "✅ Mise à jour réussie - changement détecté dans la liste")
+                            Log.d("AppNavigation", "   Nom avant: ${previousEvent.nom}, après: ${currentEvent.nom}")
+                            Toast.makeText(context, "Événement mis à jour avec succès!", Toast.LENGTH_SHORT).show()
+                            navController.popBackStack()
+                            hasInitiatedUpdate = false
+                            updateStartTime = null
+                            lastObservedEvent = currentEvent
+                        }
+                    }
+                }
+            }
+            
+            // Observe error state for update success/error - seulement si une mise à jour a été initiée
+            LaunchedEffect(hasInitiatedUpdate, error, updateStartTime) {
+                if (!hasInitiatedUpdate || updateStartTime == null) {
+                    return@LaunchedEffect
+                }
+                
+                // Si une erreur survient
+                if (error != null) {
+                    Log.e("AppNavigation", "❌ Échec de la mise à jour: $error")
+                    Toast.makeText(context, "Erreur: $error", Toast.LENGTH_LONG).show()
+                    hasInitiatedUpdate = false
+                    updateStartTime = null
+                    return@LaunchedEffect
+                }
+                
+                // Attendre un peu pour que la liste soit mise à jour par le ViewModel
+                kotlinx.coroutines.delay(1000)
+                
+                // Si pas d'erreur après le délai, considérer comme succès
+                if (error == null && hasInitiatedUpdate) {
+                    val currentEvent = events.find { it._id == eventId }
+                    if (currentEvent != null) {
+                        Log.d("AppNavigation", "✅ Mise à jour réussie (pas d'erreur après 1s)")
+                        Toast.makeText(context, "Événement mis à jour avec succès!", Toast.LENGTH_SHORT).show()
+                        navController.popBackStack()
+                        hasInitiatedUpdate = false
+                        updateStartTime = null
+                        lastObservedEvent = currentEvent
+                    }
+                }
+            }
+
+            when {
+                isLoadingEvent || (isLoading && selectedEvent == null) -> {
+                    // Afficher un loading pendant le chargement
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                selectedEvent != null -> {
+                    EditEventScreen(
+                        navController = navController,
+                        event = selectedEvent!!,
+                        onUpdate = { id: String, nom: String, description: String, dateDebut: String, dateFin: String, image: String?, lieu: String, categorie: String, statut: EventStatus ->
+                            Log.d("AppNavigation", "🎯 onUpdate callback appelé")
+                            Log.d("AppNavigation", "📝 ID reçu: $id")
+                            Log.d("AppNavigation", "📝 Nom reçu: $nom")
+
+                            // Marquer qu'une mise à jour a été initiée
+                            hasInitiatedUpdate = true
+                            updateStartTime = System.currentTimeMillis()
+                            
+                            // Sauvegarder l'état actuel de l'événement pour comparaison
+                            selectedEvent?.let {
+                                initialEventState = it
+                            }
+
+                            // ⚠️ Validation Image
+                            val validImage = if (image?.startsWith("http") == true) image else null
+                            if (image != null && validImage == null) {
+                                Toast.makeText(context, "L'envoi d'images locales n'est pas encore supporté.", Toast.LENGTH_SHORT).show()
+                            }
+
+                            eventViewModel.updateEvent(
+                                event = selectedEvent!!,
+                                nom = nom,
+                                description = description,
+                                dateDebut = dateDebut,
+                                dateFin = dateFin,
+                                image = validImage,
+                                lieu = lieu,
+                                categorie = categorie,
+                                statut = statut
+                            )
+
+                            Log.d("AppNavigation", "✅ updateEvent() du ViewModel appelé (en attente de résultat)")
+                        },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                else -> {
+                    // Afficher un message d'erreur si l'événement n'est pas trouvé
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Événement introuvable",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = "L'événement avec l'ID $eventId n'a pas pu être chargé.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(onClick = { navController.popBackStack() }) {
+                                Text("Retour")
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // 1️⃣6️⃣ Liste réclamations (RESTAURANT)
@@ -833,6 +1461,14 @@ fun AppNavigation(
                 onEditDealClick = { dealId ->
                     Log.d("AppNavigation", "✏️ Navigation vers deal_edit/$dealId")
                     navController.navigate("deal_edit/$dealId")
+                },
+                onDealClick = { dealId ->
+                    Log.d("AppNavigation", "👁️ Navigation vers dealDetail/$dealId")
+                    navController.navigate("dealDetail/$dealId")
+                },
+                onBackClick = {
+                    Log.d("AppNavigation", "⬅️ Retour depuis pro_deals")
+                    navController.popBackStack()
                 }
             )
         }
@@ -960,13 +1596,15 @@ fun AppNavigation(
                 onOrderClick = { orderId ->
                     navController.navigate("order_details/$orderId")
                 },
+                onReclamationClick = { orderId ->
+                    navController.navigate("create_reclamation/$orderId")
+                },
                 onLogout = {
                     // Perform logout logic here if needed
                 }
             )
         }
 
-        // Order Details Route (User)
         composable(
             route = "order_details/{orderId}",
             arguments = listOf(navArgument("orderId") { type = NavType.StringType })
@@ -1093,8 +1731,9 @@ fun AppNavigation(
                 onBackClick = {
                     Log.d("AppNavigation", "⬅️ Retour depuis dealDetail")
                     navController.popBackStack()
-                 }
-                )
-            }
+                }
+            )
         }
     }
+}
+
