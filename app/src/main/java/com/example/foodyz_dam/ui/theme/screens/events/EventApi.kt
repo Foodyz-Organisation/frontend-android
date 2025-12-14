@@ -38,10 +38,14 @@ object EventRetrofitClient {
     private const val TAG = "RetrofitClient"
 
     // Pour l’émulateur Android Studio
-    private const val BASE_URL_EMULATOR = "http://10.0.2.2:3000/"
+    private const val BASE_URL_EMULATOR = "http://172.18.5.27:3000/"
 
     // Pour un appareil physique (remplace par ton IP locale)
+<<<<<<< Updated upstream:app/src/main/java/com/example/foodyz_dam/ui/theme/screens/events/EventApi.kt
     private const val BASE_URL_PHYSICAL = "http://192.168.1.100:3000/"
+=======
+    private const val BASE_URL_PHYSICAL = "http://172.18.5.27:3000/"
+>>>>>>> Stashed changes:app/src/main/java/com/example/damprojectfinal/core/api/EventApi.kt
 
     // ⚙️ Choisis ton mode ici :
     private const val USE_EMULATOR = true

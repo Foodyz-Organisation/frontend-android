@@ -29,8 +29,15 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
+<<<<<<< Updated upstream:app/src/main/java/com/example/foodyz_dam/ui/theme/screens/events/CreateEventScreen.kt
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.foodyz_dam.ui.theme.screens.events.BrandColors
+=======
+import com.example.damprojectfinal.feature_event.BrandColors
+import com.example.damprojectfinal.feature_event.EventStatus
+import java.text.SimpleDateFormat
+import java.util.*
+>>>>>>> Stashed changes:app/src/main/java/com/example/damprojectfinal/professional/feature_event/CreateEventScreen.kt
 
 // ------------------ Écran principal
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,24 +62,82 @@ fun CreateEventScreen(
 
     var nom by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+<<<<<<< Updated upstream:app/src/main/java/com/example/foodyz_dam/ui/theme/screens/events/CreateEventScreen.kt
     var dateDebut by remember { mutableStateOf("") }
     var dateFin by remember { mutableStateOf("") }
     var lieu by remember { mutableStateOf("") }
+=======
+>>>>>>> Stashed changes:app/src/main/java/com/example/damprojectfinal/professional/feature_event/CreateEventScreen.kt
     var categorie by remember { mutableStateOf("") }
     var statut by remember { mutableStateOf("À venir") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
 
+<<<<<<< Updated upstream:app/src/main/java/com/example/foodyz_dam/ui/theme/screens/events/CreateEventScreen.kt
+=======
+    // États pour la carte
+    var showMapPicker by remember { mutableStateOf(false) }
+    var selectedLocation by remember { mutableStateOf<LocationData?>(null) }
+
+    // États pour les dates et heures
+    var startDate by remember { mutableStateOf<Long?>(null) }
+    var startTime by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var endDate by remember { mutableStateOf<Long?>(null) }
+    var endTime by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+
+    // États pour afficher les pickers
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showStartTimePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
+    var showEndTimePicker by remember { mutableStateOf(false) }
+
+>>>>>>> Stashed changes:app/src/main/java/com/example/damprojectfinal/professional/feature_event/CreateEventScreen.kt
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         imageUri = uri
+    }
+
+    // Fonction pour formater la date/heure complète en ISO 8601
+    fun formatDateTime(dateMillis: Long?, time: Pair<Int, Int>?): String {
+        if (dateMillis == null || time == null) return ""
+        val calendar = Calendar.getInstance().apply {
+            timeInMillis = dateMillis
+            set(Calendar.HOUR_OF_DAY, time.first)
+            set(Calendar.MINUTE, time.second)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+        sdf.timeZone = TimeZone.getTimeZone("UTC")
+        return sdf.format(calendar.time)
+    }
+
+    // Fonction pour afficher la date/heure de manière lisible
+    fun displayDateTime(dateMillis: Long?, time: Pair<Int, Int>?): String {
+        if (dateMillis == null) return "Sélectionnez une date"
+        val dateSdf = SimpleDateFormat("dd/MM/yyyy", Locale.FRENCH)
+        val dateStr = dateSdf.format(Date(dateMillis))
+
+        return if (time != null) {
+            "$dateStr à ${String.format("%02d:%02d", time.first, time.second)}"
+        } else {
+            "$dateStr - Sélectionnez l'heure"
+        }
     }
 
     val isValid by remember {
         derivedStateOf {
             nom.isNotBlank() &&
                     description.isNotBlank() &&
+<<<<<<< Updated upstream:app/src/main/java/com/example/foodyz_dam/ui/theme/screens/events/CreateEventScreen.kt
                     dateDebut.isNotBlank() &&
                     dateFin.isNotBlank() &&
                     lieu.isNotBlank() &&
+=======
+                    startDate != null &&
+                    startTime != null &&
+                    endDate != null &&
+                    endTime != null &&
+                    selectedLocation != null &&
+>>>>>>> Stashed changes:app/src/main/java/com/example/damprojectfinal/professional/feature_event/CreateEventScreen.kt
                     categorie.isNotBlank()
         }
     }
@@ -147,28 +212,169 @@ fun CreateEventScreen(
                 fontSize = 12.sp
             )
 
-            // Dates
-            FieldLabel("Date de début")
-            StyledTextField(
-                value = dateDebut,
-                onValueChange = { dateDebut = it },
-                placeholder = "2025-11-15T10:00:00",
-                leadingIcon = {
-                    Icon(Icons.Default.DateRange, contentDescription = null, tint = BrandColors.TextSecondary)
+            // Date et heure de début
+            FieldLabel("Date et heure de début")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Date de début
+                OutlinedButton(
+                    onClick = { showStartDatePicker = true },
+                    modifier = Modifier
+                        .weight(1f)
+                        .shadow(2.dp, RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = BrandColors.FieldFill
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.DateRange,
+                        contentDescription = null,
+                        tint = BrandColors.TextSecondary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (startDate != null) {
+                            SimpleDateFormat("dd/MM/yyyy", Locale.FRENCH).format(Date(startDate!!))
+                        } else {
+                            "Date"
+                        },
+                        color = if (startDate != null) BrandColors.TextPrimary else BrandColors.TextSecondary,
+                        fontSize = 14.sp
+                    )
                 }
-            )
 
-            FieldLabel("Date de fin")
-            StyledTextField(
-                value = dateFin,
-                onValueChange = { dateFin = it },
-                placeholder = "2025-11-15T18:00:00",
-                leadingIcon = {
-                    Icon(Icons.Default.DateRange, contentDescription = null, tint = BrandColors.TextSecondary)
+                // Heure de début
+                OutlinedButton(
+                    onClick = {
+                        if (startDate != null) {
+                            showStartTimePicker = true
+                        } else {
+                            Toast.makeText(context, "Sélectionnez d'abord une date", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .shadow(2.dp, RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = BrandColors.FieldFill
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = BrandColors.TextSecondary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (startTime != null) {
+                            String.format("%02d:%02d", startTime!!.first, startTime!!.second)
+                        } else {
+                            "Heure"
+                        },
+                        color = if (startTime != null) BrandColors.TextPrimary else BrandColors.TextSecondary,
+                        fontSize = 14.sp
+                    )
                 }
-            )
+            }
 
+<<<<<<< Updated upstream:app/src/main/java/com/example/foodyz_dam/ui/theme/screens/events/CreateEventScreen.kt
             // Lieu
+=======
+            // Affichage complet de la date/heure de début
+            if (startDate != null || startTime != null) {
+                Text(
+                    text = "Début: ${displayDateTime(startDate, startTime)}",
+                    color = BrandColors.TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+
+            // Date et heure de fin
+            FieldLabel("Date et heure de fin")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Date de fin
+                OutlinedButton(
+                    onClick = { showEndDatePicker = true },
+                    modifier = Modifier
+                        .weight(1f)
+                        .shadow(2.dp, RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = BrandColors.FieldFill
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.DateRange,
+                        contentDescription = null,
+                        tint = BrandColors.TextSecondary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (endDate != null) {
+                            SimpleDateFormat("dd/MM/yyyy", Locale.FRENCH).format(Date(endDate!!))
+                        } else {
+                            "Date"
+                        },
+                        color = if (endDate != null) BrandColors.TextPrimary else BrandColors.TextSecondary,
+                        fontSize = 14.sp
+                    )
+                }
+
+                // Heure de fin
+                OutlinedButton(
+                    onClick = {
+                        if (endDate != null) {
+                            showEndTimePicker = true
+                        } else {
+                            Toast.makeText(context, "Sélectionnez d'abord une date", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .shadow(2.dp, RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = BrandColors.FieldFill
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = BrandColors.TextSecondary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (endTime != null) {
+                            String.format("%02d:%02d", endTime!!.first, endTime!!.second)
+                        } else {
+                            "Heure"
+                        },
+                        color = if (endTime != null) BrandColors.TextPrimary else BrandColors.TextSecondary,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+
+            // Affichage complet de la date/heure de fin
+            if (endDate != null || endTime != null) {
+                Text(
+                    text = "Fin: ${displayDateTime(endDate, endTime)}",
+                    color = BrandColors.TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+
+            // Lieu avec carte OSM
+>>>>>>> Stashed changes:app/src/main/java/com/example/damprojectfinal/professional/feature_event/CreateEventScreen.kt
             FieldLabel("Lieu")
             StyledTextField(
                 value = lieu,
@@ -207,7 +413,7 @@ fun CreateEventScreen(
                 onRemoveImage = { imageUri = null }
             )
 
-            // Bouton
+            // Bouton de soumission
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -220,11 +426,14 @@ fun CreateEventScreen(
                     )
                     .clickable(enabled = isValid) {
                         if (isValid) {
+                            val dateDebutFormatted = formatDateTime(startDate, startTime)
+                            val dateFinFormatted = formatDateTime(endDate, endTime)
+
                             onSubmit(
                                 nom.trim(),
                                 description.trim(),
-                                dateDebut.trim(),
-                                dateFin.trim(),
+                                dateDebutFormatted,
+                                dateFinFormatted,
                                 imageUri?.toString(),
                                 lieu.trim(),
                                 categorie.trim(),
@@ -251,10 +460,202 @@ fun CreateEventScreen(
             Spacer(Modifier.height(20.dp))
         }
     }
+<<<<<<< Updated upstream:app/src/main/java/com/example/foodyz_dam/ui/theme/screens/events/CreateEventScreen.kt
 }
 
 // ------------------ Composants réutilisables
 
+=======
+
+    // Pickers de date et heure
+    if (showStartDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = startDate ?: System.currentTimeMillis()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showStartDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        startDate = datePickerState.selectedDateMillis
+                        showStartDatePicker = false
+                    }
+                ) {
+                    Text("OK", color = BrandColors.Yellow)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartDatePicker = false }) {
+                    Text("Annuler", color = BrandColors.TextSecondary)
+                }
+            }
+        ) {
+            DatePicker(
+                state = datePickerState,
+                colors = DatePickerDefaults.colors(
+                    selectedDayContainerColor = BrandColors.Yellow,
+                    todayContentColor = BrandColors.Yellow,
+                    todayDateBorderColor = BrandColors.Yellow
+                )
+            )
+        }
+    }
+
+    if (showStartTimePicker) {
+        val timePickerState = rememberTimePickerState(
+            initialHour = startTime?.first ?: 10,
+            initialMinute = startTime?.second ?: 0,
+            is24Hour = true
+        )
+        TimePickerDialog(
+            onDismissRequest = { showStartTimePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        startTime = Pair(timePickerState.hour, timePickerState.minute)
+                        showStartTimePicker = false
+                    }
+                ) {
+                    Text("OK", color = BrandColors.Yellow)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartTimePicker = false }) {
+                    Text("Annuler", color = BrandColors.TextSecondary)
+                }
+            }
+        ) {
+            TimePicker(
+                state = timePickerState,
+                colors = TimePickerDefaults.colors(
+                    clockDialColor = BrandColors.FieldFill,
+                    selectorColor = BrandColors.Yellow,
+                    timeSelectorSelectedContainerColor = BrandColors.Yellow,
+                    timeSelectorSelectedContentColor = Color.White
+                )
+            )
+        }
+    }
+
+    if (showEndDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = endDate ?: startDate ?: System.currentTimeMillis()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showEndDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        endDate = datePickerState.selectedDateMillis
+                        showEndDatePicker = false
+                    }
+                ) {
+                    Text("OK", color = BrandColors.Yellow)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndDatePicker = false }) {
+                    Text("Annuler", color = BrandColors.TextSecondary)
+                }
+            }
+        ) {
+            DatePicker(
+                state = datePickerState,
+                colors = DatePickerDefaults.colors(
+                    selectedDayContainerColor = BrandColors.Yellow,
+                    todayContentColor = BrandColors.Yellow,
+                    todayDateBorderColor = BrandColors.Yellow
+                )
+            )
+        }
+    }
+
+    if (showEndTimePicker) {
+        val timePickerState = rememberTimePickerState(
+            initialHour = endTime?.first ?: (startTime?.first?.plus(2) ?: 12),
+            initialMinute = endTime?.second ?: (startTime?.second ?: 0),
+            is24Hour = true
+        )
+        TimePickerDialog(
+            onDismissRequest = { showEndTimePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        endTime = Pair(timePickerState.hour, timePickerState.minute)
+                        showEndTimePicker = false
+                    }
+                ) {
+                    Text("OK", color = BrandColors.Yellow)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndTimePicker = false }) {
+                    Text("Annuler", color = BrandColors.TextSecondary)
+                }
+            }
+        ) {
+            TimePicker(
+                state = timePickerState,
+                colors = TimePickerDefaults.colors(
+                    clockDialColor = BrandColors.FieldFill,
+                    selectorColor = BrandColors.Yellow,
+                    timeSelectorSelectedContainerColor = BrandColors.Yellow,
+                    timeSelectorSelectedContentColor = Color.White
+                )
+            )
+        }
+    }
+
+    // Dialog pour la carte
+    if (showMapPicker) {
+        MapPickerDialog(
+            initialLocation = selectedLocation,
+            onLocationSelected = { location ->
+                selectedLocation = location
+                showMapPicker = false
+            },
+            onDismiss = { showMapPicker = false }
+        )
+    }
+}
+
+// Composant pour le dialog du TimePicker
+@Composable
+fun TimePickerDialog(
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable () -> Unit,
+    content: @Composable () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        dismissButton = dismissButton,
+        confirmButton = confirmButton,
+        text = { content() }
+    )
+}
+
+// Dialog pour la carte OSM
+@Composable
+fun MapPickerDialog(
+    initialLocation: LocationData?,
+    onLocationSelected: (LocationData) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        MapPickerScreen(
+            initialLocation = initialLocation,
+            onLocationSelected = onLocationSelected,
+            onDismiss = onDismiss
+        )
+    }
+}
+
+// Composants réutilisables
+>>>>>>> Stashed changes:app/src/main/java/com/example/damprojectfinal/professional/feature_event/CreateEventScreen.kt
 @Composable
  fun FieldLabel(text: String) {
     Text(text, color = BrandColors.TextPrimary, fontWeight = FontWeight.SemiBold)
