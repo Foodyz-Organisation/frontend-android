@@ -17,6 +17,9 @@ data class LocationTrackingState(
     val isConnected: Boolean = false,
     val isSharing: Boolean = false,
     val currentLocation: LocationData? = null,
+    val restaurantLocation: RestaurantLocationData? = null,
+    val distance: Double? = null, // Distance in kilometers
+    val distanceFormatted: String? = null, // Formatted string like "2.5 km" or "150 m"
     val error: String? = null
 )
 
@@ -24,6 +27,13 @@ data class LocationData(
     val lat: Double,
     val lng: Double,
     val accuracy: Float?
+)
+
+data class RestaurantLocationData(
+    val lat: Double,
+    val lng: Double,
+    val name: String?,
+    val address: String?
 )
 
 class LocationTrackingViewModel(application: Application) : AndroidViewModel(application) {
@@ -79,15 +89,38 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
                     }
                 }
                 
+                socketManager?.setOnRestaurantLocation { restaurantLoc ->
+                    _state.value = _state.value.copy(
+                        restaurantLocation = RestaurantLocationData(
+                            lat = restaurantLoc.lat,
+                            lng = restaurantLoc.lon,
+                            name = restaurantLoc.name,
+                            address = restaurantLoc.address
+                        )
+                    )
+                    Log.d(TAG, "📍 Restaurant location received: ${restaurantLoc.lat}, ${restaurantLoc.lon}")
+                }
+
                 socketManager?.setOnLocationUpdate { update ->
                     _state.value = _state.value.copy(
                         currentLocation = LocationData(
                             lat = update.lat,
                             lng = update.lng,
                             accuracy = update.accuracy?.toFloat()
-                        )
+                        ),
+                        distance = update.distance,
+                        distanceFormatted = update.distanceFormatted,
+                        // Update restaurant location if provided in update
+                        restaurantLocation = update.restaurantLocation?.let { restLoc ->
+                            RestaurantLocationData(
+                                lat = restLoc.lat,
+                                lng = restLoc.lon,
+                                name = restLoc.name,
+                                address = restLoc.address
+                            )
+                        } ?: _state.value.restaurantLocation
                     )
-                    Log.d(TAG, "📍 Location update received: ${update.lat}, ${update.lng}")
+                    Log.d(TAG, "📍 Location update received: ${update.lat}, ${update.lng}, distance: ${update.distanceFormatted}")
                 }
                 
                 socketManager?.setOnSharingStarted { userId ->

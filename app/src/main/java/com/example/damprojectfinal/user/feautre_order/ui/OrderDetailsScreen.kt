@@ -209,11 +209,14 @@ fun OrderDetailsScreen(
                                 
                                 // Map
                                 OrderTrackingMap(
-                                    restaurantLocation = RestaurantLocation(
-                                        lat = 36.8065, // TODO: Fetch from professional data
-                                        lng = 10.1815, // TODO: Fetch from professional data
-                                        name = "Restaurant"
-                                    ),
+                                    restaurantLocation = locationState.restaurantLocation?.let {
+                                        RestaurantLocation(
+                                            lat = it.lat,
+                                            lng = it.lng,
+                                            name = it.name ?: it.address,
+                                            address = it.address
+                                        )
+                                    },
                                     userLocation = locationState.currentLocation?.let {
                                         UserLocation(
                                             lat = it.lat,
@@ -221,6 +224,7 @@ fun OrderDetailsScreen(
                                             accuracy = it.accuracy
                                         )
                                     },
+                                    distanceFormatted = locationState.distanceFormatted,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(400.dp)

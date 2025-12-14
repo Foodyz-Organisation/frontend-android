@@ -131,9 +131,10 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.05.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-/////
+    
+    // OSMDroid (OpenStreetMap - FREE, no API key required)
+    // Using OSM + Nominatim (search) + OSRM (routing) - All FREE
     implementation("org.osmdroid:osmdroid-android:6.1.18")
-    implementation("com.google.android.gms:play-services-location:21.0.1")
     implementation(libs.androidx.compose.runtime)
     implementation("io.coil-kt:coil-compose:2.5.0")
 

@@ -19,6 +19,7 @@ class OrderTrackingSocketManager(
 
     // Callbacks
     private var onLocationUpdate: ((LocationUpdate) -> Unit)? = null
+    private var onRestaurantLocation: ((RestaurantLocation) -> Unit)? = null
     private var onSharingStarted: ((String) -> Unit)? = null
     private var onSharingStopped: ((String) -> Unit)? = null
     private var onUserJoined: ((String, String) -> Unit)? = null // userType, clientId
@@ -30,7 +31,17 @@ class OrderTrackingSocketManager(
         val lat: Double,
         val lng: Double,
         val accuracy: Double?,
-        val timestamp: Long
+        val timestamp: Long,
+        val distance: Double? = null, // Distance in kilometers
+        val distanceFormatted: String? = null, // Formatted string like "2.5 km" or "150 m"
+        val restaurantLocation: RestaurantLocation? = null
+    )
+
+    data class RestaurantLocation(
+        val lat: Double,
+        val lon: Double,
+        val name: String?,
+        val address: String?
     )
 
     fun connect() {
@@ -57,11 +68,48 @@ class OrderTrackingSocketManager(
                 onConnectionChange?.invoke(false)
             }
 
+            // Listen for restaurant location (sent when joining order room)
+            socket?.on("restaurant-location") { args ->
+                try {
+                    val jsonObj = args[0] as? JSONObject
+                    if (jsonObj != null) {
+                        val restaurantLocation = RestaurantLocation(
+                            lat = jsonObj.getDouble("lat"),
+                            lon = jsonObj.getDouble("lon"),
+                            name = if (jsonObj.has("name") && !jsonObj.isNull("name")) {
+                                jsonObj.getString("name")
+                            } else null,
+                            address = if (jsonObj.has("address") && !jsonObj.isNull("address")) {
+                                jsonObj.getString("address")
+                            } else null
+                        )
+                        Log.d(TAG, "📍 Restaurant location received: ${restaurantLocation.lat}, ${restaurantLocation.lon}")
+                        onRestaurantLocation?.invoke(restaurantLocation)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing restaurant location", e)
+                    onError?.invoke("Failed to parse restaurant location: ${e.message}")
+                }
+            }
+
             // Listen for location updates
             socket?.on("location-update") { args ->
                 try {
                     val jsonObj = args[0] as? JSONObject
                     if (jsonObj != null) {
+                        // Parse restaurant location if present
+                        val restaurantLocationObj = if (jsonObj.has("restaurantLocation") && !jsonObj.isNull("restaurantLocation")) {
+                            val restLocObj = jsonObj.getJSONObject("restaurantLocation")
+                            RestaurantLocation(
+                                lat = restLocObj.getDouble("lat"),
+                                lon = restLocObj.getDouble("lon"),
+                                name = if (restLocObj.has("name") && !restLocObj.isNull("name")) {
+                                    restLocObj.getString("name")
+                                } else null,
+                                address = null
+                            )
+                        } else null
+
                         val update = LocationUpdate(
                             userId = jsonObj.getString("userId"),
                             lat = jsonObj.getDouble("lat"),
@@ -69,7 +117,14 @@ class OrderTrackingSocketManager(
                             accuracy = if (jsonObj.has("accuracy") && !jsonObj.isNull("accuracy")) {
                                 jsonObj.getDouble("accuracy")
                             } else null,
-                            timestamp = jsonObj.getLong("timestamp")
+                            timestamp = jsonObj.getLong("timestamp"),
+                            distance = if (jsonObj.has("distance") && !jsonObj.isNull("distance")) {
+                                jsonObj.getDouble("distance")
+                            } else null,
+                            distanceFormatted = if (jsonObj.has("distanceFormatted") && !jsonObj.isNull("distanceFormatted")) {
+                                jsonObj.getString("distanceFormatted")
+                            } else null,
+                            restaurantLocation = restaurantLocationObj
                         )
                         onLocationUpdate?.invoke(update)
                     }
@@ -218,6 +273,10 @@ class OrderTrackingSocketManager(
     // Callback setters
     fun setOnLocationUpdate(listener: (LocationUpdate) -> Unit) {
         onLocationUpdate = listener
+    }
+
+    fun setOnRestaurantLocation(listener: (RestaurantLocation) -> Unit) {
+        onRestaurantLocation = listener
     }
 
     fun setOnSharingStarted(listener: (String) -> Unit) {
