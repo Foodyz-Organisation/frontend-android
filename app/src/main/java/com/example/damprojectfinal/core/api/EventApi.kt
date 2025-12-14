@@ -67,7 +67,8 @@ object EventRetrofitClient {
         try {
             Log.d(TAG, "Configuration Retrofit :")
             Log.d(TAG, "  Mode: ${if (USE_EMULATOR) "Émulateur" else "Appareil physique"}")
-            Log.d(TAG, "  URL de base: $BASE_URL")
+            Log.d(TAG, "  URL de base:" +
+                    " $BASE_URL")
         } catch (_: Exception) {}
 
         try {
