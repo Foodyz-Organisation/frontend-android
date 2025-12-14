@@ -2,25 +2,41 @@ package com.example.damprojectfinal.professional.feature_event
 
 import android.content.Context
 import android.location.Geocoder
+import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import java.util.Locale
 
 data class LocationData(
@@ -29,6 +45,7 @@ data class LocationData(
     val name: String = ""
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapPickerScreen(
     initialLocation: LocationData? = null,
@@ -37,6 +54,8 @@ fun MapPickerScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
 
     // Position par défaut : Tunis
     var currentLocation by remember {
@@ -52,6 +71,11 @@ fun MapPickerScreen(
     var locationName by remember { mutableStateOf(currentLocation.name) }
     var isLoadingAddress by remember { mutableStateOf(false) }
 
+    // États pour la recherche
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearching by remember { mutableStateOf(false) }
+    var mapView by remember { mutableStateOf<MapView?>(null) }
+
     // Initialiser OSMDroid
     DisposableEffect(Unit) {
         Configuration.getInstance().load(
@@ -59,6 +83,60 @@ fun MapPickerScreen(
             context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE)
         )
         onDispose { }
+    }
+
+    fun performSearch() {
+        if (searchQuery.isBlank()) return
+        isSearching = true
+        keyboardController?.hide()
+        focusManager.clearFocus()
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                val encodedQuery = URLEncoder.encode(searchQuery, "UTF-8")
+                val urlString = "https://nominatim.openstreetmap.org/search?q=$encodedQuery&format=json&limit=1"
+                val url = URL(urlString)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.setRequestProperty("User-Agent", "DamProjectFinal/1.0")
+
+                val responseCode = connection.responseCode
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    val response = connection.inputStream.bufferedReader().use { it.readText() }
+                    val jsonArray = JSONArray(response)
+
+                    if (jsonArray.length() > 0) {
+                        val firstResult = jsonArray.getJSONObject(0)
+                        val lat = firstResult.getDouble("lat")
+                        val lon = firstResult.getDouble("lon")
+                        val displayName = firstResult.optString("display_name", "Lieu trouvé")
+
+                        withContext(Dispatchers.Main) {
+                            currentLocation = LocationData(lat, lon, displayName)
+                            locationName = displayName
+                            mapView?.controller?.animateTo(GeoPoint(lat, lon))
+                            mapView?.controller?.setZoom(15.0)
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Aucun résultat trouvé", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Erreur de connexion", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    isSearching = false
+                }
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -72,6 +150,7 @@ fun MapPickerScreen(
                     controller.setCenter(
                         GeoPoint(currentLocation.latitude, currentLocation.longitude)
                     )
+                    mapView = this // Capturer l'instance
 
                     // Écouter les changements de position
                     addMapListener(object : org.osmdroid.events.MapListener {
@@ -82,12 +161,14 @@ fun MapPickerScreen(
                                 longitude = center.longitude
                             )
 
-                            // Géocoder avec debounce
-                            scope.launch {
-                                kotlinx.coroutines.delay(500)
-                                isLoadingAddress = true
-                                locationName = reverseGeocode(ctx, center.latitude, center.longitude)
-                                isLoadingAddress = false
+                            // Géocoder avec debounce (seulement si pas en train de chercher activement)
+                            if (!isSearching) {
+                                scope.launch {
+                                    kotlinx.coroutines.delay(800) // Augmenté un peu le délai
+                                    isLoadingAddress = true
+                                    locationName = reverseGeocode(ctx, center.latitude, center.longitude)
+                                    isLoadingAddress = false
+                                }
                             }
                             return true
                         }
@@ -112,37 +193,75 @@ fun MapPickerScreen(
                 .offset(y = (-25).dp)
         )
 
-        // Info en haut
-        Card(
+        // Barre de recherche en haut
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .align(Alignment.TopCenter),
-            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
+                .align(Alignment.TopCenter)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                if (isLoadingAddress) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Recherche de l'adresse...")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(4.dp, CircleShape),
+                shape = CircleShape,
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { performSearch() }) {
+                        if (isSearching) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Search, contentDescription = "Rechercher", tint = Color.Gray)
+                        }
                     }
-                } else {
+
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Rechercher une ville, adresse...", fontSize = 14.sp) },
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            errorContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { performSearch() }),
+                        trailingIcon = if (searchQuery.isNotEmpty()) {
+                            {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Effacer", tint = Color.Gray)
+                                }
+                            }
+                        } else null
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Info de l'adresse actuelle sous la barre de recherche
+            if (locationName.isNotEmpty()) {
+                Surface(
+                    color = Color.White.copy(alpha = 0.9f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.align(Alignment.CenterHorizontally).shadow(1.dp)
+                ) {
                     Text(
                         text = locationName,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = String.format(
-                            "%.4f, %.4f",
-                            currentLocation.latitude,
-                            currentLocation.longitude
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        maxLines = 1
                     )
                 }
             }
@@ -158,8 +277,9 @@ fun MapPickerScreen(
             )
         ) {
             Text(
-                text = "📍 Déplacez la carte pour positionner le pin",
+                text = "📍 Déplaces la carte pour affiner",
                 color = Color.White,
+                fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
@@ -190,16 +310,17 @@ fun MapPickerScreen(
                             currentLocation.copy(name = locationName)
                         )
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD54F)) // BrandColors.Yellow
                 ) {
-                    Text("Confirmer")
+                    Text("Confirmer", color = Color.Black)
                 }
             }
         }
     }
 }
 
-// Fonction de géocodage inversé
+// Fonction de géocodage inversé (inchangée)
 suspend fun reverseGeocode(
     context: Context,
     latitude: Double,

@@ -236,7 +236,7 @@ fun HomeScreenPro(
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
-                        // Static onClick as requested
+                        navController.navigate("event_list_remote")
                     },
                     icon = { Icon(Icons.Default.Event, null) },
                     modifier = Modifier.padding(horizontal = 12.dp)

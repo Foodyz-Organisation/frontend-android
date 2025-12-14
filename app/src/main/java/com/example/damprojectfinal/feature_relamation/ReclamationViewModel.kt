@@ -51,6 +51,9 @@ class ReclamationViewModel(
 
     private val _selectedReclamation = MutableStateFlow<Reclamation?>(null)
     val selectedReclamation = _selectedReclamation.asStateFlow()
+    
+    private val _orders = MutableStateFlow<List<OrderResponse>>(emptyList())
+    val orders = _orders.asStateFlow()
 
     init {
         loadUserData()
@@ -67,6 +70,7 @@ class ReclamationViewModel(
 
                 val userInfo = userApiService.getUserInfo(userId)
                 val orders = userApiService.getUserOrders(userId)
+                _orders.value = orders
                 uiState = uiState.copy(userInfo = userInfo, orders = orders)
             } catch (e: Exception) {
                 uiState = uiState.copy(error = "Erreur: ${e.message}")

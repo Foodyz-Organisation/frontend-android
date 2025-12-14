@@ -23,7 +23,9 @@ import kotlinx.coroutines.launch
 fun EventListScreenRemote(
     onEventClick: (Event) -> Unit,
     onBackClick: () -> Unit = {},
-    onAddEventClick: () -> Unit = {}
+    onAddEventClick: () -> Unit = {},
+    onEditEventClick: (Event) -> Unit = {},
+    onDeleteEventClick: (String) -> Unit = {}
 ) {
     var events by remember { mutableStateOf(listOf<Event>()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -144,7 +146,11 @@ fun EventListScreenRemote(
                         items(events) { event ->
                             EventCard(
                                 event = event,
-                                onClick = { onEventClick(event) }
+                                onClick = { onEventClick(event) },
+                                onEditClick = { onEditEventClick(event) },
+                                onDeleteClick = {
+                                    event._id?.let { onDeleteEventClick(it) }
+                                }
                             )
                         }
                     }

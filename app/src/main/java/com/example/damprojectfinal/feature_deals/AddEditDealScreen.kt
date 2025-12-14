@@ -1,5 +1,7 @@
 package com.example.damprojectfinal.feature_deals
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.Context
 import android.location.Geocoder
 import android.net.Uri
@@ -75,8 +77,14 @@ fun AddEditDealScreen(
     var description by remember { mutableStateOf("") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var category by remember { mutableStateOf("") }
-    var startDate by remember { mutableStateOf("") }
-    var endDate by remember { mutableStateOf("") }
+
+    // 🔥 Séparation Date & Heure pour Début et Fin
+    var startDate by remember { mutableStateOf("") } // YYYY-MM-DD
+    var startTime by remember { mutableStateOf("") } // HH:mm
+
+    var endDate by remember { mutableStateOf("") }   // YYYY-MM-DD
+    var endTime by remember { mutableStateOf("") }   // HH:mm
+
     var isActive by remember { mutableStateOf(true) }
 
     // 🔥 État pour la carte
@@ -125,8 +133,16 @@ fun AddEditDealScreen(
             restaurantName = deal.restaurantName
             description = deal.description
             category = deal.category
-            startDate = formatDateForInput(deal.startDate)
-            endDate = formatDateForInput(deal.endDate)
+
+            // Parsing des dates ISO
+            val (dStart, tStart) = parseIsoDate(deal.startDate)
+            startDate = dStart
+            startTime = tStart
+
+            val (dEnd, tEnd) = parseIsoDate(deal.endDate)
+            endDate = dEnd
+            endTime = tEnd
+
             isActive = deal.isActive
             // Note: L'image URL ne peut pas être convertie en Uri facilement
         }
@@ -138,8 +154,8 @@ fun AddEditDealScreen(
                     description.isNotBlank() &&
                     (imageUri != null || isEditMode) &&
                     category.isNotBlank() &&
-                    startDate.isNotBlank() &&
-                    endDate.isNotBlank() &&
+                    startDate.isNotBlank() && startTime.isNotBlank() &&
+                    endDate.isNotBlank() && endTime.isNotBlank() &&
                     selectedLocation != null
         }
     }
@@ -287,27 +303,55 @@ fun AddEditDealScreen(
                 }
             }
 
-            // Date de début
+            // 📅 Date & Heure de DÉBUT
             FieldLabel("Date de début")
-            StyledTextField(
-                value = startDate,
-                onValueChange = { startDate = it },
-                placeholder = "YYYY-MM-DD",
-                leadingIcon = {
-                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandColors.TextSecondary)
-                }
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Date Picker
+                ClickableTextField(
+                    value = startDate,
+                    placeholder = "JJ/MM/AAAA",
+                    icon = Icons.Default.CalendarToday,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        showDatePicker(context) { d -> startDate = d }
+                    }
+                )
+                // Time Picker
+                ClickableTextField(
+                    value = startTime,
+                    placeholder = "HH:mm",
+                    icon = Icons.Default.Schedule, // Icône Horloge
+                    modifier = Modifier.weight(0.8f),
+                    onClick = {
+                        showTimePicker(context) { t -> startTime = t }
+                    }
+                )
+            }
 
-            // Date de fin
+            // 📅 Date & Heure de FIN
             FieldLabel("Date de fin")
-            StyledTextField(
-                value = endDate,
-                onValueChange = { endDate = it },
-                placeholder = "YYYY-MM-DD",
-                leadingIcon = {
-                    Icon(Icons.Default.Event, contentDescription = null, tint = BrandColors.TextSecondary)
-                }
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Date Picker
+                ClickableTextField(
+                    value = endDate,
+                    placeholder = "JJ/MM/AAAA",
+                    icon = Icons.Default.Event,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        showDatePicker(context) { d -> endDate = d }
+                    }
+                )
+                // Time Picker
+                ClickableTextField(
+                    value = endTime,
+                    placeholder = "HH:mm",
+                    icon = Icons.Default.Schedule,
+                    modifier = Modifier.weight(0.8f),
+                    onClick = {
+                        showTimePicker(context) { t -> endTime = t }
+                    }
+                )
+            }
 
             // Switch actif/inactif (uniquement en mode édition)
             if (isEditMode) {
@@ -374,8 +418,8 @@ fun AddEditDealScreen(
                     )
                     .clickable(enabled = isValid) {
                         if (isValid) {
-                            val formattedStartDate = formatDateForApi(startDate)
-                            val formattedEndDate = formatDateForApi(endDate)
+                            val formattedStart = combineDateAndTime(startDate, startTime)
+                            val formattedEnd = combineDateAndTime(endDate, endTime)
                             val imageUrl = imageUri?.toString() ?: "https://via.placeholder.com/400"
 
                             if (isEditMode) {
@@ -386,8 +430,8 @@ fun AddEditDealScreen(
                                         description = description,
                                         image = imageUrl,
                                         category = category,
-                                        startDate = formattedStartDate,
-                                        endDate = formattedEndDate,
+                                        startDate = formattedStart,
+                                        endDate = formattedEnd,
                                         isActive = isActive
                                     )
                                 )
@@ -398,8 +442,8 @@ fun AddEditDealScreen(
                                         description = description,
                                         image = imageUrl,
                                         category = category,
-                                        startDate = formattedStartDate,
-                                        endDate = formattedEndDate
+                                        startDate = formattedStart,
+                                        endDate = formattedEnd
                                     )
                                 )
                             }
@@ -468,7 +512,7 @@ fun AddEditDealScreen(
     }
 }
 
-// ============== Composants réutilisables ==============
+// ============== Composants & Helpers réutilisables ==============
 
 @Composable
 fun FieldLabel(text: String) {
@@ -502,6 +546,39 @@ fun StyledTextField(
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
             cursorColor = BrandColors.TextPrimary
+        )
+    )
+}
+
+// 🔥 Nouveau composant cliquable pour Date/Heure
+@Composable
+fun ClickableTextField(
+    value: String,
+    placeholder: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = {}, // Read-only
+        readOnly = true,
+        modifier = modifier
+            .shadow(2.dp, RoundedCornerShape(16.dp))
+            .clickable { onClick() }, // Intercepte le clic
+        enabled = false, // Désactive clavier mais permet clic via Box ou modifier
+        placeholder = { Text(placeholder, color = BrandColors.TextSecondary) },
+        leadingIcon = { Icon(icon, contentDescription = null, tint = BrandColors.TextSecondary) },
+        shape = RoundedCornerShape(16.dp),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = BrandColors.FieldFill,
+            unfocusedContainerColor = BrandColors.FieldFill,
+            disabledContainerColor = BrandColors.FieldFill,
+            disabledTextColor = BrandColors.TextPrimary,
+            disabledPlaceholderColor = BrandColors.TextSecondary,
+            disabledLeadingIconColor = BrandColors.TextSecondary,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent
         )
     )
 }
@@ -843,27 +920,79 @@ suspend fun reverseGeocode(
     return@withContext "Lieu sélectionné"
 }
 
-// ============== Fonctions utilitaires ==============
+// ============== Fonctions utilitaires Dates ==============
 
-private fun formatDateForInput(dateString: String): String {
+fun showDatePicker(context: Context, onDateSelected: (String) -> Unit) {
+    val calendar = Calendar.getInstance()
+    DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            val formattedDate = String.format("%04d-%02d-%02d", year, month + 1, dayOfMonth)
+            onDateSelected(formattedDate)
+        },
+        calendar.get(Calendar.YEAR),
+        calendar.get(Calendar.MONTH),
+        calendar.get(Calendar.DAY_OF_MONTH)
+    ).show()
+}
+
+fun showTimePicker(context: Context, onTimeSelected: (String) -> Unit) {
+    val calendar = Calendar.getInstance()
+    TimePickerDialog(
+        context,
+        { _, hourOfDay, minute ->
+            val formattedTime = String.format("%02d:%02d", hourOfDay, minute)
+            onTimeSelected(formattedTime)
+        },
+        calendar.get(Calendar.HOUR_OF_DAY),
+        calendar.get(Calendar.MINUTE),
+        true // 24h format
+    ).show()
+}
+
+// Combine YYYY-MM-DD + HH:mm -> ISO
+private fun combineDateAndTime(date: String, time: String): String {
+    if (date.isBlank() || time.isBlank()) return ""
     return try {
-        val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
-        val outputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val date = inputFormat.parse(dateString)
-        date?.let { outputFormat.format(it) } ?: ""
+        // Input: "yyyy-MM-dd" "HH:mm"
+        // Output: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+
+        // Comme on manipule des Strings simples, on peut concaténer pour créer l'ISO
+        // Attention au fuseau horaire. Pour simplifier, on envoie telle quelle avec T et Z
+        // ou on utilise un formatter pour être propre.
+
+        // Option simple : "${date}T${time}:00.000Z" (Assume UTC)
+        // Mais l'utilisateur saisit en LocalTime.
+
+        val localFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        val parsedDate = localFormat.parse("$date $time")
+
+        val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
+        isoFormat.timeZone = TimeZone.getTimeZone("UTC") // Store as UTC
+
+        parsedDate?.let { isoFormat.format(it) } ?: ""
     } catch (e: Exception) {
         ""
     }
 }
 
-private fun formatDateForApi(dateString: String): String {
+// Parse ISO -> Pair(Date, Time)
+private fun parseIsoDate(isoString: String): Pair<String, String> {
     return try {
-        val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val outputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
-        outputFormat.timeZone = TimeZone.getTimeZone("UTC")
-        val date = inputFormat.parse(dateString)
-        date?.let { outputFormat.format(it) } ?: dateString
+        val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
+        isoFormat.timeZone = TimeZone.getTimeZone("UTC")
+        val date = isoFormat.parse(isoString)
+
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+        if (date != null) {
+            Pair(dateFormat.format(date), timeFormat.format(date))
+        } else {
+            Pair("", "")
+        }
     } catch (e: Exception) {
-        dateString
+        // Fallback si format incorrect
+        Pair("", "")
     }
 }

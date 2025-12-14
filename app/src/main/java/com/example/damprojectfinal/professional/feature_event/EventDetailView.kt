@@ -1,6 +1,7 @@
 package com.example.damprojectfinal.professional.feature_event
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -10,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext // ✅ Import ajouté
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -17,6 +19,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.vector.ImageVector // ✅ Import ajouté
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.feature_event.BrandColors
 import com.example.damprojectfinal.feature_event.Event
@@ -109,9 +112,21 @@ fun EventDetailScreen(
 
                 Divider(color = BrandColors.Cream200)
 
+                val context = LocalContext.current
+
                 DetailInfoCard(Icons.Filled.CalendarToday, "Date de début", event.date_debut)
                 DetailInfoCard(Icons.Filled.CalendarToday, "Date de fin", event.date_fin)
-                DetailInfoCard(Icons.Filled.LocationOn, "Lieu", event.lieu)
+
+                // ✅ Carte Lieu cliquable pour itinéraire
+                DetailInfoCard(
+                    icon = Icons.Filled.LocationOn,
+                    title = "Lieu (Cliquez pour l'itinéraire)",
+                    value = event.lieu,
+                    onClick = {
+                        launchMapIntent(context, event.lieu)
+                    }
+                )
+
                 DetailInfoCard(Icons.Filled.Star, "Catégorie", event.categorie)
                 DetailInfoCard(
                     Icons.Filled.Info,
@@ -120,12 +135,34 @@ fun EventDetailScreen(
                         EventStatus.A_VENIR -> "À venir"
                         EventStatus.EN_COURS -> "En cours"
                         EventStatus.TERMINE -> "Terminé"
-                        // ✅ else ajouté pour éviter erreur si l'enum change
                         else -> "Inconnu"
                     }
                 )
             }
         }
+    }
+}
+
+// 🆕 Fonction pour lancer Google Maps
+private fun launchMapIntent(context: android.content.Context, location: String) {
+    try {
+        val encodedLocation = java.net.URLEncoder.encode(location, "UTF-8")
+        val uri = android.net.Uri.parse("geo:0,0?q=$encodedLocation")
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+        intent.setPackage("com.google.android.apps.maps")
+
+        if (intent.resolveActivity(context.packageManager) != null) {
+            context.startActivity(intent)
+        } else {
+            // Fallback navigateur si Maps n'est pas installé
+            val browserIntent = android.content.Intent(
+                android.content.Intent.ACTION_VIEW,
+                android.net.Uri.parse("https://www.google.com/maps/search/?api=1&query=$encodedLocation")
+            )
+            context.startActivity(browserIntent)
+        }
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(context, "Impossible d'ouvrir la carte", android.widget.Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -154,11 +191,18 @@ fun StatusBadge(status: EventStatus) {
 }
 
 @Composable
-fun DetailInfoCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, value: String) {
+fun DetailInfoCard(
+    icon: ImageVector,
+    title: String,
+    value: String,
+    onClick: (() -> Unit)? = null // 🆕 Paramètre optionnel pour le click
+) {
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = BrandColors.Cream100,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier) // ✅ Correction ici
     ) {
         Row(
             modifier = Modifier
@@ -184,7 +228,18 @@ fun DetailInfoCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title:
                     text = value,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = BrandColors.TextPrimary
+                    color = if (onClick != null) Color.Blue else BrandColors.TextPrimary // 🔵 Bleu si cliquable
+                )
+            }
+
+            // 🆕 Indicateur visuel si cliquable
+            if (onClick != null) {
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Filled.ArrowForward, // Ou autre icône pertinente
+                    contentDescription = "Ouvrir",
+                    tint = BrandColors.TextSecondary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }

@@ -56,6 +56,7 @@ private object BrandColors {
 fun ReclamationTemplateScreen(
     complaintTypes: List<String>,
     commandeconcernees: List<String>,
+    initialOrderId: String? = null,
     onSubmit: (commandeConcernee: String, complaintType: String, description: String, photos: List<Uri>) -> Unit
 ) {
     val context = LocalContext.current
@@ -65,6 +66,29 @@ fun ReclamationTemplateScreen(
     var description by remember { mutableStateOf("") }
     var agree by remember { mutableStateOf(false) }
     var photos by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    
+    // Pré-remplir le champ commande concernée si initialOrderId est fourni
+    LaunchedEffect(initialOrderId, commandeconcernees) {
+        if (initialOrderId != null && commandeconcernee.isEmpty()) {
+            val orderIdSuffix = initialOrderId.takeLast(8)
+            val expectedFormat = "Commande #$orderIdSuffix"
+            
+            // Chercher la commande correspondante dans la liste
+            val matchingCommande = commandeconcernees.find { 
+                it == expectedFormat || it.endsWith(orderIdSuffix) || it.contains(orderIdSuffix)
+            }
+            
+            if (matchingCommande != null) {
+                commandeconcernee = matchingCommande
+            } else if (commandeconcernees.isNotEmpty()) {
+                // Si pas de correspondance mais la liste n'est pas vide, utiliser le format attendu
+                commandeconcernee = expectedFormat
+            } else {
+                // Si la liste est vide, créer quand même le format
+                commandeconcernee = expectedFormat
+            }
+        }
+    }
 
     val pickImages = rememberLauncherForActivityResult(
         ActivityResultContracts.GetMultipleContents()

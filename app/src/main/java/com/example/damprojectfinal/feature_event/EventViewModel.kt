@@ -144,7 +144,11 @@ class EventViewModel : ViewModel() {
             try {
                 Log.d(TAG, "Mise à jour de l'événement avec _id=$id")
 
-                val updatedEvent = event.copy(
+                // Créer un nouvel Event sans _id pour éviter l'erreur 400 Bad Request
+                // Le backend ne veut pas recevoir _id dans le body (il est déjà dans l'URL)
+                val updatedEvent = Event(
+                    _id = null, // ⚠️ Ne pas inclure _id dans le body
+                    id = null,  // ⚠️ Ne pas inclure id non plus
                     nom = nom,
                     description = description,
                     date_debut = dateDebut,

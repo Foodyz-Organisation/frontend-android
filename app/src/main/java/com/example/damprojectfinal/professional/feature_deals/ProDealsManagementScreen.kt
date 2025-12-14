@@ -50,6 +50,8 @@ fun ProDealsManagementScreen(
     viewModel: DealsViewModel,
     onAddDealClick: () -> Unit,
     onEditDealClick: (String) -> Unit,
+    onDealClick: (String) -> Unit = {},
+    onBackClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Log.d(TAG, "🎨 ProDealsManagementScreen composé")
@@ -78,6 +80,18 @@ fun ProDealsManagementScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Mes Deals", color = BrandColors.TextPrimary) },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        Log.d(TAG, "⬅️ Retour")
+                        onBackClick()
+                    }) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Retour",
+                            tint = BrandColors.TextPrimary
+                        )
+                    }
+                },
                 actions = {
                     IconButton(onClick = {
                         Log.d(TAG, "🔄 Actualisation")
@@ -133,7 +147,10 @@ fun ProDealsManagementScreen(
                         items(state.deals) { deal ->
                             DealCard(
                                 deal = deal,
-                                onClick = { /* Navigation vers détails si nécessaire */ },
+                                onClick = {
+                                    Log.d(TAG, "👁️ Navigation vers détails: ${deal._id}")
+                                    onDealClick(deal._id)
+                                },
                                 onEditClick = {
                                     Log.d(TAG, "✏️ Édition: ${deal._id}")
                                     onEditDealClick(deal._id)

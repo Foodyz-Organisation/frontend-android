@@ -379,6 +379,14 @@ fun EditEventScreen(
                                 "Lieu non défini"
                             }
 
+                            // ✅ Logs détaillés pour débogage
+                            android.util.Log.d("EditEventScreen", "🔧 Début de la mise à jour")
+                            android.util.Log.d("EditEventScreen", "📝 ID: ${event._id}")
+                            android.util.Log.d("EditEventScreen", "📝 Nom: ${nom.trim()}")
+                            android.util.Log.d("EditEventScreen", "📝 Description: ${description.trim()}")
+                            android.util.Log.d("EditEventScreen", "📝 Lieu: $lieuString")
+                            android.util.Log.d("EditEventScreen", "📝 Statut: $statutEnum")
+
                             onUpdate(
                                 event._id!!,
                                 nom.trim(),
@@ -391,11 +399,9 @@ fun EditEventScreen(
                                 statutEnum
                             )
 
-                            Toast.makeText(
-                                context,
-                                "Événement modifié avec succès!",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            android.util.Log.d("EditEventScreen", "✅ onUpdate() appelé")
+
+                            // ❌ NE PAS afficher le toast ici - il sera affiché dans AppNavigation
                         } else {
                             Toast.makeText(
                                 context,

@@ -34,12 +34,12 @@ object BaseUrlProvider {
      * Example: "http://192.168.1.15:3000"
      */
     private const val MANUAL_BASE_URL = "http://10.0.2.2:3000"
-    
+
     /**
      * Emulator BASE_URL (localhost from emulator's perspective)
      */
     private const val EMULATOR_BASE_URL = "http://10.0.2.2:3000"
-    
+
     /**
      * Real device BASE_URL (your computer's local IP)
      * ⚠️ IMPORTANT: Replace with your actual computer IP address
