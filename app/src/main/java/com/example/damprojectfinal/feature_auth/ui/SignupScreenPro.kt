@@ -28,6 +28,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.utils.ViewModelFactory
 import com.example.damprojectfinal.feature_auth.viewmodels.ProSignupViewModel
+import com.example.damprojectfinal.feature_auth.ui.OSMLocationPicker
 
 
 // --- Dummy implementation for Preview ---
@@ -190,6 +191,75 @@ fun ProSignupScreen(
                 colors = textFieldColors
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 📍 Location Selection (Optional)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (viewModel.selectedLocation.value != null) {
+                        Color(0xFF10B981).copy(alpha = 0.1f)
+                    } else {
+                        lightGrayBackground
+                    }
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Restaurant Location",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color(0xFF111827)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (viewModel.selectedLocation.value != null) {
+                                    viewModel.selectedLocation.value!!.name.ifEmpty { 
+                                        "Location selected" 
+                                    }
+                                } else {
+                                    "Optional: Add your restaurant location"
+                                },
+                                fontSize = 12.sp,
+                                color = Color(0xFF6B7280)
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = { viewModel.showLocationPicker.value = true },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (viewModel.selectedLocation.value != null) {
+                                    Color(0xFF10B981)
+                                } else {
+                                    Color(0xFFF59E0B)
+                                }
+                            )
+                        ) {
+                            Icon(
+                                imageVector = if (viewModel.selectedLocation.value != null) 
+                                    Icons.Filled.Edit 
+                                else 
+                                    Icons.Filled.LocationOn,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (viewModel.selectedLocation.value != null) "Change" else "Add"
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
 
             // 🟨 REGISTER BUTTON (Styled with Gradient)
@@ -237,6 +307,20 @@ fun ProSignupScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
         }
+    }
+
+    // OSM Location Picker with Search (FREE - No API Key Required)
+    if (viewModel.showLocationPicker.value) {
+        OSMLocationPicker(
+            initialLocation = viewModel.selectedLocation.value,
+            onLocationSelected = { location ->
+                viewModel.selectedLocation.value = location
+                viewModel.showLocationPicker.value = false
+            },
+            onDismiss = {
+                viewModel.showLocationPicker.value = false
+            }
+        )
     }
 }
 
