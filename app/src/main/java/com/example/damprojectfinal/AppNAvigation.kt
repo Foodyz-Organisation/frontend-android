@@ -16,6 +16,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import android.util.Log
 import android.widget.Toast
+import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +34,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -1057,95 +1064,90 @@ fun AppNavigation(
             val eventViewModel: EventViewModel = viewModel()
             val events by eventViewModel.events.collectAsState()
             val error by eventViewModel.error.collectAsState()
-            var previousEventsCount by remember { mutableStateOf(0) }
+            
+            // Initialiser avec la taille actuelle pour éviter les déclenchements intempestifs
+            var previousEventsCount by remember { 
+                mutableStateOf(events.size) 
+            }
+            var hasSubmitted by remember { mutableStateOf(false) }
 
-            // Observe the ViewModel state for success/error
+            // Observe the ViewModel state for success/error - seulement après soumission
             LaunchedEffect(error, events.size) {
-                if (error == null && events.size > previousEventsCount) {
+                // Ne naviguer que si on a soumis un formulaire ET qu'un nouvel événement a été créé
+                if (hasSubmitted && error == null && events.size > previousEventsCount) {
                     Toast.makeText(context, "Événement créé avec succès!", Toast.LENGTH_SHORT).show()
-                    navController.navigate("event_list") {
-                        popUpTo("create_event") { inclusive = true }
+                    navController.navigate("event_list_remote") {
+                        popUpTo("event_list_remote") { inclusive = false }
                     }
-                } else if (error != null) {
+                    hasSubmitted = false
+                } else if (hasSubmitted && error != null) {
                     Toast.makeText(context, "Erreur: $error", Toast.LENGTH_LONG).show()
+                    hasSubmitted = false
                 }
                 previousEventsCount = events.size
             }
 
+            val scope = rememberCoroutineScope()
+            
             CreateEventScreen(
                 navController = navController,
                 onSubmit = { nom, description, dateDebut, dateFin, image, lieu, categorie, statut ->
-                    // ⚠️ Backend validation: image must be a valid URL (http/https).
-                    // Local content:// URIs will cause 400 Bad Request.
-                    // Temporary fix: Send null if not a web URL.
-                    val validImage = if (image?.startsWith("http") == true) image else null
+                    // Marquer qu'on a soumis le formulaire
+                    hasSubmitted = true
+                    previousEventsCount = events.size
+                    
+                    // Convertir l'image de manière asynchrone
+                    scope.launch {
+                        // Convertir l'URI local en Base64 si nécessaire
+                        val validImage = if (image != null) {
+                            if (image.startsWith("http")) {
+                                // C'est déjà une URL, on l'utilise telle quelle
+                                Log.d("AppNavigation", "✅ Image URL: $image")
+                                image
+                            } else {
+                                // C'est un URI local, on le convertit en Base64
+                                try {
+                                    Log.d("AppNavigation", "🖼️ Conversion URI en Base64: $image")
+                                    val uri = Uri.parse(image)
+                                    val base64Image = uriToBase64(context, uri)
+                                    if (base64Image != null) {
+                                        Log.d("AppNavigation", "✅ Image convertie en Base64 (${base64Image.length} caractères)")
+                                    } else {
+                                        Log.e("AppNavigation", "❌ Échec de la conversion Base64")
+                                        Toast.makeText(context, "Erreur lors de la conversion de l'image", Toast.LENGTH_SHORT).show()
+                                    }
+                                    base64Image
+                                } catch (e: Exception) {
+                                    Log.e("AppNavigation", "❌ Erreur conversion image: ${e.message}", e)
+                                    Toast.makeText(context, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    null
+                                }
+                            }
+                        } else {
+                            Log.d("AppNavigation", "ℹ️ Aucune image fournie")
+                            null
+                        }
 
-                    if (image != null && validImage == null) {
-                        Toast.makeText(context, "L'envoi d'images locales n'est pas encore supporté.", Toast.LENGTH_SHORT).show()
+                        Log.d("AppNavigation", "🚀 Création événement avec image: ${validImage != null}")
+                        eventViewModel.createEvent(
+                            nom,
+                            description,
+                            dateDebut,
+                            dateFin,
+                            validImage,
+                            lieu,
+                            categorie,
+                            statut
+                        )
                     }
-
-                    eventViewModel.createEvent(
-                        nom,
-                        description,
-                        dateDebut,
-                        dateFin,
-                        validImage,
-                        lieu,
-                        categorie,
-                        statut
-                    )
                 },
                 onBack = { navController.popBackStack() }
             )
         }
 
-        // 1️⃣5️⃣ Liste événements (PROFESSIONAL) - ✅ AVEC ViewModel partagé
+        // 1️⃣5️⃣ Liste événements (PROFESSIONAL)
         composable("event_list_remote") {
-            val eventViewModel: EventViewModel = viewModel() // ✅ ViewModel partagé
-            val events by eventViewModel.events.collectAsState()
-            val context = LocalContext.current
-
-            LaunchedEffect(Unit) {
-                eventViewModel.loadEvents()
-            }
-
-            // Observe errors for deletion
-            LaunchedEffect(eventViewModel.error) {
-                val error = eventViewModel.error.value
-                if (error != null) {
-                    Toast.makeText(context, "Erreur: $error", Toast.LENGTH_LONG).show()
-                }
-            }
-
-            EventListScreenRemote(
-                onEventClick = { event ->
-                    event._id?.let { eventId ->
-                        Log.d("AppNavigation", "👁️ Navigation vers event_detail/$eventId")
-                        navController.navigate("event_detail/$eventId")
-                    } ?: run {
-                        Log.e("AppNavigation", "❌ Événement sans _id, impossible de naviguer vers les détails")
-                        Toast.makeText(context, "Erreur: L'événement n'a pas d'ID", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                onBackClick = {
-                    navController.popBackStack()
-                },
-                onAddEventClick = {
-                    navController.navigate("create_event")
-                },
-                onEditEventClick = { event ->
-                    event._id?.let { eventId ->
-                        Log.d("AppNavigation", "✏️ Navigation vers edit_event/$eventId")
-                        navController.navigate("edit_event/$eventId")
-                    } ?: run {
-                        Log.e("AppNavigation", "❌ Événement sans _id, impossible de naviguer vers l'édition")
-                        Toast.makeText(context, "Erreur: L'événement n'a pas d'ID", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                onDeleteEventClick = { eventId ->
-                    eventViewModel.deleteEvent(eventId)
-                }
-            )
+            EventListScreenRemote(navController = navController)
         }
 
 // 🆕 Route pour l'édition d'un événement - ✅ UTILISE le ViewModel partagé
@@ -1302,6 +1304,8 @@ fun AppNavigation(
                     }
                 }
                 selectedEvent != null -> {
+                    val scope = rememberCoroutineScope()
+                    
                     EditEventScreen(
                         navController = navController,
                         event = selectedEvent!!,
@@ -1309,6 +1313,7 @@ fun AppNavigation(
                             Log.d("AppNavigation", "🎯 onUpdate callback appelé")
                             Log.d("AppNavigation", "📝 ID reçu: $id")
                             Log.d("AppNavigation", "📝 Nom reçu: $nom")
+                            Log.d("AppNavigation", "📝 Image reçue: ${if (image != null) "${image.take(50)}..." else "null"}")
 
                             // Marquer qu'une mise à jour a été initiée
                             hasInitiatedUpdate = true
@@ -1319,25 +1324,54 @@ fun AppNavigation(
                                 initialEventState = it
                             }
 
-                            // ⚠️ Validation Image
-                            val validImage = if (image?.startsWith("http") == true) image else null
-                            if (image != null && validImage == null) {
-                                Toast.makeText(context, "L'envoi d'images locales n'est pas encore supporté.", Toast.LENGTH_SHORT).show()
+                            // Convertir l'image de manière asynchrone
+                            scope.launch {
+                                // Convertir l'URI local en Base64 si nécessaire
+                                val validImage = if (image != null) {
+                                    if (image.startsWith("http")) {
+                                        // C'est déjà une URL, on l'utilise telle quelle
+                                        Log.d("AppNavigation", "✅ Image URL: $image")
+                                        image
+                                    } else {
+                                        // C'est un URI local, on le convertit en Base64
+                                        try {
+                                            Log.d("AppNavigation", "🖼️ Conversion URI en Base64 pour édition: $image")
+                                            val uri = Uri.parse(image)
+                                            val base64Image = uriToBase64(context, uri)
+                                            if (base64Image != null) {
+                                                Log.d("AppNavigation", "✅ Image convertie en Base64 (${base64Image.length} caractères)")
+                                            } else {
+                                                Log.e("AppNavigation", "❌ Échec de la conversion Base64")
+                                                Toast.makeText(context, "Erreur lors de la conversion de l'image", Toast.LENGTH_SHORT).show()
+                                            }
+                                            base64Image
+                                        } catch (e: Exception) {
+                                            Log.e("AppNavigation", "❌ Erreur conversion image: ${e.message}", e)
+                                            Toast.makeText(context, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
+                                            null
+                                        }
+                                    }
+                                } else {
+                                    // Si aucune image n'est fournie, garder l'image existante
+                                    Log.d("AppNavigation", "ℹ️ Aucune nouvelle image, conservation de l'image existante")
+                                    selectedEvent?.image
+                                }
+
+                                Log.d("AppNavigation", "🚀 Mise à jour événement avec image: ${validImage != null}")
+                                eventViewModel.updateEvent(
+                                    event = selectedEvent!!,
+                                    nom = nom,
+                                    description = description,
+                                    dateDebut = dateDebut,
+                                    dateFin = dateFin,
+                                    image = validImage,
+                                    lieu = lieu,
+                                    categorie = categorie,
+                                    statut = statut
+                                )
+
+                                Log.d("AppNavigation", "✅ updateEvent() du ViewModel appelé (en attente de résultat)")
                             }
-
-                            eventViewModel.updateEvent(
-                                event = selectedEvent!!,
-                                nom = nom,
-                                description = description,
-                                dateDebut = dateDebut,
-                                dateFin = dateFin,
-                                image = validImage,
-                                lieu = lieu,
-                                categorie = categorie,
-                                statut = statut
-                            )
-
-                            Log.d("AppNavigation", "✅ updateEvent() du ViewModel appelé (en attente de résultat)")
                         },
                         onBack = { navController.popBackStack() }
                     )
@@ -1734,6 +1768,52 @@ fun AppNavigation(
                 }
             )
         }
+    }
+}
+
+/**
+ * Convertit un URI local en Base64 pour l'envoi au backend
+ */
+private fun uriToBase64(context: android.content.Context, uri: Uri): String? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        val originalBitmap = BitmapFactory.decodeStream(inputStream)
+        inputStream.close()
+
+        if (originalBitmap == null) return null
+
+        // Redimensionner si nécessaire pour réduire la taille
+        val maxSize = 1200
+        val bitmap = if (originalBitmap.width > maxSize || originalBitmap.height > maxSize) {
+            val ratio = minOf(
+                maxSize.toFloat() / originalBitmap.width,
+                maxSize.toFloat() / originalBitmap.height
+            )
+            val newWidth = (originalBitmap.width * ratio).toInt()
+            val newHeight = (originalBitmap.height * ratio).toInt()
+            Bitmap.createScaledBitmap(originalBitmap, newWidth, newHeight, true).also {
+                originalBitmap.recycle()
+            }
+        } else {
+            originalBitmap
+        }
+
+        // Compresser en JPEG
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+        val imageBytes = outputStream.toByteArray()
+
+        // Convertir en Base64
+        val base64String = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+
+        bitmap.recycle()
+        outputStream.close()
+
+        // Retourner au format data URI
+        "data:image/jpeg;base64,$base64String"
+    } catch (e: Exception) {
+        Log.e("AppNavigation", "❌ Erreur conversion image: ${e.message}", e)
+        null
     }
 }
 

@@ -9,6 +9,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext // ✅ Import ajouté
@@ -21,6 +25,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.vector.ImageVector // ✅ Import ajouté
 import coil.compose.AsyncImage
+import android.util.Log
+import android.util.Base64
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.Image
 import com.example.damprojectfinal.feature_event.BrandColors
 import com.example.damprojectfinal.feature_event.Event
 import com.example.damprojectfinal.feature_event.EventStatus
@@ -58,15 +67,106 @@ fun EventDetailScreen(
         ) {
             // Image d'en-tête
             if (!event.image.isNullOrEmpty()) {
-                AsyncImage(
-                    model = event.image,
-                    contentDescription = event.nom,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(250.dp)
-                        .clip(MaterialTheme.shapes.medium)
-                )
+                // Vérifier si c'est une image Base64
+                val isBase64 = event.image.startsWith("data:image") || 
+                               (event.image.length > 100 && !event.image.startsWith("http"))
+                
+                if (isBase64) {
+                    // Convertir Base64 en ImageBitmap
+                    val base64String = if (event.image.startsWith("data:image")) {
+                        event.image.substringAfter(",")
+                    } else {
+                        event.image
+                    }
+                    
+                    val imageBitmap = remember(base64String) {
+                        try {
+                            Log.d("EventDetailScreen", "🖼️ Décodage Base64 (${base64String.length} caractères)")
+                            val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
+                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            if (bitmap != null) {
+                                Log.d("EventDetailScreen", "✅ Bitmap décodé: ${bitmap.width}x${bitmap.height}")
+                            }
+                            bitmap?.asImageBitmap()
+                        } catch (e: Exception) {
+                            Log.e("EventDetailScreen", "❌ Erreur décodage Base64: ${e.message}", e)
+                            null
+                        }
+                    }
+                    
+                    if (imageBitmap != null) {
+                        Image(
+                            bitmap = imageBitmap,
+                            contentDescription = event.nom,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(250.dp)
+                                .clip(MaterialTheme.shapes.medium),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        // Placeholder si erreur de décodage
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(250.dp)
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(BrandColors.Yellow, BrandColors.YellowPressed)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Image,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(60.dp)
+                            )
+                        }
+                    }
+                } else {
+                    // C'est une URL, utiliser AsyncImage
+                    var imageLoadError by remember { mutableStateOf(false) }
+                    
+                    if (imageLoadError) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(250.dp)
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(BrandColors.Yellow, BrandColors.YellowPressed)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Image,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(60.dp)
+                            )
+                        }
+                    } else {
+                        AsyncImage(
+                            model = event.image,
+                            contentDescription = event.nom,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(250.dp)
+                                .clip(MaterialTheme.shapes.medium),
+                            onError = { errorState ->
+                                Log.e("EventDetailScreen", "❌ Erreur chargement image URL: ${errorState.result.throwable?.message}")
+                                imageLoadError = true
+                            },
+                            onSuccess = {
+                                Log.d("EventDetailScreen", "✅ Image URL chargée avec succès")
+                            }
+                        )
+                    }
+                }
             } else {
                 Box(
                     modifier = Modifier

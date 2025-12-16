@@ -19,10 +19,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 
 class ChatViewModel : ViewModel() {
 
@@ -392,11 +392,15 @@ class ChatViewModel : ViewModel() {
     private fun formatTimestamp(raw: String?): String {
         if (raw.isNullOrBlank()) return ""
         return try {
-            val instant = Instant.parse(raw)
-            DateTimeFormatter.ofPattern("HH:mm")
-                .withZone(ZoneId.systemDefault())
-                .format(instant)
-        } catch (_: DateTimeParseException) {
+            // Parse ISO 8601 format (e.g., "2024-01-15T10:30:00Z" or "2024-01-15T10:30:00.000Z")
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+            dateFormat.timeZone = TimeZone.getTimeZone("UTC")
+            val date = dateFormat.parse(raw.substringBefore(".").substringBefore("Z"))
+            
+            val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+            timeFormat.timeZone = TimeZone.getDefault()
+            timeFormat.format(date ?: return raw)
+        } catch (e: Exception) {
             raw
         }
     }

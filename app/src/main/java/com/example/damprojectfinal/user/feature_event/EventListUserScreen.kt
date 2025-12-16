@@ -23,10 +23,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.damprojectfinal.feature_event.BrandColors
 import com.example.damprojectfinal.feature_event.Event
 import java.text.SimpleDateFormat
 import java.util.*
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.foundation.Image
 
 // ------------------ Liste des événements
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,15 +117,93 @@ fun EventCard(
         Column {
             // Image avec actions overlay
             Box {
-                if (event.image != null) {
-                    AsyncImage(
-                        model = event.image,
-                        contentDescription = event.nom,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp),
-                        contentScale = ContentScale.Crop
-                    )
+                if (event.image != null && event.image.isNotBlank()) {
+                    // Vérifier si c'est une image Base64
+                    val isBase64 = event.image.startsWith("data:image") || 
+                                   (event.image.length > 100 && !event.image.startsWith("http"))
+                    
+                    if (isBase64) {
+                        // Convertir Base64 en ImageBitmap
+                        val base64String = if (event.image.startsWith("data:image")) {
+                            event.image.substringAfter(",")
+                        } else {
+                            event.image
+                        }
+                        
+                        val imageBitmap = remember(base64String) {
+                            try {
+                                val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
+                                val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                                bitmap?.asImageBitmap()
+                            } catch (e: Exception) {
+                                android.util.Log.e("EventCard", "❌ Erreur décodage Base64: ${e.message}")
+                                null
+                            }
+                        }
+                        
+                        if (imageBitmap != null) {
+                            Image(
+                                bitmap = imageBitmap,
+                                contentDescription = event.nom,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            // Placeholder si erreur de décodage
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .background(BrandColors.Yellow),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Image,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        // C'est une URL, utiliser AsyncImage
+                        var imageLoadError by remember { mutableStateOf(false) }
+                        
+                        if (imageLoadError) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .background(BrandColors.Yellow),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Image,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
+                        } else {
+                            AsyncImage(
+                                model = event.image,
+                                contentDescription = event.nom,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp),
+                                contentScale = ContentScale.Crop,
+                                onError = { errorState ->
+                                    android.util.Log.e("EventCard", "❌ Erreur chargement image: ${errorState.result.throwable?.message}")
+                                    imageLoadError = true
+                                },
+                                onSuccess = {
+                                    android.util.Log.d("EventCard", "✅ Image URL chargée avec succès pour: ${event.nom}")
+                                }
+                            )
+                        }
+                    }
                 } else {
                     Box(
                         modifier = Modifier

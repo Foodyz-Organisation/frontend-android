@@ -17,21 +17,22 @@ import com.example.damprojectfinal.feature_event.Event
 import com.example.damprojectfinal.user.feature_event.EmptyState
 import com.example.damprojectfinal.user.feature_event.EventCard
 import kotlinx.coroutines.launch
+import android.util.Log
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavController
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventListScreenRemote(
-    onEventClick: (Event) -> Unit,
-    onBackClick: () -> Unit = {},
-    onAddEventClick: () -> Unit = {},
-    onEditEventClick: (Event) -> Unit = {},
-    onDeleteEventClick: (String) -> Unit = {}
+    navController: NavController
 ) {
     var events by remember { mutableStateOf(listOf<Event>()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // Chargement des événements
     LaunchedEffect(Unit) {
@@ -52,16 +53,21 @@ fun EventListScreenRemote(
             TopAppBar(
                 title = { Text("Événements", color = BrandColors.TextPrimary) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack, // ✅ Corrigé
+                            imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
                             tint = BrandColors.TextPrimary
                         )
                     }
                 },
                 actions = {
-                    IconButton(onClick = onAddEventClick) {
+                    IconButton(
+                        onClick = {
+                            Log.d("EventListScreenRemote", "➕ Navigation vers create_event (TopBar)")
+                            navController.navigate("create_event")
+                        }
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "Add Event",
@@ -73,6 +79,21 @@ fun EventListScreenRemote(
                     containerColor = Color.White
                 )
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    Log.d("EventListScreenRemote", "➕ Navigation vers create_event (FAB)")
+                    navController.navigate("create_event")
+                },
+                containerColor = BrandColors.Yellow,
+                contentColor = BrandColors.TextPrimary
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Créer un événement"
+                )
+            }
         },
         containerColor = BrandColors.Cream100
     ) { padding ->
@@ -135,7 +156,10 @@ fun EventListScreenRemote(
                     }
                 }
                 events.isEmpty() -> {
-                    EmptyState(onAddClick = onAddEventClick)
+                    EmptyState(onAddClick = {
+                        Log.d("EventListScreenRemote", "➕ EmptyState - Navigation vers create_event")
+                        navController.navigate("create_event")
+                    })
                 }
                 else -> {
                     LazyColumn(
@@ -146,10 +170,42 @@ fun EventListScreenRemote(
                         items(events) { event ->
                             EventCard(
                                 event = event,
-                                onClick = { onEventClick(event) },
-                                onEditClick = { onEditEventClick(event) },
+                                onClick = { 
+                                    event._id?.let { eventId ->
+                                        Log.d("EventListScreenRemote", "👁️ Navigation vers event_detail/$eventId")
+                                        navController.navigate("event_detail/$eventId")
+                                    }
+                                },
+                                onEditClick = { 
+                                    event._id?.let { eventId ->
+                                        Log.d("EventListScreenRemote", "✏️ Navigation vers edit_event/$eventId")
+                                        navController.navigate("edit_event/$eventId")
+                                    } ?: run {
+                                        Toast.makeText(context, "Erreur: L'événement n'a pas d'ID", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
                                 onDeleteClick = {
-                                    event._id?.let { onDeleteEventClick(it) }
+                                    // Le dialog de confirmation est déjà géré dans EventCard
+                                    // Ce callback est appelé quand l'utilisateur confirme la suppression
+                                    event._id?.let { eventId ->
+                                        Log.d("EventListScreenRemote", "🗑️ Suppression confirmée pour l'événement $eventId")
+                                        
+                                        scope.launch {
+                                            try {
+                                                EventRetrofitClient.api.deleteEvent(eventId)
+                                                Log.d("EventListScreenRemote", "✅ Événement supprimé avec succès")
+                                                Toast.makeText(context, "Événement supprimé", Toast.LENGTH_SHORT).show()
+                                                
+                                                // Recharger la liste
+                                                events = EventRetrofitClient.api.getEvents()
+                                            } catch (e: Exception) {
+                                                Log.e("EventListScreenRemote", "❌ Erreur suppression: ${e.message}", e)
+                                                Toast.makeText(context, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    } ?: run {
+                                        Toast.makeText(context, "Erreur: L'événement n'a pas d'ID", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             )
                         }

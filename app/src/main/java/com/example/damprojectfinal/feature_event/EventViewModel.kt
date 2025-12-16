@@ -95,8 +95,13 @@ class EventViewModel : ViewModel() {
             try {
                 Log.d(TAG, "Création d'un nouvel événement...")
                 val newEvent = EventRetrofitClient.api.createEvent(event)
+                Log.d(TAG, "✅ Événement créé avec succès")
+                Log.d(TAG, "   Nom: ${newEvent.nom}")
+                Log.d(TAG, "   Image: ${if (newEvent.image != null) "Présente (${newEvent.image?.length} caractères)" else "Absente"}")
+                if (newEvent.image != null && newEvent.image.length > 100) {
+                    Log.d(TAG, "   Image preview: ${newEvent.image.take(50)}...")
+                }
                 _events.value = _events.value + newEvent
-                Log.d(TAG, "Événement créé avec succès")
             } catch (e: Exception) {
                 val errorMsg = getErrorMessage(e)
                 _error.value = "Impossible de créer l'événement: $errorMsg"
