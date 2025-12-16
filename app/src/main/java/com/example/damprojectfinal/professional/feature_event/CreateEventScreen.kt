@@ -32,10 +32,9 @@ import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.feature_event.BrandColors
 import com.example.damprojectfinal.feature_event.EventStatus
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,10 +75,10 @@ fun CreateEventScreen(
     var showDatePickerFin by remember { mutableStateOf(false) }
     var showTimePickerFin by remember { mutableStateOf(false) }
     
-    var selectedDateDebut by remember { mutableStateOf<LocalDate?>(null) }
-    var selectedTimeDebut by remember { mutableStateOf<LocalTime?>(null) }
-    var selectedDateFin by remember { mutableStateOf<LocalDate?>(null) }
-    var selectedTimeFin by remember { mutableStateOf<LocalTime?>(null) }
+    var selectedDateDebut by remember { mutableStateOf<Calendar?>(null) }
+    var selectedTimeDebut by remember { mutableStateOf<Pair<Int, Int>?>(null) } // Pair<Hour, Minute>
+    var selectedDateFin by remember { mutableStateOf<Calendar?>(null) }
+    var selectedTimeFin by remember { mutableStateOf<Pair<Int, Int>?>(null) } // Pair<Hour, Minute>
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         imageUri = uri
@@ -341,12 +340,20 @@ fun CreateEventScreen(
     // ⏰ TimePicker pour Date de début
     if (showTimePickerDebut) {
         TimePickerDialog(
-            onTimeSelected = { time ->
-                selectedTimeDebut = time
+            onTimeSelected = { hour, minute ->
+                selectedTimeDebut = Pair(hour, minute)
                 showTimePickerDebut = false
                 // Formater la date et l'heure au format ISO
-                val dateTime = selectedDateDebut?.atTime(time)
-                dateDebut = dateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: ""
+                selectedDateDebut?.let { calendar ->
+                    calendar.set(Calendar.HOUR_OF_DAY, hour)
+                    calendar.set(Calendar.MINUTE, minute)
+                    calendar.set(Calendar.SECOND, 0)
+                    calendar.set(Calendar.MILLISECOND, 0)
+                    val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                    dateDebut = dateFormat.format(calendar.time)
+                } ?: run {
+                    dateDebut = ""
+                }
             },
             onDismiss = { 
                 showTimePickerDebut = false
@@ -370,12 +377,20 @@ fun CreateEventScreen(
     // ⏰ TimePicker pour Date de fin
     if (showTimePickerFin) {
         TimePickerDialog(
-            onTimeSelected = { time ->
-                selectedTimeFin = time
+            onTimeSelected = { hour, minute ->
+                selectedTimeFin = Pair(hour, minute)
                 showTimePickerFin = false
                 // Formater la date et l'heure au format ISO
-                val dateTime = selectedDateFin?.atTime(time)
-                dateFin = dateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: ""
+                selectedDateFin?.let { calendar ->
+                    calendar.set(Calendar.HOUR_OF_DAY, hour)
+                    calendar.set(Calendar.MINUTE, minute)
+                    calendar.set(Calendar.SECOND, 0)
+                    calendar.set(Calendar.MILLISECOND, 0)
+                    val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                    dateFin = dateFormat.format(calendar.time)
+                } ?: run {
+                    dateFin = ""
+                }
             },
             onDismiss = { 
                 showTimePickerFin = false
@@ -453,14 +468,20 @@ fun DatePickerField(
     // Formater la date pour l'affichage si elle existe
     val displayValue = if (value.isNotBlank()) {
         try {
-            val dateTime = LocalDate.parse(value.substringBefore("T"), DateTimeFormatter.ISO_LOCAL_DATE)
+            val dateStr = value.substringBefore("T")
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val date = dateFormat.parse(dateStr)
+            
+            val displayDateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+            val formattedDate = date?.let { displayDateFormat.format(it) } ?: ""
+            
             val time = if (value.contains("T")) {
                 val timeStr = value.substringAfter("T").substringBefore(".")
                 val parts = timeStr.split(":")
                 if (parts.size >= 2) "${parts[0]}:${parts[1]}" else ""
             } else ""
-            val formattedDate = dateTime.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-            if (time.isNotBlank()) "$formattedDate à $time" else formattedDate
+            
+            if (time.isNotBlank() && formattedDate.isNotBlank()) "$formattedDate à $time" else formattedDate
         } catch (e: Exception) {
             value
         }
@@ -514,7 +535,7 @@ fun DatePickerField(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DatePickerDialog(
-    onDateSelected: (LocalDate) -> Unit,
+    onDateSelected: (Calendar) -> Unit,
     onDismiss: () -> Unit
 ) {
     val datePickerState = rememberDatePickerState(
@@ -534,12 +555,7 @@ fun DatePickerDialog(
                         val calendar = Calendar.getInstance().apply {
                             timeInMillis = millis
                         }
-                        val date = LocalDate.of(
-                            calendar.get(Calendar.YEAR),
-                            calendar.get(Calendar.MONTH) + 1,
-                            calendar.get(Calendar.DAY_OF_MONTH)
-                        )
-                        onDateSelected(date)
+                        onDateSelected(calendar)
                     }
                 }
             ) {
@@ -559,7 +575,7 @@ fun DatePickerDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimePickerDialog(
-    onTimeSelected: (LocalTime) -> Unit,
+    onTimeSelected: (Int, Int) -> Unit, // Hour, Minute
     onDismiss: () -> Unit
 ) {
     val timePickerState = rememberTimePickerState(
@@ -577,11 +593,7 @@ fun TimePickerDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    val time = LocalTime.of(
-                        timePickerState.hour,
-                        timePickerState.minute
-                    )
-                    onTimeSelected(time)
+                    onTimeSelected(timePickerState.hour, timePickerState.minute)
                 }
             ) {
                 Text("OK", color = BrandColors.Yellow)
