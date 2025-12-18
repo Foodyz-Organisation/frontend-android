@@ -6,7 +6,7 @@ object BaseUrlProvider {
     private const val USE_AUTO_DETECTION = true
     private const val MANUAL_BASE_URL = "http://10.0.2.2:3000"
     private const val EMULATOR_BASE_URL = "http://10.0.2.2:3000"
-    private const val REAL_DEVICE_BASE_URL = "http://172.16.1.70:3000"
+    private const val REAL_DEVICE_BASE_URL = "http://192.168.1.103:3000"
 
     private fun isEmulator(): Boolean {
         return Build.FINGERPRINT.contains("generic") ||

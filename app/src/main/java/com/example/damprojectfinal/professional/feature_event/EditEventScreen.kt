@@ -30,6 +30,9 @@ import com.example.damprojectfinal.feature_event.BrandColors
 import com.example.damprojectfinal.feature_event.Event
 import com.example.damprojectfinal.feature_event.EventStatus
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +76,17 @@ fun EditEventScreen(
     // 🔥 NOUVEAU : État pour la carte
     var showMapPicker by remember { mutableStateOf(false) }
     var selectedLocation by remember { mutableStateOf<LocationData?>(null) }
+
+    // 📅 États pour les DatePickers (comme dans CreateEventScreen)
+    var showDatePickerDebut by remember { mutableStateOf(false) }
+    var showTimePickerDebut by remember { mutableStateOf(false) }
+    var showDatePickerFin by remember { mutableStateOf(false) }
+    var showTimePickerFin by remember { mutableStateOf(false) }
+
+    var selectedDateDebut by remember { mutableStateOf<Calendar?>(null) }
+    var selectedTimeDebut by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var selectedDateFin by remember { mutableStateOf<Calendar?>(null) }
+    var selectedTimeFin by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     // 🔥 Parsing du lieu existant
     LaunchedEffect(event.lieu) {
@@ -214,33 +228,19 @@ fun EditEventScreen(
                 fontSize = 12.sp
             )
 
-            // Dates
+            // Dates avec DatePicker + TimePicker (comme création)
             FieldLabel("Date de début")
-            StyledTextField(
+            DatePickerField(
                 value = dateDebut,
-                onValueChange = { dateDebut = it },
-                placeholder = "2025-11-15T10:00:00",
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.DateRange,
-                        contentDescription = null,
-                        tint = BrandColors.TextSecondary
-                    )
-                }
+                placeholder = "Sélectionnez la date et l'heure de début",
+                onDateClick = { showDatePickerDebut = true }
             )
 
             FieldLabel("Date de fin")
-            StyledTextField(
+            DatePickerField(
                 value = dateFin,
-                onValueChange = { dateFin = it },
-                placeholder = "2025-11-15T18:00:00",
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.DateRange,
-                        contentDescription = null,
-                        tint = BrandColors.TextSecondary
-                    )
-                }
+                placeholder = "Sélectionnez la date et l'heure de fin",
+                onDateClick = { showDatePickerFin = true }
             )
 
             // 🔥 NOUVEAU : Lieu avec carte OSM - Identique à CreateEventScreen
@@ -432,6 +432,74 @@ fun EditEventScreen(
                 showMapPicker = false
             },
             onDismiss = { showMapPicker = false }
+        )
+    }
+
+    // 📅 DatePicker + TimePicker pour Date de début
+    if (showDatePickerDebut) {
+        DatePickerDialog(
+            onDateSelected = { date ->
+                selectedDateDebut = date
+                showDatePickerDebut = false
+                showTimePickerDebut = true
+            },
+            onDismiss = { showDatePickerDebut = false }
+        )
+    }
+
+    if (showTimePickerDebut) {
+        TimePickerDialog(
+            onTimeSelected = { hour, minute ->
+                selectedTimeDebut = Pair(hour, minute)
+                showTimePickerDebut = false
+
+                selectedDateDebut?.let { calendar ->
+                    calendar.set(Calendar.HOUR_OF_DAY, hour)
+                    calendar.set(Calendar.MINUTE, minute)
+                    calendar.set(Calendar.SECOND, 0)
+                    calendar.set(Calendar.MILLISECOND, 0)
+                    val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                    dateDebut = dateFormat.format(calendar.time)
+                } ?: run { dateDebut = "" }
+            },
+            onDismiss = {
+                showTimePickerDebut = false
+                selectedDateDebut = null
+            }
+        )
+    }
+
+    // 📅 DatePicker + TimePicker pour Date de fin
+    if (showDatePickerFin) {
+        DatePickerDialog(
+            onDateSelected = { date ->
+                selectedDateFin = date
+                showDatePickerFin = false
+                showTimePickerFin = true
+            },
+            onDismiss = { showDatePickerFin = false }
+        )
+    }
+
+    if (showTimePickerFin) {
+        TimePickerDialog(
+            onTimeSelected = { hour, minute ->
+                selectedTimeFin = Pair(hour, minute)
+                showTimePickerFin = false
+
+                selectedDateFin?.let { calendar ->
+                    calendar.set(Calendar.HOUR_OF_DAY, hour)
+                    calendar.set(Calendar.MINUTE, minute)
+                    calendar.set(Calendar.SECOND, 0)
+                    calendar.set(Calendar.MILLISECOND, 0)
+                    val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                    dateFin = dateFormat.format(calendar.time)
+                } ?: run { dateFin = "" }
+            },
+            onDismiss = {
+                showTimePickerFin = false
+                selectedDateFin = null
+            }
         )
     }
 }

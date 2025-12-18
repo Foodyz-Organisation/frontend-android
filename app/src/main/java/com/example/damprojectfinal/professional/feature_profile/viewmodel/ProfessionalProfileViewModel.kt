@@ -25,6 +25,8 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
+import java.net.ConnectException
+import java.net.SocketTimeoutException
 
 class ProfessionalProfileViewModel(
     private val tokenManager: TokenManager,
@@ -68,8 +70,16 @@ class ProfessionalProfileViewModel(
                 val fetchedAccount = professionalApiService.getProfessionalAccount(professionalId)
                 _profile.value = fetchedAccount
                 Log.d("ProfileVM", "Profile loaded: ${fetchedAccount.fullName}")
+            } catch (e: ConnectException) {
+                // Network connection error - backend not available
+                Log.w("ProfileVM", "Cannot connect to backend: ${e.message}. Profile will not be loaded.")
+                // Don't crash - just leave profile as null
+            } catch (e: SocketTimeoutException) {
+                // Timeout error
+                Log.w("ProfileVM", "Request timeout while loading profile: ${e.message}")
             } catch (e: Exception) {
-                Log.e("ProfileVM", "Error loading professional profile: ${e.message}")
+                // Any other error
+                Log.e("ProfileVM", "Error loading professional profile: ${e.message}", e)
                 // Handle error (e.g., show error message to user)
             }
         }

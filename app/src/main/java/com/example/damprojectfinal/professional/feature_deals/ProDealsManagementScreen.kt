@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.dto.deals.Deal
 import com.example.damprojectfinal.feature_deals.DealsUiState
 import com.example.damprojectfinal.feature_deals.DealsViewModel
@@ -195,21 +197,34 @@ fun DealCard(
     ) {
         Column {
             // Image avec gradient overlay
-            Box {
-                if (deal.image != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+            ) {
+                if (deal.image.isNotBlank()) {
+                    // 🔍 Choisir correctement la source de l'image
+                    val model = when {
+                        // URL complète fournie par le backend
+                        deal.image.startsWith("http", ignoreCase = true) -> deal.image
+                        // URI locale (image sélectionnée depuis l'appareil, content://)
+                        deal.image.startsWith("content:", ignoreCase = true) -> deal.image
+                        // Chemin relatif renvoyé par le backend (ex: /uploads/...)
+                        else -> BaseUrlProvider.getFullImageUrl(deal.image)
+                    }
+
                     AsyncImage(
-                        model = deal.image,
+                        model = model,
                         contentDescription = deal.restaurantName,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp),
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp)
+                            .fillMaxSize()
                             .background(
                                 Brush.verticalGradient(
                                     colors = listOf(BrandColors.Yellow, BrandColors.YellowPressed)

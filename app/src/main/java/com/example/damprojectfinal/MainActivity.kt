@@ -12,12 +12,34 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
+import java.net.ConnectException
+import java.net.SocketTimeoutException
 
 class MainActivity : ComponentActivity() {
     private var deepLinkToken by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Set up global exception handler to catch uncaught network exceptions
+        // This is a safety net for exceptions that might slip through coroutine error handling
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
+            // Check if this is a network-related exception from OkHttp/Retrofit
+            val isNetworkException = exception is ConnectException || 
+                                    exception is SocketTimeoutException ||
+                                    (exception.message?.contains("Failed to connect", ignoreCase = true) == true) ||
+                                    (exception.message?.contains("Connection refused", ignoreCase = true) == true)
+            
+            if (isNetworkException && thread.name.startsWith("OkHttp")) {
+                // Network exception from OkHttp thread - log but don't crash
+                Log.w("MainActivity", "Caught uncaught network exception in ${thread.name}: ${exception.message}")
+                Log.w("MainActivity", "This is expected when backend is unavailable. App will continue running.")
+            } else {
+                // For all other exceptions, use the default handler
+                defaultHandler?.uncaughtException(thread, exception)
+            }
+        }
         
         deepLinkToken = extractTokenFromIntent(intent)
 

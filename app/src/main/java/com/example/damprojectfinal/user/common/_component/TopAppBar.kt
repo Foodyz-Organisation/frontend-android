@@ -268,6 +268,16 @@ fun SecondaryNavBar(
             currentRoute == "chatList",
             showBadge = hasUnreadMessages
         ) { navController.navigate("chatList") }
+        // Orders history icon
+        NavIcon(
+            Icons.Filled.ReceiptLong,
+            currentRoute == UserRoutes.ORDERS_ROUTE
+        ) {
+            navController.navigate(UserRoutes.ORDERS_ROUTE) {
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
         NavIcon(
             Icons.Filled.Notifications,
             currentRoute == UserRoutes.NOTIFICATIONS_SCREEN,

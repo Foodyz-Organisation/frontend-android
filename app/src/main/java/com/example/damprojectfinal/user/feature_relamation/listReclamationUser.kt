@@ -122,7 +122,7 @@ private fun ReclamationCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header: Order Number + Status
+            // Header: Item name (burger, pizza, ...) + Status
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -139,7 +139,8 @@ private fun ReclamationCard(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = reclamation.orderNumber ?: "N° inconnu",
+                        // Show the item name coming from the order (fallback to complaint type)
+                        text = reclamation.itemName ?: reclamation.complaintType ?: "Réclamation",
                         fontWeight = FontWeight.Bold,
                         color = BrandColors.TextPrimary,
                         fontSize = 16.sp

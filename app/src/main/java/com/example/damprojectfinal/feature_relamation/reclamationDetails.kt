@@ -23,7 +23,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.dto.reclamation.Reclamation
 import com.example.damprojectfinal.core.dto.reclamation.ReclamationStatus
 import java.text.SimpleDateFormat
@@ -121,7 +123,11 @@ fun ReclamationDetailScreen(
                     }
 
                     Text(text = "Date: ${formatDate(reclamation.date)}")
-                    DetailRow("Commande", reclamation.orderNumber ?: "N/A")
+                    // Afficher le nom de l'item si disponible, sinon fallback sur l'ID de commande
+                    DetailRow(
+                        "Commande",
+                        reclamation.itemName ?: reclamation.orderNumber ?: "N/A"
+                    )
                 }
             }
 
@@ -145,13 +151,21 @@ fun ReclamationDetailScreen(
                     userScrollEnabled = false
                 ) {
                     items(photosList) { uri ->
+                        // Construire l'URL complète si le backend renvoie un chemin relatif
+                        val model = if (uri.startsWith("http")) {
+                            uri
+                        } else {
+                            BaseUrlProvider.getFullImageUrl(uri)
+                        }
+
                         AsyncImage(
-                            model = uri,
+                            model = model,
                             contentDescription = null,
                             modifier = Modifier
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(16.dp))
-                                .shadow(2.dp, RoundedCornerShape(16.dp))
+                                .shadow(2.dp, RoundedCornerShape(16.dp)),
+                            contentScale = ContentScale.Crop
                         )
                     }
                 }

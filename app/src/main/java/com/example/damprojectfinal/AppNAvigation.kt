@@ -858,14 +858,30 @@ fun AppNavigation(
                         val api = ReclamationRetrofitClient.createClient(token)
                         val balance = api.getUserLoyalty()
 
-                        loyaltyData = balance?.let {
+                        loyaltyData = balance?.let { bal ->
+                            val rewards = bal.availableRewards.orEmpty().map { reward ->
+                                com.example.damprojectfinal.feature_relamation.Reward(
+                                    name = reward.name,
+                                    pointsCost = reward.pointsCost,
+                                    available = reward.available
+                                )
+                            }
+                            val history = bal.history.orEmpty().map { entry ->
+                                com.example.damprojectfinal.feature_relamation.PointsTransaction(
+                                    points = entry.points,
+                                    reason = entry.reason,
+                                    date = entry.date,
+                                    reclamationId = entry.reclamationId
+                                )
+                            }
+
                             LoyaltyData(
-                                loyaltyPoints = it.loyaltyPoints,
-                                validReclamations = it.validReclamations,
-                                invalidReclamations = it.invalidReclamations,
-                                reliabilityScore = it.reliabilityScore,
-                                availableRewards = emptyList(),
-                                history = emptyList()
+                                loyaltyPoints = bal.loyaltyPoints,
+                                validReclamations = bal.validReclamations,
+                                invalidReclamations = bal.invalidReclamations,
+                                reliabilityScore = bal.reliabilityScore,
+                                availableRewards = rewards,
+                                history = history
                             )
                         }
 
@@ -1140,17 +1156,16 @@ fun AppNavigation(
         composable("event_list") {
             val eventViewModel: EventViewModel = viewModel()
             val events by eventViewModel.events.collectAsState()
-            val context = LocalContext.current
-
-            LaunchedEffect(Unit) { eventViewModel.loadEvents() }
+            val isLoading by eventViewModel.isLoading.collectAsState()
+            val error by eventViewModel.error.collectAsState()
 
             EventListScreen(
                 events = events,
                 onEventClick = { event -> navController.navigate("event_detail/${event._id}") },
                 onAddEventClick = {},
-                onEditClick = { event -> },
-                onDeleteClick = { eventId -> eventViewModel.deleteEvent(eventId) },
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                isLoading = isLoading,
+                errorMessage = error
             )
         }
 
@@ -1213,27 +1228,29 @@ fun AppNavigation(
                     )
                 }
                 else -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                            modifier = Modifier.padding(16.dp)
+                    if (!isLoading && !isLoadingEvent) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "Événement introuvable",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                text = "L'événement avec l'ID $eventId n'a pas pu être chargé.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center
-                            )
-                            Button(onClick = { navController.popBackStack() }) {
-                                Text("Retour")
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "Événement introuvable",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = "L'événement avec l'ID $eventId n'a pas pu être chargé.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center
+                                )
+                                Button(onClick = { navController.popBackStack() }) {
+                                    Text("Retour")
+                                }
                             }
                         }
                     }

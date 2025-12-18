@@ -14,6 +14,10 @@ data class Reclamation(
     @SerializedName("commandeConcernee")
     val orderNumber: String?,
 
+    // 🔹 Nom de l'item concerné (burger, pizza, etc.) – envoyé par le backend dans le champ "name"
+    @SerializedName("name")
+    val itemName: String? = null,
+
     @SerializedName("complaintType")
     val complaintType: String?,
 

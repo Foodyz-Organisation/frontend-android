@@ -42,6 +42,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.net.ConnectException
+import java.net.SocketTimeoutException
 import android.util.Log
 
 data class Order(
@@ -189,8 +191,16 @@ fun HomeScreenPro(
                 if (!prof.profilePictureUrl.isNullOrEmpty()) {
                     profilePictureUrl = prof.profilePictureUrl
                 }
+            } catch (e: ConnectException) {
+                // Network connection error - backend not available
+                Log.w("HomeScreenPro", "Cannot connect to backend: ${e.message}. Profile picture will not be loaded.")
+                // Don't crash - just leave profilePictureUrl as null
+            } catch (e: SocketTimeoutException) {
+                // Timeout error
+                Log.w("HomeScreenPro", "Request timeout while fetching profile picture: ${e.message}")
             } catch (e: Exception) {
-                Log.e("HomeScreenPro", "Error fetching pro profile picture: ${e.message}")
+                // Any other error
+                Log.e("HomeScreenPro", "Error fetching pro profile picture: ${e.message}", e)
             } finally {
                 isLoadingProfilePicture = false
             }

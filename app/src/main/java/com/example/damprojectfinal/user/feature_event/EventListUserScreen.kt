@@ -33,6 +33,8 @@ import android.util.Base64
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.foundation.Image
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 
 // ------------------ Liste des événements
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,8 +44,8 @@ fun EventListScreen(
     onEventClick: (com.example.damprojectfinal.feature_event.Event) -> Unit,
     onBackClick: () -> Unit = {},
     onAddEventClick: () -> Unit = {},
-    onEditClick: (com.example.damprojectfinal.feature_event.Event) -> Unit = {},
-    onDeleteClick: (String) -> Unit = {}
+    isLoading: Boolean = false,
+    errorMessage: String? = null
 ) {
     Scaffold(
         topBar = {
@@ -67,30 +69,61 @@ fun EventListScreen(
         },
         containerColor = BrandColors.Cream100
     ) { padding ->
-        if (events.isEmpty()) {
-            EmptyState(
-                onAddClick = onAddEventClick,
-                modifier = Modifier.padding(padding)
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .padding(padding)
-                    .fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(events) { event ->
-                    EventCard(
-                        event = event,
-                        onClick = { onEventClick(event) },
-                        onEditClick = { onEditClick(event) },
-                        onDeleteClick = {
-                            if (event._id != null) {
-                                onDeleteClick(event._id)
-                            }
-                        }
-                    )
+        when {
+            isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .padding(padding)
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = BrandColors.Yellow)
+                }
+            }
+            errorMessage != null -> {
+                Box(
+                    modifier = Modifier
+                        .padding(padding)
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = BrandColors.Red,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Text(
+                            text = errorMessage,
+                            color = BrandColors.TextSecondary
+                        )
+                    }
+                }
+            }
+            events.isEmpty() -> {
+                EmptyState(
+                    onAddClick = onAddEventClick,
+                    modifier = Modifier.padding(padding)
+                )
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .padding(padding)
+                        .fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(events) { event ->
+                        EventCard(
+                            event = event,
+                            onClick = { onEventClick(event) }
+                        )
+                    }
                 }
             }
         }
@@ -100,18 +133,14 @@ fun EventListScreen(
 @Composable
 fun EventCard(
     event: com.example.damprojectfinal.feature_event.Event,
-    onClick: () -> Unit,
-    onEditClick: (com.example.damprojectfinal.feature_event.Event) -> Unit = {},
-    onDeleteClick: () -> Unit = {}
+    onClick: () -> Unit
 ) {
-    var showDeleteDialog by remember { mutableStateOf(false) }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp))
+            .shadow(6.dp, RoundedCornerShape(20.dp))
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column {
@@ -224,51 +253,13 @@ fun EventCard(
                         )
                     }
                 }
-
-                // Action buttons overlay
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Bouton éditer
-                    IconButton(
-                        onClick = { onEditClick(event) },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(Color.White, RoundedCornerShape(8.dp))
-                    ) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = "Modifier",
-                            tint = BrandColors.Yellow,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    // Bouton supprimer
-                    IconButton(
-                        onClick = { showDeleteDialog = true },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(Color.White, RoundedCornerShape(8.dp))
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Supprimer",
-                            tint = BrandColors.Red,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
             }
 
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Statut badge
+                // Statut badge centré
                 StatusBadge(status = event.statut)
 
                 // Titre
@@ -298,7 +289,7 @@ fun EventCard(
                 // Infos
                 EventInfoRow(
                     icon = Icons.Default.DateRange,
-                    text = event.date_debut
+                    text = formatEventDateForList(event.date_debut)
                 )
                 EventInfoRow(
                     icon = Icons.Default.LocationOn,
@@ -310,44 +301,6 @@ fun EventCard(
                 )
             }
         }
-    }
-
-    // Dialog de confirmation de suppression
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = {
-                Text(
-                    text = "Supprimer l'événement",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text("Êtes-vous sûr de vouloir supprimer \"${event.nom}\" ? Cette action est irréversible.")
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDeleteClick()
-                        showDeleteDialog = false
-                    },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = BrandColors.Red
-                    )
-                ) {
-                    Text("Supprimer", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showDeleteDialog = false }
-                ) {
-                    Text("Annuler")
-                }
-            },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(16.dp)
-        )
     }
 }
 
@@ -390,6 +343,17 @@ fun StatusBadge(status: com.example.damprojectfinal.feature_event.EventStatus) {
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+// Format ISO 8601 → "14/12/2025 • 20:03" pour la liste
+private fun formatEventDateForList(raw: String): String {
+    return try {
+        val odt = OffsetDateTime.parse(raw)
+        val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy • HH:mm")
+        odt.format(formatter)
+    } catch (e: Exception) {
+        raw
     }
 }
 
