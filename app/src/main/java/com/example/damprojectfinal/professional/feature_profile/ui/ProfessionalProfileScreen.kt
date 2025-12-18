@@ -1,12 +1,14 @@
 package com.example.damprojectfinal.professional.feature_profile.ui
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -21,11 +23,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -33,10 +38,6 @@ import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.damprojectfinal.core.api.BaseUrlProvider
-import android.util.Log
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import com.example.damprojectfinal.core.api.TokenManager
@@ -45,7 +46,12 @@ import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.professional.feature_profile.viewmodel.ProfessionalProfileViewModel
 
-enum class ProfessionalProfileTab { ABOUT, REELS, PHOTOS }
+enum class ProfessionalProfileTab { REELS, PHOTOS }
+
+// Yellow accent color matching the app theme
+val ProfessionalYellow = Color(0xFFF59E0B)
+val ProfessionalYellowLight = Color(0xFFFFF9E6)
+val ProfessionalYellowDark = Color(0xFFD97706)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,13 +66,22 @@ fun ProfessionalProfileScreen(
     )
 ) {
     val professionalId = TokenManager(LocalContext.current).getUserId() ?: "unknown"
+    val context = LocalContext.current
 
-    Log.d("ProfileScreen", "ProfessionalProfileScreen recomposed for ID: $professionalId")
-
+    // Load profile on first launch
     LaunchedEffect(professionalId) {
-        Log.d("ProfileScreen", "LaunchedEffect triggered for ID: $professionalId")
         viewModel.loadProfessionalProfile(professionalId)
         viewModel.fetchProfessionalPosts(professionalId)
+    }
+
+    // Reload profile when returning from settings screen
+    LaunchedEffect(navController.currentBackStackEntry) {
+        val route = navController.currentBackStackEntry?.destination?.route
+        // Check if route matches the professional profile screen (with or without professionalId parameter)
+        if (route?.startsWith("professional_profile_screen") == true) {
+            // Reload profile when returning to this screen
+            viewModel.loadProfessionalProfile(professionalId)
+        }
     }
 
     val profile by viewModel.profile.collectAsState()
@@ -74,297 +89,349 @@ fun ProfessionalProfileScreen(
     val photoPosts by viewModel.photoPosts.collectAsState()
     val reelPosts by viewModel.reelPosts.collectAsState()
 
-    var selectedTab by remember { mutableStateOf(ProfessionalProfileTab.REELS) } // Default to Reels as in your screenshot
-
-    val context = LocalContext.current
-
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-        onResult = { uri: Uri? ->
-            Log.d("ProfileScreen", "Gallery result: $uri")
-            viewModel.setSelectedProfileImageUri(uri)
-            if (uri != null) {
-                // TODO: Initiate profile image upload (e.g., call viewModel.uploadProfileImage)
-            }
-        }
-    )
+    var selectedTab by remember { mutableStateOf(ProfessionalProfileTab.REELS) }
 
     Scaffold(
-        topBar = {
-            Log.d("ProfileScreen", "Rendering TopAppBar")
-            TopAppBar(
-                title = { /* Empty title */ },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        Log.d("ProfileScreen", "Back button clicked")
-                        navController.popBackStack()
-                    }) {
-                        Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { Log.d("ProfileScreen", "Bookmark button clicked") }) {
-                        Icon(imageVector = Icons.Filled.BookmarkBorder, contentDescription = "Bookmark", tint = Color.White)
-                    }
-                    IconButton(onClick = { Log.d("ProfileScreen", "Share button clicked") }) {
-                        Icon(imageVector = Icons.Filled.FileUpload, contentDescription = "Share", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-            )
-        },
-        containerColor = Color.Transparent
+        containerColor = Color.White
     ) { paddingValues ->
-        Log.d("ProfileScreen", "Rendering LazyColumn with padding: $paddingValues")
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(paddingValues)
         ) {
-            // --- UPDATED: Profile Header Section with LARGE Profile Picture and Name ---
+            // ========== HEADER SECTION WITH BACKGROUND IMAGE ==========
             item {
-                Log.d("ProfileScreen", "Rendering Header item. Profile name: ${profile?.fullName}")
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(250.dp) // Height for the top 1/3 section
-                        .background(Color.Black) // Default background if no image
-                        .clickable { // Making the entire top section clickable to pick image
-                            Log.d("ProfileScreen", "Large profile area clicked, launching gallery.")
-                            galleryLauncher.launch("image/*")
-                        },
-                    contentAlignment = Alignment.BottomStart // Align content (name) to bottom-start
+                        .height(280.dp)
                 ) {
-                    // Large Profile Image
-                    val profileImageModel = selectedProfileImageUri ?: "https://picsum.photos/id/237/200/300" // Use selected URI first, then static URL
+                    // Background Image
                     AsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data(profileImageModel)
+                            .data(
+                                profile?.imageUrl?.let { BaseUrlProvider.getFullImageUrl(it) }
+                                    ?: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800"
+                            )
                             .crossfade(true)
                             .build(),
-                        contentDescription = "Professional Profile Picture",
+                        contentDescription = "Background",
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop // Crop to fill the entire Box
+                        contentScale = ContentScale.Crop
                     )
 
-                    // Overlay for TopAppBar padding to avoid content clash
-                    Spacer(
+                    // Gradient Overlay for better text readability
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color.Black.copy(alpha = 0.6f)
+                                    )
+                                )
+                            )
+                    )
+
+                    // Top App Bar with Back Button and Settings Button
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(8.dp)
-                            .background(Color.Black.copy(alpha = 0.3f))
-                    )
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        // Back Button on the left
+                        IconButton(
+                            onClick = { 
+                                navController.popBackStack()
+                            },
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White
+                            )
+                        }
 
-                    // Business Name - pulled up over the white space
+                        // Settings Button on the right
+                        IconButton(
+                            onClick = { 
+                                navController.navigate("professional_profile_management/${professionalId}")
+                            },
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = "Settings",
+                                tint = Color.White
+                            )
+                        }
+                    }
+
+                    // Profile Picture - Centered and overlapping
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .offset(y = 60.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(120.dp)
+                                .clip(CircleShape)
+                                .background(Color.White, CircleShape)
+                                .border(4.dp, ProfessionalYellow, CircleShape)
+                                .padding(4.dp)
+                        ) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(
+                                        profile?.profilePictureUrl?.let { BaseUrlProvider.getFullImageUrl(it) }
+                                            ?: "https://ui-avatars.com/api/?name=${profile?.fullName?.replace(" ", "+") ?: "Professional"}&background=F59E0B&color=fff&size=200"
+                                    )
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+
+                    // Business Name at bottom of header
                     Text(
                         text = profile?.fullName ?: "Loading...",
                         color = Color.White,
-                        fontSize = 32.sp,
+                        fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
-                            .padding(start = 16.dp, bottom = 8.dp)
-                            .offset(y = (-32).dp) // move text up; adjust value to match your design
+                            .align(Alignment.BottomStart)
+                            .padding(start = 20.dp, bottom = 16.dp)
                     )
                 }
             }
 
-            // --- Combined Business Information Section and Tabs (Continuous White Card) ---
+            // ========== PROFILE CONTENT SECTION ==========
             item {
-                Log.d("ProfileScreen", "Rendering Combined Business Info and Tabs item. Profile null? ${profile == null}")
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset(y = (-32).dp) // Pull this section up to overlap the top section
-                        .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) // Rounded top corners
-                        .background(MaterialTheme.colorScheme.surface) // White background for the entire card
-                        .padding(bottom = paddingValues.calculateBottomPadding()) // Apply bottom padding for Scaffold
+                        .background(Color.White)
+                        .padding(top = 70.dp) // Space for overlapping profile picture
                 ) {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
-                        profile?.let { currentProfile ->
-                            Log.d("ProfileScreen", "Profile data available for business info: ${currentProfile.fullName}")
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Filled.Star, contentDescription = "Rating", tint = Color(0xFFFFC107), modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Rating: N/A",
-                                    color = Color.Black,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text(
-                                    text = "Price Range: N/A",
-                                    color = Color.Gray,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text(
-                                    text = "Cuisine: N/A",
-                                    color = Color.Gray
-                                )
-                            }
+                    // Stats Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        StatItem(
+                            value = profile?.followerCount?.toString() ?: "0",
+                            label = "Followers",
+                            icon = Icons.Filled.People
+                        )
+                        StatItem(
+                            value = profile?.followingCount?.toString() ?: "0",
+                            label = "Following",
+                            icon = Icons.Filled.PersonAdd
+                        )
+                        StatItem(
+                            value = (photoPosts.size + reelPosts.size).toString(),
+                            label = "Posts",
+                            icon = Icons.Filled.PhotoCamera
+                        )
+                    }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                    Divider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                ServiceOptionCard(
-                                    icon = Icons.Filled.Info,
-                                    title = "Info",
-                                    subtitle = "View Details",
-                                    color = Color(0xFFFFE0B2)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            // Show Follow/Unfollow or View Profile Details based on whether viewing own profile
-                            val currentUserId = TokenManager(context).getUserId()
-                            val isOwnProfile = currentUserId == professionalId
-
-                            if (isOwnProfile) {
-                                Button(
-                                    onClick = { Log.d("ProfileScreen", "View Profile Details clicked") },
-                                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5722)),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text(
-                                        text = "View Profile Details",
-                                        color = Color.White,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Icon(Icons.Filled.Info, contentDescription = "Info", tint = Color.White, modifier = Modifier.padding(start = 8.dp))
-                                }
-                            } else {
-                                var isFollowing by remember { mutableStateOf(false) } // TODO: Get actual follow state from backend
-
-                                // Reset following state when professionalId changes
-                                LaunchedEffect(professionalId) {
-                                    isFollowing = false // Reset to false when viewing a different profile
-                                }
-
-                                Button(
-                                    onClick = {
-                                        isFollowing = !isFollowing
-                                        if (isFollowing) {
-                                            viewModel.followProfessional(professionalId)
-                                        } else {
-                                            viewModel.unfollowProfessional(professionalId)
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isFollowing) Color(0xFF757575) else Color(0xFFFF5722)
-                                    ),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text(
-                                        text = if (isFollowing) "Unfollow" else "Follow",
-                                        color = Color.White,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            ContactInfoRow(
-                                icon = Icons.Filled.Email,
-                                text = currentProfile.email,
-                                iconTint = Color(0xFFFF9800)
+                    // Description Section - Right after stats
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp)
+                    ) {
+                        // Description/Bio - Always show, even if empty
+                        if (!profile?.description.isNullOrBlank()) {
+                            Text(
+                                text = profile?.description ?: "",
+                                fontSize = 15.sp,
+                                color = Color(0xFF4B5563),
+                                lineHeight = 22.sp,
+                                modifier = Modifier.padding(bottom = 16.dp)
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                        } else {
+                            Text(
+                                text = "No description available",
+                                fontSize = 15.sp,
+                                color = Color(0xFF9CA3AF),
+                                fontStyle = FontStyle.Italic,
+                                modifier = Modifier.padding(bottom = 16.dp)
+                            )
+                        }
+                    }
 
-                            Spacer(modifier = Modifier.height(24.dp))
-                        } ?: run {
-                            Log.d("ProfileScreen", "Profile data not yet available, showing progress indicator in business info.")
-                            Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(modifier = Modifier.size(48.dp))
+                    Divider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+
+                    // Contact & Info Section
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Phone
+                        profile?.phone?.let { phone ->
+                            if (phone.isNotBlank()) {
+                                InfoRow(
+                                    icon = Icons.Filled.Phone,
+                                    text = phone,
+                                    iconColor = ProfessionalYellow
+                                )
+                            }
+                        }
+
+                        // Address - Always show
+                        if (!profile?.address.isNullOrBlank()) {
+                            InfoRow(
+                                icon = Icons.Filled.LocationOn,
+                                text = profile?.address ?: "",
+                                iconColor = ProfessionalYellow
+                            )
+                        } else {
+                            // Show placeholder if address is empty
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.LocationOn,
+                                    contentDescription = null,
+                                    tint = Color(0xFF9CA3AF),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "No address provided",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF9CA3AF),
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                )
+                            }
+                        }
+
+                        // Hours
+                        profile?.hours?.let { hours ->
+                            if (hours.isNotBlank()) {
+                                InfoRow(
+                                    icon = Icons.Filled.Schedule,
+                                    text = hours,
+                                    iconColor = ProfessionalYellow
+                                )
                             }
                         }
                     }
 
-                    Log.d("ProfileScreen", "Rendering Tabs section. Current tab: $selectedTab")
+                    // Services Section
+                    profile?.services?.let { services ->
+                        if (services.delivery || services.takeaway || services.dineIn) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (services.delivery) {
+                                        ServiceChip("Delivery", Icons.Filled.DeliveryDining)
+                                    }
+                                    if (services.takeaway) {
+                                        ServiceChip("Takeaway", Icons.Filled.Restaurant)
+                                    }
+                                    if (services.dineIn) {
+                                        ServiceChip("Dine In", Icons.Filled.RestaurantMenu)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Divider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+
+                    // ========== TABS SECTION ==========
                     TabRow(
                         selectedTabIndex = selectedTab.ordinal,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = Color.Black,
+                        containerColor = Color.White,
+                        contentColor = ProfessionalYellow,
                         indicator = { tabPositions ->
                             TabRowDefaults.Indicator(
                                 Modifier.tabIndicatorOffset(tabPositions[selectedTab.ordinal]),
-                                color = Color(0xFFFF9800)
+                                color = ProfessionalYellow,
+                                height = 3.dp
                             )
-                        }
+                        },
+                        divider = { }
                     ) {
                         Tab(
-                            selected = selectedTab == ProfessionalProfileTab.ABOUT,
-                            onClick = {
-                                Log.d("ProfileScreen", "About tab clicked")
-                                selectedTab = ProfessionalProfileTab.ABOUT
-                            },
-                            text = { Text("About", color = if (selectedTab == ProfessionalProfileTab.ABOUT) Color.Black else Color.Gray) }
-                        )
-                        Tab(
                             selected = selectedTab == ProfessionalProfileTab.REELS,
-                            onClick = {
-                                Log.d("ProfileScreen", "Reels tab clicked")
-                                selectedTab = ProfessionalProfileTab.REELS
-                            },
-                            text = { Text("Reels", color = if (selectedTab == ProfessionalProfileTab.REELS) Color.Black else Color.Gray) }
+                            onClick = { selectedTab = ProfessionalProfileTab.REELS },
+                            text = {
+                                Text(
+                                    "Reels",
+                                    fontWeight = if (selectedTab == ProfessionalProfileTab.REELS) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selectedTab == ProfessionalProfileTab.REELS) ProfessionalYellow else Color(0xFF6B7280)
+                                )
+                            }
                         )
                         Tab(
                             selected = selectedTab == ProfessionalProfileTab.PHOTOS,
-                            onClick = {
-                                Log.d("ProfileScreen", "Photos tab clicked")
-                                selectedTab = ProfessionalProfileTab.PHOTOS
-                            },
-                            text = { Text("Photos", color = if (selectedTab == ProfessionalProfileTab.PHOTOS) Color.Black else Color.Gray) }
+                            onClick = { selectedTab = ProfessionalProfileTab.PHOTOS },
+                            text = {
+                                Text(
+                                    "Photos",
+                                    fontWeight = if (selectedTab == ProfessionalProfileTab.PHOTOS) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selectedTab == ProfessionalProfileTab.PHOTOS) ProfessionalYellow else Color(0xFF6B7280)
+                                )
+                            }
                         )
                     }
 
-                    // Placeholder for tab content
+                    // ========== TAB CONTENT ==========
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp) // Placeholder height for content
-                            .background(MaterialTheme.colorScheme.surface) // White background for content area
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
+                            .height(400.dp)
+                            .background(Color.White)
+                            .padding(16.dp)
                     ) {
                         when (selectedTab) {
-                            ProfessionalProfileTab.ABOUT -> {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = "About ${profile?.fullName ?: "this professional"}:",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp,
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-                                    Text(
-                                        text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
-                                        color = Color.Gray,
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-                                }
-                            }
                             ProfessionalProfileTab.REELS -> {
                                 if (reelPosts.isNotEmpty()) {
                                     PostsGrid(reelPosts, professionalId, navController)
                                 } else {
-                                    Text("No Reels available.", color = Color.Gray)
+                                    EmptyState(
+                                        icon = Icons.Filled.VideoLibrary,
+                                        message = "No Reels available"
+                                    )
                                 }
                             }
                             ProfessionalProfileTab.PHOTOS -> {
                                 if (photoPosts.isNotEmpty()) {
                                     PostsGrid(photoPosts, professionalId, navController)
                                 } else {
-                                    Text("No Photos available.", color = Color.Gray)
+                                    EmptyState(
+                                        icon = Icons.Filled.PhotoCamera,
+                                        message = "No Photos available"
+                                    )
                                 }
                             }
                         }
@@ -375,41 +442,179 @@ fun ProfessionalProfileScreen(
     }
 }
 
-
-// --- Helper Composables (No changes) ---
-
 @Composable
-fun ServiceOptionCard(icon: ImageVector, title: String, subtitle: String, color: Color) {
+fun StatItem(value: String, label: String, icon: ImageVector) {
     Column(
-        modifier = Modifier
-            .width(100.dp)
-            .height(90.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(color)
-            .padding(8.dp),
-        horizontalAlignment = Alignment.Start,
-        verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Icon(icon, contentDescription = title, tint = Color(0xFFE65100), modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
-        Text(subtitle, fontSize = 12.sp, color = Color.Gray)
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = ProfessionalYellow,
+            modifier = Modifier.size(24.dp)
+        )
+        Text(
+            text = value,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF1F2937)
+        )
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color(0xFF6B7280)
+        )
     }
 }
 
 @Composable
-fun ContactInfoRow(icon: ImageVector, text: String, iconTint: Color) {
+fun InfoRow(icon: ImageVector, text: String, iconColor: Color) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(text, color = Color.Black)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(20.dp)
+        )
+        Text(
+            text = text,
+            fontSize = 14.sp,
+            color = Color(0xFF374151),
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class) // For LazyVerticalGrid
+@Composable
+fun ServiceChip(label: String, icon: ImageVector) {
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, ProfessionalYellow, RoundedCornerShape(20.dp)),
+        color = ProfessionalYellowLight
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = ProfessionalYellow,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = ProfessionalYellowDark
+            )
+        }
+    }
+}
+
+@Composable
+fun AboutTabContent(profile: com.example.damprojectfinal.core.dto.professionalUser.ProfessionalUserAccount?) {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            if (profile?.description.isNullOrBlank()) {
+                EmptyState(
+                    icon = Icons.Filled.Info,
+                    message = "No description available"
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "About ${profile?.fullName ?: "this business"}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1F2937)
+                    )
+                    Text(
+                        text = profile?.description ?: "",
+                        fontSize = 15.sp,
+                        color = Color(0xFF4B5563),
+                        lineHeight = 24.sp
+                    )
+                }
+            }
+        }
+
+        // Additional info cards
+        item {
+            if (!profile?.address.isNullOrBlank() || !profile?.phone.isNullOrBlank() || !profile?.hours.isNullOrBlank()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalYellowLight),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Contact Information",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1F2937)
+                        )
+                        profile?.phone?.let { phone ->
+                            if (phone.isNotBlank()) {
+                                InfoRow(Icons.Filled.Phone, phone, ProfessionalYellow)
+                            }
+                        }
+                        profile?.address?.let { address ->
+                            if (address.isNotBlank()) {
+                                InfoRow(Icons.Filled.LocationOn, address, ProfessionalYellow)
+                            }
+                        }
+                        profile?.hours?.let { hours ->
+                            if (hours.isNotBlank()) {
+                                InfoRow(Icons.Filled.Schedule, hours, ProfessionalYellow)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyState(icon: ImageVector, message: String) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color(0xFF9CA3AF),
+                modifier = Modifier.size(64.dp)
+            )
+            Text(
+                text = message,
+                fontSize = 16.sp,
+                color = Color(0xFF6B7280),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostsGrid(
     posts: List<PostResponse>,
@@ -417,31 +622,24 @@ fun PostsGrid(
     navController: NavHostController
 ) {
     if (posts.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("No posts yet.", style = MaterialTheme.typography.bodyLarge)
-        }
+        EmptyState(
+            icon = Icons.Filled.PhotoCamera,
+            message = "No posts yet"
+        )
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(3), // 3 columns for the grid
+            columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(2.dp), // Small padding around the grid
-            verticalArrangement = Arrangement.spacedBy(2.dp), // Space between rows
-            horizontalArrangement = Arrangement.spacedBy(2.dp) // Space between columns
+            contentPadding = PaddingValues(2.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             items(posts) { post ->
-                // Use the first media URL for the grid item
                 val imageUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls.firstOrNull())
-
                 Box(
                     modifier = Modifier
-                        .aspectRatio(1f) // Ensures items are square
+                        .aspectRatio(1f)
                         .clickable {
-                            // Navigate to AllProfilePosts screen
                             navController.navigate("${ProRoutes.ALL_PROFILE_POSTS}/$professionalId")
                         }
                 ) {
@@ -450,12 +648,9 @@ fun PostsGrid(
                         contentDescription = post.caption,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
-                        // Placeholder/Error for individual post images
-                        placeholder = rememberVectorPainter(Icons.Default.Image), // Using a generic image icon
-                        error = rememberVectorPainter(Icons.Default.BrokenImage) // Broken image icon for errors
+                        placeholder = rememberVectorPainter(Icons.Default.Image),
+                        error = rememberVectorPainter(Icons.Default.BrokenImage)
                     )
-                    // You might want to overlay an icon for video posts here
-                    // e.g., if (post.mediaType == "reel") { Icon(Icons.Default.PlayArrow, ...) }
                 }
             }
         }

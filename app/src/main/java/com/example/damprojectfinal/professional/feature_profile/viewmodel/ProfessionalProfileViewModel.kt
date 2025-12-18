@@ -10,7 +10,10 @@ import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.api.posts.PostsApiService
 import com.example.damprojectfinal.core.api.professionalUser.ProfessionalApiService
 import com.example.damprojectfinal.core.dto.posts.PostResponse
+import com.example.damprojectfinal.core.dto.posts.UploadResponse
 import com.example.damprojectfinal.core.dto.professionalUser.ProfessionalUserAccount
+import com.example.damprojectfinal.core.dto.professionalUser.UpdateProfessionalRequest
+import com.example.damprojectfinal.core.retro.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +21,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
 
 class ProfessionalProfileViewModel(
     private val tokenManager: TokenManager,
@@ -83,6 +90,16 @@ class ProfessionalProfileViewModel(
         }
     }
 
+    // State for update operations
+    private val _isUpdating = MutableStateFlow(false)
+    val isUpdating: StateFlow<Boolean> = _isUpdating.asStateFlow()
+
+    private val _updateSuccess = MutableStateFlow(false)
+    val updateSuccess: StateFlow<Boolean> = _updateSuccess.asStateFlow()
+
+    private val _updateError = MutableStateFlow<String?>(null)
+    val updateError: StateFlow<String?> = _updateError.asStateFlow()
+
     fun setSelectedProfileImageUri(uri: Uri?) {
         _selectedProfileImageUri.value = uri
         Log.d("ProfileVM", "Selected Profile Image URI set: $uri")
@@ -93,6 +110,145 @@ class ProfessionalProfileViewModel(
             Log.d("ProfileVM", "Attempting to upload image for $professionalId: $imageUri")
             // TODO: Implement actual profile image upload and update profile.imageUrl
         }
+    }
+
+    suspend fun uploadImage(file: File, mimeType: String? = null): String? {
+        return try {
+            // Use provided MIME type or detect from file extension
+            val detectedMimeType = mimeType ?: when {
+                file.name.endsWith(".jpg", ignoreCase = true) || file.name.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+                file.name.endsWith(".png", ignoreCase = true) -> "image/png"
+                file.name.endsWith(".gif", ignoreCase = true) -> "image/gif"
+                file.name.endsWith(".webp", ignoreCase = true) -> "image/webp"
+                else -> "image/jpeg" // Default to jpeg if unknown
+            }
+            
+            Log.d("ProfileVM", "Uploading file: ${file.name} with MIME type: $detectedMimeType")
+            val requestFile = file.asRequestBody(detectedMimeType.toMediaTypeOrNull())
+            val filePart = MultipartBody.Part.createFormData("files", file.name, requestFile)
+            val uploadResponse = RetrofitClient.postsApiService.uploadFiles(listOf(filePart))
+            if (uploadResponse.urls.isNotEmpty()) {
+                Log.d("ProfileVM", "Image uploaded successfully: ${uploadResponse.urls.first()}")
+                uploadResponse.urls.first()
+            } else {
+                Log.e("ProfileVM", "Upload response has no URLs")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("ProfileVM", "Error uploading image: ${e.message}", e)
+            null
+        }
+    }
+
+    fun updateProfile(
+        professionalId: String,
+        phone: String?,
+        hours: String?,
+        address: String?,
+        description: String?,
+        profilePictureFile: File?,
+        profilePictureMimeType: String?,
+        backgroundImageFile: File?,
+        backgroundImageMimeType: String?,
+        locations: List<com.example.damprojectfinal.core.dto.professionalUser.ProfessionalLocation>?
+    ) {
+        viewModelScope.launch {
+            _isUpdating.value = true
+            _updateError.value = null
+            _updateSuccess.value = false
+
+            try {
+                var profilePictureUrl: String? = null
+                var imageUrl: String? = null
+
+                // Upload profile picture if provided
+                profilePictureFile?.let { file ->
+                    Log.d("ProfileVM", "Uploading profile picture... File: ${file.name}, MIME: $profilePictureMimeType")
+                    try {
+                        profilePictureUrl = uploadImage(file, profilePictureMimeType)
+                        if (profilePictureUrl == null) {
+                            Log.e("ProfileVM", "Profile picture upload returned null URL")
+                            throw Exception("Failed to upload profile picture: No URL returned")
+                        }
+                        Log.d("ProfileVM", "Profile picture uploaded successfully: $profilePictureUrl")
+                    } catch (e: Exception) {
+                        Log.e("ProfileVM", "Error uploading profile picture: ${e.message}", e)
+                        throw Exception("Failed to upload profile picture: ${e.message}")
+                    }
+                } ?: run {
+                    Log.d("ProfileVM", "No profile picture file provided, keeping existing: ${_profile.value?.profilePictureUrl}")
+                }
+
+                // Upload background image if provided
+                backgroundImageFile?.let { file ->
+                    Log.d("ProfileVM", "Uploading background image... File: ${file.name}, MIME: $backgroundImageMimeType")
+                    try {
+                        imageUrl = uploadImage(file, backgroundImageMimeType)
+                        if (imageUrl == null) {
+                            Log.e("ProfileVM", "Background image upload returned null URL")
+                            throw Exception("Failed to upload background image: No URL returned")
+                        }
+                        Log.d("ProfileVM", "Background image uploaded successfully: $imageUrl")
+                    } catch (e: Exception) {
+                        Log.e("ProfileVM", "Error uploading background image: ${e.message}", e)
+                        throw Exception("Failed to upload background image: ${e.message}")
+                    }
+                } ?: run {
+                    Log.d("ProfileVM", "No background image file provided, keeping existing: ${_profile.value?.imageUrl}")
+                }
+
+                // If no new images uploaded, keep existing URLs
+                if (profilePictureUrl == null) {
+                    profilePictureUrl = _profile.value?.profilePictureUrl
+                }
+                if (imageUrl == null) {
+                    imageUrl = _profile.value?.imageUrl
+                }
+
+                val request = UpdateProfessionalRequest(
+                    phone = phone,
+                    hours = hours,
+                    address = address,
+                    description = description,
+                    profilePictureUrl = profilePictureUrl,
+                    imageUrl = imageUrl,
+                    locations = locations
+                )
+
+                Log.d("ProfileVM", "Updating profile for $professionalId")
+                Log.d("ProfileVM", "Request details:")
+                Log.d("ProfileVM", "  - phone: $phone")
+                Log.d("ProfileVM", "  - hours: $hours")
+                Log.d("ProfileVM", "  - description: $description")
+                Log.d("ProfileVM", "  - profilePictureUrl: $profilePictureUrl")
+                Log.d("ProfileVM", "  - imageUrl: $imageUrl")
+                Log.d("ProfileVM", "  - locations: ${locations?.size ?: 0}")
+                
+                val updatedProfile = professionalApiService.updateProfessional(professionalId, request)
+                
+                Log.d("ProfileVM", "Updated profile received:")
+                Log.d("ProfileVM", "  - phone: ${updatedProfile.phone}")
+                Log.d("ProfileVM", "  - hours: ${updatedProfile.hours}")
+                Log.d("ProfileVM", "  - description: ${updatedProfile.description}")
+                Log.d("ProfileVM", "  - profilePictureUrl: ${updatedProfile.profilePictureUrl}")
+                Log.d("ProfileVM", "  - imageUrl: ${updatedProfile.imageUrl}")
+                _profile.value = updatedProfile
+                // Clear selected image URI state after successful update
+                _selectedProfileImageUri.value = null
+                _updateSuccess.value = true
+                Log.d("ProfileVM", "Profile updated successfully")
+            } catch (e: Exception) {
+                Log.e("ProfileVM", "Error updating profile: ${e.message}")
+                _updateError.value = e.message ?: "Failed to update profile"
+            } finally {
+                _isUpdating.value = false
+            }
+        }
+    }
+
+    fun resetUpdateStatus() {
+        _updateSuccess.value = false
+        _updateError.value = null
     }
 
     // Follow/Unfollow methods

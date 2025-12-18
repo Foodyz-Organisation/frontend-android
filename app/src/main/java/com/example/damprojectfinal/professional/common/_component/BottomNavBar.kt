@@ -200,8 +200,7 @@ fun ProfessionalBottomNavigationBar(
                     label = "Notifications",
                     isSelected = currentRoute.contains("notification") || currentRoute.contains("notifications"),
                     onClick = {
-                        // TODO: Navigate to notifications screen
-                        // navController.navigate("notifications")
+                        navController.navigate("pro_notifications_screen")
                     }
                 )
 

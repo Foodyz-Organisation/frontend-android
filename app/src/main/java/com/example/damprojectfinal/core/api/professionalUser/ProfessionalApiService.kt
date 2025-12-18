@@ -1,14 +1,19 @@
 package com.example.damprojectfinal.core.api.professionalUser
 
-import com.example.damprojectfinal.core.dto.professionalUser.ProfessionalUserAccount // Assuming you'll create this DTO
+import com.example.damprojectfinal.core.dto.professionalUser.ProfessionalUserAccount
+import com.example.damprojectfinal.core.dto.professionalUser.UpdateProfessionalRequest
 import retrofit2.http.*
-import retrofit2.http.DELETE
-import retrofit2.http.PATCH
 
 interface ProfessionalApiService {
 
-    @GET("professionals/{id}") // Adjust endpoint path if your Nest.js controller uses a different prefix
+    @GET("professionals/{id}")
     suspend fun getProfessionalAccount(@Path("id") professionalId: String): ProfessionalUserAccount
+
+    @PATCH("professionals/{id}")
+    suspend fun updateProfessional(
+        @Path("id") professionalId: String,
+        @Body request: UpdateProfessionalRequest
+    ): ProfessionalUserAccount
 
     // Follow/Unfollow endpoints
     @PATCH("professionals/{professionalId}/follow")

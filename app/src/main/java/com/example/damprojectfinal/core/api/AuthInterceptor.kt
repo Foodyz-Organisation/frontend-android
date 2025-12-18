@@ -12,6 +12,15 @@ class AuthInterceptor(private val tokenManager: TokenManager) : Interceptor {
         val originalRequest = chain.request()
         var requestBuilder = originalRequest.newBuilder()
 
+        // Add Authorization Bearer token
+        val token = tokenManager.getAccessTokenBlocking()
+        if (!token.isNullOrEmpty()) {
+            requestBuilder.header("Authorization", "Bearer $token")
+            Log.d(TAG, "Adding Authorization Bearer token")
+        } else {
+            Log.w(TAG, "No access token found. Proceeding without Authorization header.")
+        }
+
         val userId = tokenManager.getUserId()
         val userType = tokenManager.getUserType() // This now correctly calls the blocking method
 
