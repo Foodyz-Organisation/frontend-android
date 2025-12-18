@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +34,7 @@ import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
 import com.example.damprojectfinal.professional.common._component.ProfessionalBottomNavigationBar
 import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
+import com.example.damprojectfinal.user.feature_notifications.viewmodel.NotificationViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.example.damprojectfinal.core.dto.order.OrderType as BackendOrderType
@@ -40,6 +42,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import android.util.Log
 
 data class Order(
     val id: String,
@@ -143,7 +146,7 @@ fun HomeScreenPro(
     navController: NavHostController,
     onLogout: () -> Unit
 ) {
-    // Setup ViewModel
+    // Setup ViewModels
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
     val orderApi = remember { RetrofitClient.orderApi }
@@ -151,6 +154,17 @@ fun HomeScreenPro(
     val orderViewModel: OrderViewModel = viewModel(
         factory = OrderViewModel.Factory(orderRepository)
     )
+
+    // --- Profile picture state for pro top bar ---
+    var profilePictureUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var isLoadingProfilePicture by remember { mutableStateOf(false) }
+
+    // Notifications ViewModel for pro badges
+    val notificationViewModel: NotificationViewModel = viewModel(
+        factory = NotificationViewModel.Factory(context, isProfessional = true)
+    )
+    val notifications by notificationViewModel.notifications.collectAsState()
+    val unreadNotificationCount by notificationViewModel.unreadCount.collectAsState()
 
     // Coroutine scope for async operations
     val scope = rememberCoroutineScope()
@@ -164,6 +178,41 @@ fun HomeScreenPro(
     // Load orders on start
     LaunchedEffect(professionalId) {
         orderViewModel.loadOrdersByProfessional(professionalId)
+    }
+
+    // Load professional profile picture for top app bar
+    LaunchedEffect(professionalId) {
+        if (professionalId.isNotEmpty() && !isLoadingProfilePicture) {
+            isLoadingProfilePicture = true
+            try {
+                val prof = RetrofitClient.professionalApiService.getProfessionalAccount(professionalId)
+                if (!prof.profilePictureUrl.isNullOrEmpty()) {
+                    profilePictureUrl = prof.profilePictureUrl
+                }
+            } catch (e: Exception) {
+                Log.e("HomeScreenPro", "Error fetching pro profile picture: ${e.message}")
+            } finally {
+                isLoadingProfilePicture = false
+            }
+        }
+    }
+
+    // Load notifications for this professional (for badges)
+    LaunchedEffect(professionalId) {
+        if (professionalId.isNotEmpty()) {
+            notificationViewModel.loadNotifications(professionalId)
+        }
+    }
+
+    val hasUnreadNotifications by remember(unreadNotificationCount) {
+        mutableStateOf(unreadNotificationCount > 0)
+    }
+    val hasUnreadMessages by remember(notifications) {
+        mutableStateOf(
+            notifications.any {
+                !it.isRead && (it.type == "message_received" || it.type == "conversation_started")
+            }
+        )
     }
 
     // Observe ViewModel states
@@ -181,6 +230,7 @@ fun HomeScreenPro(
             CustomProTopBarWithIcons(
                 professionalId = professionalId,
                 navController = navController,
+                profilePictureUrl = profilePictureUrl,
                 onLogout = onLogout,
                 onMenuClick = { 
                     // Navigate to full-screen menu
@@ -188,13 +238,15 @@ fun HomeScreenPro(
                 }
             )
         },
-            bottomBar = {
-                ProfessionalBottomNavigationBar(
-                    navController = navController,
-                    currentRoute = currentRoute,
-                    professionalId = professionalId
-                )
-            }
+        bottomBar = {
+            ProfessionalBottomNavigationBar(
+                navController = navController,
+                currentRoute = currentRoute,
+                professionalId = professionalId,
+                hasUnreadMessages = hasUnreadMessages,
+                hasUnreadNotifications = hasUnreadNotifications
+            )
+        }
         ) { paddingValues ->
             LazyColumn(
                 modifier = Modifier

@@ -68,6 +68,8 @@ import android.util.Log
 import com.example.damprojectfinal.user.common._component.UserMenuScreenContent
 import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.repository.UserRepository
+import com.example.damprojectfinal.user.feature_notifications.viewmodel.NotificationViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,6 +100,12 @@ fun HomeScreen(
     // State for selected food type filter (null means "All")
     var selectedFoodType by remember { mutableStateOf<String?>(null) }
 
+    // Notifications ViewModel (for badges)
+    val notificationViewModel: NotificationViewModel = viewModel(
+        factory = NotificationViewModel.Factory(context, isProfessional = false)
+    )
+    val notifications by notificationViewModel.notifications.collectAsState()
+    val unreadNotificationCount by notificationViewModel.unreadCount.collectAsState()
 
 
     LaunchedEffect(Unit) {
@@ -166,6 +174,25 @@ fun HomeScreen(
     // Track current route for TopAppBar
     val currentRoute = navController.currentBackStackEntry?.destination?.route
 
+    // Load notifications for badges
+    LaunchedEffect(currentUserId) {
+        if (currentUserId.isNotEmpty() && currentUserId != "placeholder_user_id_123") {
+            notificationViewModel.loadNotifications(currentUserId)
+        }
+    }
+
+    // Derive badge flags
+    val hasUnreadNotifications by remember(unreadNotificationCount) {
+        mutableStateOf(unreadNotificationCount > 0)
+    }
+    val hasUnreadMessages by remember(notifications) {
+        mutableStateOf(
+            notifications.any {
+                !it.isRead && (it.type == "message_received" || it.type == "conversation_started")
+            }
+        )
+    }
+
     LaunchedEffect(logoutSuccess) {
         logoutSuccess.collect { success ->
             if (success) {
@@ -202,7 +229,9 @@ fun HomeScreen(
                         navController.navigate(UserRoutes.REELS_SCREEN)
                     },
                     onLogoutClick = onLogout,
-                    profilePictureUrl = profilePictureUrl
+                    profilePictureUrl = profilePictureUrl,
+                    hasUnreadNotifications = hasUnreadNotifications,
+                    hasUnreadMessages = hasUnreadMessages
                 )
             }
         ) { innerPadding ->

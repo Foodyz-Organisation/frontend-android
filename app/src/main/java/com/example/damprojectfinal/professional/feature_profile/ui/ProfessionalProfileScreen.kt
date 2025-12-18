@@ -104,7 +104,7 @@ fun ProfessionalProfileScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(280.dp)
+                        .height(260.dp) // slightly shorter header, like user side
                 ) {
                     // Background Image
                     AsyncImage(
@@ -175,27 +175,30 @@ fun ProfessionalProfileScreen(
                         }
                     }
 
-                    // Profile Picture - Centered and overlapping
-                    Column(
+                    // Profile Picture - centered like user profile (on the white card)
+                    Box(
                         modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .offset(y = 60.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .fillMaxWidth()
+                            .offset(y = 140.dp), // similar to user profile (130dp)
+                        contentAlignment = Alignment.TopCenter
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(120.dp)
+                                .size(110.dp)
                                 .clip(CircleShape)
                                 .background(Color.White, CircleShape)
                                 .border(4.dp, ProfessionalYellow, CircleShape)
                                 .padding(4.dp)
                         ) {
+                            // Build a fallback avatar name for placeholder
+                            val avatarName = profile?.fullName?.replace(" ", "+") ?: "Professional"
+                            val imageModel = profile?.profilePictureUrl
+                                ?.let { BaseUrlProvider.getFullImageUrl(it) }
+                                ?: "https://ui-avatars.com/api/?name=$avatarName&background=F59E0B&color=fff&size=200"
+
                             AsyncImage(
                                 model = ImageRequest.Builder(context)
-                                    .data(
-                                        profile?.profilePictureUrl?.let { BaseUrlProvider.getFullImageUrl(it) }
-                                            ?: "https://ui-avatars.com/api/?name=${profile?.fullName?.replace(" ", "+") ?: "Professional"}&background=F59E0B&color=fff&size=200"
-                                    )
+                                    .data(imageModel)
                                     .crossfade(true)
                                     .build(),
                                 contentDescription = "Profile Picture",
@@ -224,7 +227,7 @@ fun ProfessionalProfileScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.White)
-                        .padding(top = 70.dp) // Space for overlapping profile picture
+                        .padding(top = 80.dp) // space for overlapping profile picture (aligned like user)
                 ) {
                     // Stats Row
                     Row(
