@@ -1,14 +1,24 @@
 package com.example.damprojectfinal.user.feature_profile.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.* // Make sure to import all required runtime features
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,15 +26,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.user.UpdateUserRequest
+import com.example.damprojectfinal.core.`object`.FileUtil
 import com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,12 +59,37 @@ fun UpdateProfileScreen(
     var phone by remember { mutableStateOf(initialProfile?.phone ?: "") }
     var address by remember { mutableStateOf(initialProfile?.address ?: "") }
 
-    var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var passwordError by remember { mutableStateOf<String?>(null) }
-
     var isActive by remember { mutableStateOf(initialProfile?.isActive ?: true) }
-    var showPassword by remember { mutableStateOf(false) }
+    
+    // Profile photo state
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    val updateSuccess by viewModel.updateSuccess.collectAsState()
+    
+    // Image picker launcher
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri: Uri? ->
+            uri?.let {
+                selectedImageUri = it
+                // Convert Uri to File and upload
+                val fileWithMime = FileUtil.getFileWithMime(context, it)
+                fileWithMime?.let { (file, _) ->
+                    viewModel.uploadProfileImage(file)
+                }
+            }
+        }
+    )
+    
+    // Show success snackbar
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(updateSuccess) {
+        if (updateSuccess) {
+            snackbarHostState.showSnackbar(
+                message = "Profile updated successfully!",
+                duration = SnackbarDuration.Short
+            )
+        }
+    }
 
     // --- 3. Sync initial state ---
     LaunchedEffect(initialProfile) {
@@ -66,6 +104,7 @@ fun UpdateProfileScreen(
     // --- 4. TextField styling ---
     val primaryLightYellow = Color(0xFFFFD60A)
     val secondaryDarkText = Color(0xFF374151)
+    val profileSecondary = Color(0xFF6B7280) // Gray for secondary text
     val placeholderText = Color(0xFFAAAAAA)
 
     val textFieldColors = OutlinedTextFieldDefaults.colors(
@@ -83,21 +122,11 @@ fun UpdateProfileScreen(
     )
 
     // --- 5. Save changes handler ---
-    val onSaveChanges: () -> Unit = save@{
-        passwordError = null
-
-        // Password validation
-        val newPasswordEntered = password.isNotBlank()
-        if (newPasswordEntered && password != confirmPassword) {
-            passwordError = "Passwords do not match."
-            return@save // ✅ returns only from this lambda
-        }
-
+    val onSaveChanges: () -> Unit = {
         val updateRequest = UpdateUserRequest(
             username = username.takeIf { it != initialProfile?.username },
             phone = phone.takeIf { it != initialProfile?.phone },
             address = address.takeIf { it != initialProfile?.address },
-            password = password.takeIf { newPasswordEntered },
             isActive = isActive.takeIf { it != initialProfile?.isActive }
         )
 
@@ -106,7 +135,6 @@ fun UpdateProfileScreen(
                 updateRequest.username,
                 updateRequest.phone,
                 updateRequest.address,
-                updateRequest.password,
                 updateRequest.isActive
             ).any { it != null }) {
 
@@ -115,37 +143,47 @@ fun UpdateProfileScreen(
             if (!token.isNullOrBlank()) {
                 // Call ViewModel update
                 viewModel.updateProfile(updateRequest, token)
-
-                // Clear passwords
-                password = ""
-                confirmPassword = ""
-            } else {
-                // Show error if token not available
-                passwordError = "Failed to get authentication token."
             }
         }
     }
 
     // --- 6. Scaffold / UI ---
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                snackbar = { snackbarData ->
+                    Snackbar(
+                        snackbarData = snackbarData,
+                        shape = RoundedCornerShape(12.dp),
+                        containerColor = Color(0xFFF59E0B),
+                        contentColor = Color.White,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            )
+        },
         topBar = {
             TopAppBar(
-                title = { Text("Edit Profile", fontWeight = FontWeight.Bold) },
+                title = { Text("Edit Profile", fontWeight = FontWeight.Bold, color = secondaryDarkText) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = secondaryDarkText)
                     }
                 },
                 actions = {
                     if (isLoading) {
-                        CircularProgressIndicator(Modifier.size(24.dp).padding(end = 8.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).padding(end = 8.dp),
+                            color = primaryLightYellow
+                        )
                     } else {
                         TextButton(
                             onClick = onSaveChanges,
-                            enabled = !isLoading && initialProfile != null && passwordError == null
+                            enabled = !isLoading && initialProfile != null
                         ) {
-                            Text("Save")
+                            Text("Save", color = primaryLightYellow, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -173,7 +211,7 @@ fun UpdateProfileScreen(
             )
 
             Spacer(Modifier.height(8.dp))
-            (errorMessage ?: passwordError)?.let { error ->
+            errorMessage?.let { error ->
                 Text(
                     "Error: $error",
                     color = MaterialTheme.colorScheme.error,
@@ -181,17 +219,107 @@ fun UpdateProfileScreen(
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
+            
+            // Profile Photo Section
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 0.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "Profile Photo",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = secondaryDarkText,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(CircleShape)
+                            .border(4.dp, primaryLightYellow, CircleShape)
+                            .background(Color.White)
+                            .clickable(enabled = !isLoading) {
+                                imagePickerLauncher.launch("image/*")
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when {
+                            selectedImageUri != null -> {
+                                AsyncImage(
+                                    model = selectedImageUri,
+                                    contentDescription = "Selected profile photo",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                            initialProfile?.profilePictureUrl != null -> {
+                                AsyncImage(
+                                    model = BaseUrlProvider.getFullImageUrl(initialProfile.profilePictureUrl),
+                                    contentDescription = "Current profile photo",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop,
+                                    placeholder = rememberVectorPainter(Icons.Default.Person),
+                                    error = rememberVectorPainter(Icons.Default.Person)
+                                )
+                            }
+                            else -> {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = "Add profile photo",
+                                    modifier = Modifier.size(60.dp),
+                                    tint = profileSecondary
+                                )
+                            }
+                        }
+                        
+                        // Edit icon overlay
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(primaryLightYellow)
+                                .padding(8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.CameraAlt,
+                                contentDescription = "Change photo",
+                                modifier = Modifier.size(20.dp),
+                                tint = Color.White
+                            )
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Tap to change profile photo",
+                        fontSize = 14.sp,
+                        color = profileSecondary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            
+            Spacer(Modifier.height(24.dp))
 
             CustomOutlinedTextField(username, { username = it }, "Username", "Enter your new username", Icons.Filled.Person, colors = textFieldColors, enabled = !isLoading)
             Spacer(Modifier.height(16.dp))
             CustomOutlinedTextField(phone, { phone = it }, "Phone Number", "e.g., +1 123-456-7890", Icons.Filled.Phone, keyboardType = KeyboardType.Phone, colors = textFieldColors, enabled = !isLoading)
             Spacer(Modifier.height(16.dp))
             CustomOutlinedTextField(address, { address = it }, "Address", "Full address including city/zip", Icons.Filled.LocationOn, singleLine = false, colors = textFieldColors, enabled = !isLoading)
-            Spacer(Modifier.height(24.dp))
-            CustomPasswordTextField(password, { password = it; passwordError = null }, { showPassword = !showPassword }, "New Password (Leave blank to keep current)", "New secure password", showPassword, colors = textFieldColors, enabled = !isLoading, isError = passwordError != null)
-            Spacer(Modifier.height(16.dp))
-            CustomPasswordTextField(confirmPassword, { confirmPassword = it; passwordError = null }, { showPassword = !showPassword }, "Confirm New Password", "Re-enter new password", showPassword, colors = textFieldColors, enabled = !isLoading, isError = passwordError != null)
             Spacer(Modifier.height(32.dp))
 
             Row(
@@ -224,7 +352,7 @@ fun UpdateProfileScreen(
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                 contentPadding = PaddingValues(0.dp),
-                enabled = !isLoading && initialProfile != null && passwordError == null
+                enabled = !isLoading && initialProfile != null
             ) {
                 Box(
                     modifier = Modifier
@@ -270,38 +398,5 @@ private fun CustomOutlinedTextField(
         shape = RoundedCornerShape(12.dp),
         colors = colors,
         enabled = enabled
-    )
-}
-
-@Composable
-private fun CustomPasswordTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    onToggleVisibility: () -> Unit,
-    label: String,
-    placeholder: String,
-    showPassword: Boolean,
-    colors: TextFieldColors,
-    enabled: Boolean = true,
-    isError: Boolean = false
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        leadingIcon = { Icon(Icons.Filled.Lock, null) },
-        trailingIcon = {
-            IconButton(onClick = onToggleVisibility, enabled = enabled) {
-                Icon(if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null)
-            }
-        },
-        placeholder = { Text(placeholder) },
-        singleLine = true,
-        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = colors,
-        enabled = enabled,
-        isError = isError // Apply error state
     )
 }

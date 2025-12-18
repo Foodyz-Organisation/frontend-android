@@ -24,11 +24,16 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDrawerState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,20 +49,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-import kotlinx.coroutines.launch
-import com.example.damprojectfinal.user.common._component.AppDrawer
 import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
 import com.example.damprojectfinal.user.common._component.TopAppBar
+import com.example.damprojectfinal.user.common._component.UserMenuScreen
 import com.example.damprojectfinal.ProfileRoutes
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.api.ReclamationRetrofitClient
 import com.example.damprojectfinal.UserRoutes // <--- Ensure this imports the UserRoutes object correctly
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsScreen
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import android.util.Log
+import com.example.damprojectfinal.user.common._component.UserMenuScreenContent
+import com.example.damprojectfinal.core.api.UserApiService
+import com.example.damprojectfinal.core.repository.UserRepository
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,10 +79,10 @@ fun HomeScreen(
     logoutSuccess: StateFlow<Boolean>
 ) {
 
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
+    var isDrawerOpen by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     var isSearchActive by remember { mutableStateOf(false) }
 
@@ -122,6 +132,40 @@ fun HomeScreen(
         mutableStateOf(tokenManager.getUserIdBlocking() ?: "placeholder_user_id_123")
     }
 
+    // State for profile picture URL - use rememberSaveable to persist across navigation
+    var profilePictureUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var isLoadingProfilePicture by remember { mutableStateOf(false) }
+
+    // Fetch user profile picture - only fetch if not already loaded
+    LaunchedEffect(currentUserId) {
+        if (currentUserId.isNotEmpty() && currentUserId != "placeholder_user_id_123" && !isLoadingProfilePicture) {
+            // Only fetch if we don't already have the URL
+            if (profilePictureUrl == null) {
+                isLoadingProfilePicture = true
+                try {
+                    val token = tokenManager.getAccessTokenAsync()
+                    if (!token.isNullOrEmpty()) {
+                        val userApiService = UserApiService(tokenManager)
+                        val userRepository = UserRepository(userApiService)
+                        val user = userRepository.getUserById(currentUserId, token)
+                        // Only update if we got a valid URL
+                        if (!user.profilePictureUrl.isNullOrEmpty()) {
+                            profilePictureUrl = user.profilePictureUrl
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("HomeScreen", "Error fetching profile picture: ${e.message}")
+                    // Keep the previous value if there's an error - don't reset to null
+                } finally {
+                    isLoadingProfilePicture = false
+                }
+            }
+        }
+    }
+    
+    // Track current route for TopAppBar
+    val currentRoute = navController.currentBackStackEntry?.destination?.route
+
     LaunchedEffect(logoutSuccess) {
         logoutSuccess.collect { success ->
             if (success) {
@@ -138,36 +182,27 @@ fun HomeScreen(
         }
     }
 
-    // --- Main Screen Content (Including Scaffold and Drawer) ---
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        // Disable gestures when the search overlay is open
-        gesturesEnabled = !isSearchActive,
-        drawerContent = {
-            AppDrawer(
-                onCloseDrawer = { scope.launch { drawerState.close() } },
-                navigateTo = navigateTo,
-                currentRoute = currentRoute,
-                onLogoutClick = onLogout,
-                loyaltyPoints = loyaltyPoints // ✅ Passer les points au drawer
-            )
-        }
-    ) {
+    // --- Main Screen Content with Right-Side Drawer ---
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Main content
         Scaffold(
             topBar = {
                 TopAppBar(
                     navController = navController,
-                    currentRoute = currentRoute,
-                    openDrawer = { scope.launch { drawerState.open() } },
+                    currentRoute = currentRoute ?: "",
+                    openDrawer = { 
+                        isDrawerOpen = !isDrawerOpen // Toggle drawer open/close
+                    },
                     onSearchClick = { isSearchActive = true },
                     currentUserId = currentUserId,
                     onProfileClick = { userId ->
-                        navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/$userId")
+                        navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/${userId ?: currentUserId}")
                     },
                     onReelsClick = {
                         navController.navigate(UserRoutes.REELS_SCREEN)
                     },
-                    onLogoutClick = onLogout
+                    onLogoutClick = onLogout,
+                    profilePictureUrl = profilePictureUrl
                 )
             }
         ) { innerPadding ->
@@ -240,7 +275,59 @@ fun HomeScreen(
                 // 🌟 REMOVED: DynamicSearchOverlay should NOT be inside this padded Box.
             }
         }
-    } // End ModalNavigationDrawer
+
+        // Right-side drawer overlay (starts below TopAppBar and SecondaryNavBar)
+        if (isDrawerOpen) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .offset(y = 180.dp) // Start right after TopAppBar and SecondaryNavBar
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable { isDrawerOpen = false }
+            )
+        }
+
+        // Right-side drawer - slides from right, starts below TopAppBar and SecondaryNavBar
+        AnimatedVisibility(
+            visible = isDrawerOpen,
+            enter = slideInHorizontally(
+                animationSpec = tween(300),
+                initialOffsetX = { fullWidth -> fullWidth }
+            ) + fadeIn(animationSpec = tween(300)),
+            exit = slideOutHorizontally(
+                animationSpec = tween(300),
+                targetOffsetX = { fullWidth -> fullWidth }
+            ) + fadeOut(animationSpec = tween(300))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .align(Alignment.TopEnd)
+                    .offset(y = 180.dp) // Start right after TopAppBar and SecondaryNavBar (no gap)
+            ) {
+                // White background for the drawer content only
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .background(Color.White)
+                ) {
+                    UserMenuScreenContent(
+                        navController = navController,
+                        onLogout = {
+                            isDrawerOpen = false
+                            onLogout()
+                        },
+                        onBackClick = { isDrawerOpen = false },
+                        loyaltyPoints = loyaltyPoints,
+                        showTopBar = false
+                    )
+                }
+            }
+        }
+    }
 
     // --- Dynamic Search Overlay (Placed OUTSIDE Scaffold/Drawer to cover the whole screen) ---
     if (isSearchActive) {

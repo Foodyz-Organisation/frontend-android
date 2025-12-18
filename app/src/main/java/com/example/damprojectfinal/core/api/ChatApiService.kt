@@ -2,6 +2,7 @@ package com.example.damprojectfinal.core.api
 
 import com.google.gson.annotations.SerializedName
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
@@ -93,4 +94,11 @@ interface ChatApiService {
     suspend fun getPeers(
         @Header("Authorization") bearerToken: String
     ): List<PeerDto>
+
+    // Delete conversation
+    @DELETE("chat/conversations/{id}")
+    suspend fun deleteConversation(
+        @Header("Authorization") bearerToken: String,
+        @Path("id") conversationId: String
+    ): retrofit2.Response<Unit>
 }

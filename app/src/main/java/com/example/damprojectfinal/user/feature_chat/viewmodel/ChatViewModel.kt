@@ -54,6 +54,9 @@ class ChatViewModel : ViewModel() {
     private val _isSendingMessage = MutableStateFlow(false)
     val isSendingMessage: StateFlow<Boolean> = _isSendingMessage
 
+    private val _deleteSuccess = MutableStateFlow<Boolean>(false)
+    val deleteSuccess: StateFlow<Boolean> = _deleteSuccess
+
     private var peersCache: Map<String, PeerDto> = emptyMap()
     private var conversations: List<ConversationDto> = emptyList()
     private var conversationRefreshJob: Job? = null
@@ -329,6 +332,41 @@ class ChatViewModel : ViewModel() {
                 _isSendingMessage.value = false
             }
         }
+    }
+
+    fun deleteConversation(authToken: String?, conversationId: String, currentUserId: String?) {
+        viewModelScope.launch {
+            if (authToken.isNullOrBlank()) {
+                _errorMessage.value = "Missing authentication token"
+                return@launch
+            }
+
+            try {
+                val response = chatApiService.deleteConversation(
+                    bearerToken = "Bearer $authToken",
+                    conversationId = conversationId
+                )
+                
+                if (response.isSuccessful) {
+                    // Remove from local state
+                    _chatItems.value = _chatItems.value.filter { it.id != conversationId }
+                    _chats.value = _chats.value.filter { it.conversationId != conversationId }
+                    conversations = conversations.filter { it.id != conversationId }
+                    _errorMessage.value = null
+                    _deleteSuccess.value = true
+                } else {
+                    _errorMessage.value = "Failed to delete conversation"
+                    _deleteSuccess.value = false
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to delete conversation: ${e.message}"
+                _deleteSuccess.value = false
+            }
+        }
+    }
+
+    fun resetDeleteSuccess() {
+        _deleteSuccess.value = false
     }
 
     override fun onCleared() {

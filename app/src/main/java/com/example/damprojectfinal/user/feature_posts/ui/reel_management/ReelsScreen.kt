@@ -119,20 +119,6 @@ fun ReelsScreen(
             }
         )
 
-        // --- Overlay: Back Button (Top-Left) ---
-        Icon(
-            imageVector = Icons.Default.ArrowBack,
-            contentDescription = "Back",
-            tint = Color.White,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(16.dp)
-                .size(28.dp)
-                .clickable {
-                    navController.popBackStack() // Navigate back to the previous screen
-                }
-        )
-
         // --- Overlay: Other UI elements (e.g., username, caption, interaction buttons)
         // These are integrated within ReelItem composable now.
     }

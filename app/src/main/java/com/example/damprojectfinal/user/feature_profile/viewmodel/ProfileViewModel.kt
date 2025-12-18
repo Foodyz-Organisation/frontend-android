@@ -73,7 +73,8 @@ class ProfileViewModel(
             }
 
             try {
-                userRepo.updateProfile(updateRequest, token)
+                // Use the actual user ID instead of "me" to avoid backend ObjectId casting errors
+                userRepo.updateProfile(updateRequest, token, userId = currentUserId)
                 val updatedUser = userRepo.getUserById(currentUserId, token)
                 userState.value = updatedUser
                 _updateSuccess.value = true

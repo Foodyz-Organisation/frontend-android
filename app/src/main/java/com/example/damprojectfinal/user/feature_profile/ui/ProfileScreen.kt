@@ -1,27 +1,29 @@
 package com.example.damprojectfinal.user.feature_profile.ui
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.BrokenImage
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
@@ -39,13 +41,13 @@ import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.normalUser.ProfileUiState
 import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 import com.example.damprojectfinal.core.dto.posts.PostResponse
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 
-// Define the custom yellow color from the image for consistency
-val CustomYellow = Color(0xFFE5B338) // Closely matching the button color in the image
+// Professional color scheme
+val CustomYellow = Color(0xFFFFC107) // Professional golden yellow
+val ProfileAccent = Color(0xFF1F2937) // Dark gray for text
+val ProfileSecondary = Color(0xFF6B7280) // Medium gray
+val ProfileBackground = Color(0xFFFAFAFA) // Light background
+val ProfileCard = Color(0xFFFFFFFF) // White cards
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,77 +58,159 @@ fun ProfileScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val userId = remember { TokenManager(context).getUserId() ?: "" }
+    
+    // Track if we should refresh (when returning from settings)
+    val currentRoute = navController.currentBackStackEntry?.destination?.route
+    LaunchedEffect(currentRoute) {
+        // Refresh when we're on the profile view route (after returning from settings)
+        if (currentRoute?.contains("profile_view") == true) {
+            viewModel.refreshProfile()
+        }
+    }
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(text = uiState.userProfile?.username ?: "Profile") },
+            TopAppBar(
+                title = {
+                    Text(
+                        text = uiState.userProfile?.username ?: "Profile",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = ProfileAccent
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    IconButton(
+                        onClick = { navController.popBackStack() },
+                        modifier = Modifier
+                    ) {
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = ProfileAccent
+                        )
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* TODO: Handle share */ }) {
-                        Icon(Icons.Default.Share, contentDescription = "Share Profile")
+                    IconButton(
+                        onClick = {
+                            navController.navigate(UserRoutes.PROFILE_SETTINGS)
+                        },
+                        modifier = Modifier
+                    ) {
+                        Icon(
+                            Icons.Outlined.Settings,
+                            contentDescription = "Settings",
+                            tint = ProfileAccent
+                        )
                     }
-                    IconButton(onClick = { /* TODO: Handle settings */ }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = ProfileCard,
+                    titleContentColor = ProfileAccent
+                )
             )
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(MaterialTheme.colorScheme.background)
+                .background(ProfileBackground)
         ) {
-            if (uiState.isLoadingProfile || uiState.isLoadingPosts) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-            uiState.errorMessage?.let { errorMessage ->
-                Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Loading indicator
+                if (uiState.isLoadingProfile || uiState.isLoadingPosts) {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = CustomYellow,
+                        trackColor = Color(0xFFE5E7EB)
+                    )
+                }
 
-            uiState.userProfile?.let { userProfile ->
-                ProfileHeader(userProfile = userProfile, viewModel = viewModel)
-            } ?: run {
-                if (!uiState.isLoadingProfile && uiState.errorMessage == null) {
-                    Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                // Error message
+                uiState.errorMessage?.let { errorMessage ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFFFEBEE)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = errorMessage,
+                            color = Color(0xFFD32F2F),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
-            }
 
-            // Tabs should be directly under the header content without an extra spacer
-            if (uiState.userProfile != null) {
-                ProfileTabs(uiState = uiState, onTabSelected = { viewModel.onTabSelected(it) })
-            }
+                // Profile content
+                uiState.userProfile?.let { userProfile ->
+                    ProfileHeader(
+                        userProfile = userProfile,
+                        viewModel = viewModel,
+                        navController = navController
+                    )
+                    
+                    // Tabs
+                    ProfileTabs(
+                        uiState = uiState,
+                        onTabSelected = { viewModel.onTabSelected(it) }
+                    )
 
-            // Content of the selected tab
-            when (uiState.selectedTabIndex) {
-                0 -> PostsGrid(uiState.userPosts, userId, navController, isSavedPosts = false)
-                1 -> {
-                    if (uiState.isLoadingSavedPosts) {
+                    // Content of the selected tab
+                    AnimatedContent(
+                        targetState = uiState.selectedTabIndex,
+                        transitionSpec = {
+                            fadeIn(animationSpec = tween(300)) togetherWith
+                            fadeOut(animationSpec = tween(300))
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { tabIndex ->
+                        when (tabIndex) {
+                            0 -> PostsGrid(
+                                posts = uiState.userPosts,
+                                userId = userId,
+                                navController = navController,
+                                isSavedPosts = false
+                            )
+                            1 -> {
+                                if (uiState.isLoadingSavedPosts) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(color = CustomYellow)
+                                    }
+                                } else {
+                                    PostsGrid(
+                                        posts = uiState.savedPosts,
+                                        userId = userId,
+                                        navController = navController,
+                                        isSavedPosts = true
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } ?: run {
+                    if (!uiState.isLoadingProfile && uiState.errorMessage == null) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator()
+                            CircularProgressIndicator(color = CustomYellow)
                         }
-                    } else {
-                        PostsGrid(uiState.savedPosts, userId, navController, isSavedPosts = true)
                     }
                 }
             }
@@ -137,33 +221,142 @@ fun ProfileScreen(
 @Composable
 fun ProfileHeader(
     userProfile: UserProfile,
-    viewModel: UserViewModel = viewModel()
+    viewModel: UserViewModel = viewModel(),
+    navController: NavController
 ) {
-    // Determine if it's the current user's profile
-    val context = LocalContext.current
-    // NOTE: Current user ID logic is commented out as it's not needed without the buttons
-    // val currentUserId = remember { TokenManager(context).getUserId() }
-    // val isOwnProfile = currentUserId == userProfile._id
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp) // Adjusted vertical padding
+    Box(
+        modifier = Modifier.fillMaxWidth()
     ) {
-        // 1. Profile Picture and Basic Info Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            // Profile Picture
+            // Header with background (beige/cream gradient)
             Box(
                 modifier = Modifier
-                    .size(96.dp)
+                    .fillMaxWidth()
+                    .height(180.dp)
+            ) {
+                // Background gradient (beige/cream tones - matching image)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFFF5F1E8),
+                                    Color(0xFFE8DCC6)
+                                )
+                            )
+                        )
+                )
+            }
+
+            // White content section
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(ProfileCard)
+                    .padding(top = 50.dp, bottom = 24.dp)
+            ) {
+                // Handle only (centered, no full name)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "@${userProfile.username ?: "username"}",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = ProfileSecondary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Stats Row (centered with dividers)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ProfileStat(
+                        count = userProfile.postCount,
+                        label = "Posts"
+                    )
+                    Spacer(modifier = Modifier.width(24.dp))
+                    Divider(
+                        modifier = Modifier
+                            .height(35.dp)
+                            .width(1.dp),
+                        color = Color(0xFFE5E7EB)
+                    )
+                    Spacer(modifier = Modifier.width(24.dp))
+                    ProfileStat(
+                        count = userProfile.followerCount,
+                        label = "Followers"
+                    )
+                    Spacer(modifier = Modifier.width(24.dp))
+                    Divider(
+                        modifier = Modifier
+                            .height(35.dp)
+                            .width(1.dp),
+                        color = Color(0xFFE5E7EB)
+                    )
+                    Spacer(modifier = Modifier.width(24.dp))
+                    ProfileStat(
+                        count = userProfile.followingCount,
+                        label = "Following"
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Edit Profile Button
+                Button(
+                    onClick = {
+                        val userId = userProfile._id
+                        navController.navigate(
+                            UserRoutes.PROFILE_UPDATE.replace(
+                                "{userId}",
+                                userId
+                            )
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .padding(horizontal = 20.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CustomYellow
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "Edit Profile",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+        
+        // Profile picture positioned above the line (on top of both sections)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset(y = 130.dp), // Position at the boundary between beige and white
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
                     .clip(CircleShape)
-                    .border(3.dp, CustomYellow, CircleShape) // Yellow border
+                    .background(ProfileCard)
+                    .border(3.dp, CustomYellow, CircleShape)
             ) {
                 AsyncImage(
-                    model = userProfile.profilePictureUrl,
+                    model = BaseUrlProvider.getFullImageUrl(userProfile.profilePictureUrl),
                     contentDescription = "Profile picture",
                     placeholder = rememberVectorPainter(Icons.Default.Person),
                     error = rememberVectorPainter(Icons.Default.Person),
@@ -171,76 +364,66 @@ fun ProfileHeader(
                     contentScale = ContentScale.Crop
                 )
             }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // Name and Bio Column
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.Start
-            ) {
-                Text(
-                    text = userProfile.fullName,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = userProfile.bio,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                    maxLines = 2 // Restrict bio length
-                )
-            }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 2. Stats Row
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ProfileStat(count = userProfile.postCount, label = "Posts")
-            ProfileStat(count = userProfile.followerCount, label = "Followers")
-            ProfileStat(count = userProfile.followingCount, label = "Following")
-        }
-
-        // Removed Spacer and Action Button block entirely
-        Spacer(modifier = Modifier.height(16.dp)) // Maintain some space before tabs start
     }
 }
 
 @Composable
-fun ProfileStat(count: Int, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        // Increased font size for count and bolded for emphasis
+fun ProfileStat(
+    count: Int,
+    label: String
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(
-            text = count.toString(),
-            fontWeight = FontWeight.ExtraBold,
+            text = formatCount(count),
+            fontWeight = FontWeight.Bold,
             fontSize = 20.sp,
-            color = MaterialTheme.colorScheme.onBackground
+            color = ProfileAccent
         )
-        // Kept label smaller
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Normal,
+            color = ProfileSecondary
         )
+    }
+}
+
+// Helper function to format large numbers
+fun formatCount(count: Int): String {
+    return when {
+        count >= 1_000_000 -> String.format("%.1fM", count / 1_000_000.0)
+        count >= 1_000 -> String.format("%.1fK", count / 1_000.0)
+        else -> count.toString()
     }
 }
 
 @Composable
 fun ProfileTabs(uiState: ProfileUiState, onTabSelected: (Int) -> Unit) {
     val tabs = listOf("Posts", "Saved")
-    // Added bottom padding to the TabRow for separation from the grid
+    
     TabRow(
         selectedTabIndex = uiState.selectedTabIndex,
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(bottom = 0.dp) // Adjusted padding
+        containerColor = ProfileCard,
+        contentColor = CustomYellow,
+        indicator = { tabPositions ->
+            TabRowDefaults.Indicator(
+                modifier = Modifier
+                    .tabIndicatorOffset(tabPositions[uiState.selectedTabIndex])
+                    .fillMaxWidth(0.5f)
+                    .height(3.dp),
+                color = CustomYellow
+            )
+        },
+        divider = {
+            HorizontalDivider(
+                color = Color(0xFFE5E7EB),
+                thickness = 0.5.dp
+            )
+        }
     ) {
         tabs.forEachIndexed { index, title ->
             Tab(
@@ -249,18 +432,16 @@ fun ProfileTabs(uiState: ProfileUiState, onTabSelected: (Int) -> Unit) {
                 text = {
                     Text(
                         title,
-                        fontWeight = if (uiState.selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal
+                        fontWeight = if (uiState.selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal,
+                        fontSize = 16.sp
                     )
                 },
-                // Use CustomYellow for indicator and selected text to match the design style
-                selectedContentColor = CustomYellow,
-                unselectedContentColor = MaterialTheme.colorScheme.onSurface
+                selectedContentColor = ProfileAccent,
+                unselectedContentColor = ProfileSecondary
             )
         }
     }
 }
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostsGrid(
     posts: List<PostResponse>,
@@ -268,35 +449,66 @@ fun PostsGrid(
     navController: NavController,
     isSavedPosts: Boolean = false
 ) {
-    // Existing PostsGrid remains functional and visually correct for a gallery view
     if (posts.isEmpty()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(32.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = if (isSavedPosts) "No saved posts yet." else "No posts yet.",
-                style = MaterialTheme.typography.bodyLarge
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = if (isSavedPosts) Icons.Outlined.BookmarkBorder else Icons.Outlined.Image,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = ProfileSecondary
+                )
+                Text(
+                    text = if (isSavedPosts) "No saved posts yet" else "No posts yet",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = ProfileSecondary
+                )
+                Text(
+                    text = if (isSavedPosts) "Posts you save will appear here" else "Start sharing your moments",
+                    fontSize = 14.sp,
+                    color = ProfileSecondary.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     } else {
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(2.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
+            contentPadding = PaddingValues(1.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+            horizontalArrangement = Arrangement.spacedBy(1.dp)
         ) {
             items(posts) { post ->
                 val imageUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls.firstOrNull())
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val scale by animateFloatAsState(
+                    targetValue = if (isPressed) 0.95f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    ),
+                    label = "scale"
+                )
 
                 Box(
                     modifier = Modifier
                         .aspectRatio(1f)
-                        .clickable {
-                            // Navigate to a detail view for the post
+                        .scale(scale)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null
+                        ) {
                             val route = if (isSavedPosts) UserRoutes.ALL_SAVED_POSTS else UserRoutes.ALL_PROFILE_POSTS
                             navController.navigate("$route/$userId")
                         }
@@ -309,7 +521,28 @@ fun PostsGrid(
                         placeholder = rememberVectorPainter(Icons.Default.Image),
                         error = rememberVectorPainter(Icons.Default.BrokenImage)
                     )
-                    // Optional: Overlay an icon for video posts or multiple images
+                    
+                    // Overlay for video/multiple images indicator
+                    if (post.mediaUrls.size > 1 || post.mediaType == "video") {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (post.mediaUrls.size > 1) Icons.Outlined.Collections else Icons.Outlined.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .background(
+                                        Color.Black.copy(alpha = 0.6f),
+                                        CircleShape
+                                    )
+                                    .padding(4.dp)
+                            )
+                        }
+                    }
                 }
             }
         }

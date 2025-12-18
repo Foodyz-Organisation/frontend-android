@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import com.example.damprojectfinal.professional.feature_menu.viewmodel.MenuViewModel
@@ -35,6 +36,7 @@ import com.example.damprojectfinal.core.dto.menu.Category
 import com.airbnb.lottie.compose.*
 import com.example.damprojectfinal.R
 import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
+import com.example.damprojectfinal.professional.common._component.ProfessionalBottomNavigationBar
 
 // Custom Brand Colors
 private val PrimaryBrandOrange = Color(0xFFFA4A0C)
@@ -103,15 +105,25 @@ fun MenuItemManagementScreen(
         viewModel.fetchGroupedMenu(professionalId, dummyAuthToken)
     }
 
+    // Get current route for bottom navigation
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route ?: ""
+
     Scaffold(
         containerColor = BackgroundLight,
         topBar = {
             CustomProTopBarWithIcons(
                 professionalId = professionalId,
                 navController = navController,
-                currentRoute = "menu",
                 onLogout = { navController.navigate("login_route") },
                 onMenuClick = { /* Drawer not implemented in this screen yet */ }
+            )
+        },
+        bottomBar = {
+            ProfessionalBottomNavigationBar(
+                navController = navController,
+                currentRoute = currentRoute,
+                professionalId = professionalId
             )
         },
         floatingActionButton = {

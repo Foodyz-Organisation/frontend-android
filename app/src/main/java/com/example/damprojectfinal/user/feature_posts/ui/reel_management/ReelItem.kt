@@ -3,15 +3,23 @@ package com.example.damprojectfinal.user.feature_posts.ui.reel_management
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,7 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -31,19 +38,65 @@ import androidx.media3.ui.PlayerView
 import androidx.media3.ui.AspectRatioFrameLayout // <-- Ensure this import is present and correct
 import androidx.navigation.NavController
 import com.example.damprojectfinal.core.dto.posts.PostResponse
-import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 import coil.compose.AsyncImage // <-- Ensure this import is present
 import com.example.damprojectfinal.core.api.BaseUrlProvider
-import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel
 import com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsViewModel
-import com.example.damprojectfinal.UserRoutes
+import com.example.damprojectfinal.user.feature_posts.ui.reel_management.CommentBottomSheetContent
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.ExperimentalMaterial3Api
+
+@Composable
+private fun CommentBottomSheetWrapper(
+    onDismiss: () -> Unit,
+    postId: String,
+    postsViewModel: PostsViewModel
+) {
+    // Custom bottom sheet implementation without experimental API
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Overlay background
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable(onClick = onDismiss)
+        )
+        
+        // Bottom sheet content that slides up
+        AnimatedVisibility(
+            visible = true,
+            enter = slideInVertically(
+                animationSpec = tween(300),
+                initialOffsetY = { fullHeight -> fullHeight }
+            ) + fadeIn(animationSpec = tween(300)),
+            exit = slideOutVertically(
+                animationSpec = tween(300),
+                targetOffsetY = { fullHeight -> fullHeight }
+            ) + fadeOut(animationSpec = tween(300))
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.9f)
+                    .align(Alignment.BottomCenter),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                shadowElevation = 8.dp,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                CommentBottomSheetContent(
+                    postId = postId,
+                    onDismiss = onDismiss,
+                    postsViewModel = postsViewModel
+                )
+            }
+        }
+    }
+}
 
 // THIS IS THE CRUCIAL LINE for the "UnstableApi" warnings within ReelItem
-@OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ReelItem(
     reelPost: PostResponse,
@@ -60,6 +113,7 @@ fun ReelItem(
     var isSaved by remember(reelPost._id) { mutableStateOf(reelPost.saveCount > 0) }
     var likeCount by remember(reelPost._id) { mutableStateOf(reelPost.likeCount) }
     var saveCount by remember(reelPost._id) { mutableStateOf(reelPost.saveCount) }
+    var showCommentSheet by remember(reelPost._id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     
     // Update counts when post changes (from API updates)
@@ -132,19 +186,31 @@ fun ReelItem(
             .background(Color.Black)
             .clickable { handleReelClick() } // Handle reel click (e.g., pause/play toggle)
     ) {
-        // Back button (aligned to top-start, padded below status bar)
-        Icon(
-            imageVector = Icons.Filled.ArrowBack,
-            contentDescription = "Back",
-            tint = Color.White,
+        // Back button (aligned to top-start, padded below status bar) - Enhanced design
+        Box(
             modifier = Modifier
                 .statusBarsPadding()
-                .padding(start = 12.dp, top = 12.dp)
-                .size(28.dp)
-                .clickable {
-                    navController.popBackStack()
-                }
-        )
+                .padding(start = 16.dp, top = 16.dp)
+                .align(Alignment.TopStart)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable {
+                        navController.popBackStack()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
 
         // --- ExoPlayer PlayerView ---
         AndroidView(
@@ -265,7 +331,7 @@ fun ReelItem(
                     modifier = Modifier
                         .size(36.dp)
                         .clickable {
-                            navController.navigate("${UserRoutes.COMMENT_SCREEN}/${reelPost._id}")
+                            showCommentSheet = true
                         }
                 )
                 Text(
@@ -335,6 +401,15 @@ fun ReelItem(
                 modifier = Modifier
                     .size(36.dp)
                     .clickable { /* Handle more options click */ }
+            )
+        }
+
+        // Comment Bottom Sheet
+        if (showCommentSheet) {
+            CommentBottomSheetWrapper(
+                onDismiss = { showCommentSheet = false },
+                postId = reelPost._id,
+                postsViewModel = postsViewModel
             )
         }
     }
