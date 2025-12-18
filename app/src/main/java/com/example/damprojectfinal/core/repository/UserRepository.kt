@@ -10,8 +10,8 @@ class UserRepository(private val apiService: UserApiService) {
     /**
      * Update the profile of the logged-in user
      */
-    suspend fun updateProfile(updateRequest: UpdateUserRequest, token: String): UserResponse {
-        return apiService.updateProfile(updateRequest, token)
+    suspend fun updateProfile(updateRequest: UpdateUserRequest, token: String, userId: String? = null): UserResponse {
+        return apiService.updateProfile(updateRequest, token, userId)
     }
 
     /**

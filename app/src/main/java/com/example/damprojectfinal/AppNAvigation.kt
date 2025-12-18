@@ -33,6 +33,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -63,7 +64,11 @@ import com.example.damprojectfinal.feature_auth.ui.ProSignupScreen
 import com.example.damprojectfinal.user.feature_profile.ui.ProfileScreen
 import com.example.damprojectfinal.user.feature_profile.ui.AllProfilePosts
 import com.example.damprojectfinal.user.feature_profile.ui.AllSavedPosts
+import com.example.damprojectfinal.user.feature_profile.ui.UpdateProfileScreen
+import com.example.damprojectfinal.user.feature_profile.ui.ProfileSettingsScreen
+import com.example.damprojectfinal.user.feature_profile.ui.ChangePasswordScreen
 import com.example.damprojectfinal.professional.common.HomeScreenPro
+import com.example.damprojectfinal.professional.common._component.ProfessionalMenuScreen
 import com.example.damprojectfinal.professional.feature_posts.CreateContentScreen
 import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileScreen
 import com.example.damprojectfinal.professional.feature_profile.viewmodel.ProfessionalProfileViewModel
@@ -83,7 +88,9 @@ import com.example.damprojectfinal.feature_relamation.ReclamationsRestaurantView
 import com.example.damprojectfinal.feature_relamation.ReclamationViewModelFactory
 import com.example.damprojectfinal.professional.feature_relamation.ReclamationDetailRestaurantScreen
 import com.example.damprojectfinal.user.common.HomeScreen
+import com.example.damprojectfinal.user.common._component.UserMenuScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.CreatePostScreen
+import com.example.damprojectfinal.user.feature_notifications.ui.NotificationsScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.CaptionAndPublishScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.EditPostScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostDetailsScreen
@@ -125,6 +132,7 @@ import com.example.damprojectfinal.feature_relamation.Reward
 import com.example.damprojectfinal.feature_relamation.PointsTransaction
 import com.example.damprojectfinal.core.api.ReclamationRetrofitClient
 import com.example.damprojectfinal.feature_event.Event
+import com.example.damprojectfinal.user.feature_chat.ui.ProChatManagementScreen
 
 object AuthRoutes {
     const val SPLASH = "splash_route"
@@ -156,8 +164,11 @@ object UserRoutes {
     // Base route for navigation must match the NavHost setup, including argument placeholders
     const val PROFILE_VIEW = "profile_view/{userId}"
     const val PROFILE_UPDATE = "profile_update/{userId}"
+    const val PROFILE_SETTINGS = "profile_settings"
+    const val CHANGE_PASSWORD = "change_password/{userId}"
     const val ORDERS_SCREEN = "orders"
     const val ORDERS_ROUTE = "orders_history_route"
+    const val NOTIFICATIONS_SCREEN = "notifications_screen"
 }
 
 object ProRoutes {
@@ -323,6 +334,121 @@ fun AppNavigation(
             )
         }
 
+        // Profile Update Screen
+        composable(
+            route = UserRoutes.PROFILE_UPDATE,
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")
+                ?: throw IllegalStateException("userId is required for profile update.")
+
+            val context = LocalContext.current
+            val userRepository = UserRepository(UserApiService(TokenManager(context)))
+            val profileViewModel: com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel = viewModel(
+                factory = com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel.Factory(userRepository, context)
+            )
+
+            // Fetch user profile on first load
+            LaunchedEffect(Unit) {
+                profileViewModel.fetchUserProfile()
+            }
+
+            // Get UserViewModel to refresh profile when navigating back
+            val userViewModel: UserViewModel = viewModel()
+
+            UpdateProfileScreen(
+                viewModel = profileViewModel,
+                onBackClick = {
+                    // Refresh profile when navigating back
+                    userViewModel.refreshProfile()
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // Profile Settings Screen (Hub)
+        composable(UserRoutes.PROFILE_SETTINGS) {
+            val context = LocalContext.current
+            val userRepository = UserRepository(UserApiService(TokenManager(context)))
+            val profileViewModel: com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel = viewModel(
+                factory = com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel.Factory(userRepository, context)
+            )
+
+            ProfileSettingsScreen(
+                navController = navController,
+                profileViewModel = profileViewModel
+            )
+        }
+
+        // Change Password Screen
+        composable(
+            route = UserRoutes.CHANGE_PASSWORD,
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")
+                ?: throw IllegalStateException("userId is required for password change.")
+
+            val context = LocalContext.current
+            val userRepository = UserRepository(UserApiService(TokenManager(context)))
+            val profileViewModel: com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel = viewModel(
+                factory = com.example.damprojectfinal.user.feature_profile.viewmodel.ProfileViewModel.Factory(userRepository, context)
+            )
+
+            // Fetch user profile on first load
+            LaunchedEffect(Unit) {
+                profileViewModel.fetchUserProfile()
+            }
+
+            ChangePasswordScreen(
+                viewModel = profileViewModel,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        // User Menu Screen (Full Screen Menu)
+        composable("user_menu") {
+            val context = LocalContext.current
+            val tokenManager = remember { TokenManager(context) }
+            var loyaltyPoints by remember { mutableStateOf<Int?>(null) }
+
+            // Load loyalty points
+            LaunchedEffect(Unit) {
+                try {
+                    val token = tokenManager.getAccessTokenAsync()
+                    if (!token.isNullOrEmpty()) {
+                        val api = com.example.damprojectfinal.core.api.ReclamationRetrofitClient.createClient(token)
+                        val balance = api.getUserLoyalty()
+                        loyaltyPoints = balance?.loyaltyPoints
+                    }
+                } catch (e: Exception) {
+                    Log.e("UserMenuScreen", "Error loading loyalty points: ${e.message}")
+                }
+            }
+
+            // Initialize Logout ViewModel
+            val logoutViewModel: LogoutViewModel = viewModel(
+                factory = LogoutViewModelFactory(
+                    authApiService = AuthApiService(),
+                    tokenManager = tokenManager
+                )
+            )
+
+            UserMenuScreen(
+                navController = navController,
+                onLogout = {
+                    logoutViewModel.logout()
+                    navController.navigate(AuthRoutes.LOGIN) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                loyaltyPoints = loyaltyPoints
+            )
+        }
+
         composable(UserRoutes.HOME_SCREEN) {
             val context = LocalContext.current
 
@@ -373,8 +499,19 @@ fun AppNavigation(
         }
 
         // Chat management (copied from other project, minimal integration)
+        // Notifications Screen
+        composable(UserRoutes.NOTIFICATIONS_SCREEN) {
+            NotificationsScreen(navController = navController)
+        }
+
+        // User chat screen
         composable("chatList") {
             ChatManagementScreen(navController = navController)
+        }
+
+        // Professional chat screen (uses pro-specific UI)
+        composable("chatListPro") {
+            ProChatManagementScreen(navController = navController)
         }
 
         composable("chatDetail/{conversationId}/{chatName}/{currentUserId}") { backStackEntry ->
@@ -495,6 +632,37 @@ fun AppNavigation(
             )
         }
 
+        // Professional Menu Screen (Full Screen Menu)
+        composable(
+            route = "professional_menu/{professionalId}",
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: "unknown"
+            val context = LocalContext.current
+
+            // Initialize Logout ViewModel
+            val logoutViewModel: LogoutViewModel = viewModel(
+                factory = LogoutViewModelFactory(
+                    authApiService = AuthApiService(),
+                    tokenManager = TokenManager(context)
+                )
+            )
+
+            ProfessionalMenuScreen(
+                navController = navController,
+                professionalId = professionalId,
+                onLogout = {
+                    logoutViewModel.logout()
+                    navController.navigate(AuthRoutes.LOGIN) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+        }
 
         // ---------- Menu Management ----------
         composable(
@@ -1111,7 +1279,8 @@ fun AppNavigation(
                                     val uri = Uri.parse(image)
                                     val base64Image = uriToBase64(context, uri)
                                     if (base64Image != null) {
-                                        Log.d("AppNavigation", "✅ Image convertie en Base64 (${base64Image.length} caractères)")
+                                        val imageLength = base64Image.length
+                                        Log.d("AppNavigation", "✅ Image convertie en Base64 ($imageLength caractères)")
                                     } else {
                                         Log.e("AppNavigation", "❌ Échec de la conversion Base64")
                                         Toast.makeText(context, "Erreur lors de la conversion de l'image", Toast.LENGTH_SHORT).show()
@@ -1339,7 +1508,8 @@ fun AppNavigation(
                                             val uri = Uri.parse(image)
                                             val base64Image = uriToBase64(context, uri)
                                             if (base64Image != null) {
-                                                Log.d("AppNavigation", "✅ Image convertie en Base64 (${base64Image.length} caractères)")
+                                                val imageLength = base64Image.length
+                                                Log.d("AppNavigation", "✅ Image convertie en Base64 ($imageLength caractères)")
                                             } else {
                                                 Log.e("AppNavigation", "❌ Échec de la conversion Base64")
                                                 Toast.makeText(context, "Erreur lors de la conversion de l'image", Toast.LENGTH_SHORT).show()
@@ -1774,7 +1944,7 @@ fun AppNavigation(
 /**
  * Convertit un URI local en Base64 pour l'envoi au backend
  */
-private fun uriToBase64(context: android.content.Context, uri: Uri): String? {
+internal fun uriToBase64(context: android.content.Context, uri: Uri): String? {
     return try {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return null
         val originalBitmap = BitmapFactory.decodeStream(inputStream)

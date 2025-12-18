@@ -1,5 +1,7 @@
 package com.example.damprojectfinal.user.common._component
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,19 +12,27 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.layout.ContentScale
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.damprojectfinal.UserRoutes
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.api.ProfessionalApiService
 import com.example.damprojectfinal.core.dto.auth.ProfessionalDto
 import com.example.damprojectfinal.core.`object`.KtorClient
@@ -72,7 +82,8 @@ fun TopAppBar(
     onProfileClick: (String) -> Unit,
     onReelsClick: () -> Unit,
     currentUserId: String,
-    onLogoutClick: () -> Unit
+    onLogoutClick: () -> Unit,
+    profilePictureUrl: String? = null
 ) {
     var showAddOptions by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
@@ -92,7 +103,7 @@ fun TopAppBar(
                 // Removed top padding here, as it's handled by windowInsetsPadding above
                 .padding(vertical = 12.dp, horizontal = 16.dp)
         ) {
-            // Profile Avatar Button (Unchanged)
+            // Profile Avatar Button with Profile Picture
             Box(
                 modifier = Modifier
                     .size(40.dp) // Smaller size
@@ -101,12 +112,28 @@ fun TopAppBar(
                     .clickable { onProfileClick(currentUserId) },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "Profile Placeholder",
-                    tint = PrimaryDark,
-                    modifier = Modifier.size(20.dp) // Smaller icon
-                )
+                // Show icon as fallback when no image URL or when image fails
+                if (profilePictureUrl.isNullOrEmpty()) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Profile Placeholder",
+                        tint = PrimaryDark,
+                        modifier = Modifier.size(20.dp)
+                    )
+                } else {
+                    // Show image with icon as placeholder/error fallback
+                    AsyncImage(
+                        model = BaseUrlProvider.getFullImageUrl(profilePictureUrl),
+                        contentDescription = "Profile Picture",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        placeholder = rememberVectorPainter(Icons.Default.Person),
+                        error = rememberVectorPainter(Icons.Default.Person),
+                        onError = {
+                            // Ensure icon is shown on error
+                        }
+                    )
+                }
             }
 
             // App title (Unchanged)
@@ -130,17 +157,12 @@ fun TopAppBar(
                 Icon(Icons.Filled.Search, contentDescription = "Search", tint = PrimaryDark)
             }
 
-            // Notifications Icon (Using new helper for dot)
-            NotificationIconWithDot(
-                onClick = { showNotifications = !showNotifications },
-                hasNew = hasNewNotifications
-            )
-
             // Drawer Button (Simplified Styling)
             IconButton(onClick = openDrawer) {
                 Icon(Icons.Filled.Menu, contentDescription = "Drawer", tint = PrimaryDark)
             }
         }
+        
 
         // Secondary Nav Bar (Unchanged)
         SecondaryNavBar(
@@ -237,14 +259,14 @@ fun SecondaryNavBar(
         NavIcon(Icons.Filled.PlayArrow, currentRoute == UserRoutes.REELS_SCREEN) { onReelsClick() }
         NavIcon(Icons.Filled.TrendingUp, currentRoute == UserRoutes.TRENDS_SCREEN) { navController.navigate(UserRoutes.TRENDS_SCREEN) }
         NavIcon(
-            Icons.Filled.Chat,
+            Icons.Filled.Message,
             currentRoute == "chatList"
         ) { navController.navigate("chatList") }
         NavIcon(
-            Icons.Filled.AttachMoney,
-            currentRoute == UserRoutes.ORDERS_ROUTE // highlight if current route is orders_history_route
+            Icons.Filled.Notifications,
+            currentRoute == UserRoutes.NOTIFICATIONS_SCREEN
         ) {
-            navController.navigate(UserRoutes.ORDERS_ROUTE) {
+            navController.navigate(UserRoutes.NOTIFICATIONS_SCREEN) {
                 launchSingleTop = true
                 restoreState = true
             }
@@ -403,17 +425,27 @@ fun DynamicSearchOverlay(
 
     Scaffold(
         topBar = {
-            // Use a standard Material3 TopAppBar to correctly handle system insets
+            // Animated TopAppBar that hides title when search is active
+            var isSearchFocused by remember { mutableStateOf(false) }
+            
             CenterAlignedTopAppBar(
                 title = { Text("Search Professionals", fontWeight = FontWeight.SemiBold, color = PrimaryDark) },
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = PrimaryDark)
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = PrimaryDark
+                        )
                     }
                 },
                 actions = {
                     IconButton(onClick = { /* Handle Filter Click */ }) {
-                        Icon(Icons.Filled.FilterList, contentDescription = "Filter", tint = PrimaryDark)
+                        Icon(
+                            Icons.Filled.FilterList,
+                            contentDescription = "Filter",
+                            tint = PrimaryDark
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = LightBackground)
@@ -429,36 +461,67 @@ fun DynamicSearchOverlay(
                 // Apply paddingValues from Scaffold to the main content Column
                 .padding(paddingValues)
         ) {
-            OutlinedTextField(
-                value = searchText,
-                onValueChange = { newValue ->
-                    searchText = newValue
-                    searchViewModel.searchByName(searchText) // Triggers the search
-                },
-                placeholder = { Text("Search by name...", color = GrayInactive) },
-                leadingIcon = {
-                    Icon(
-                        Icons.Filled.Search,
-                        contentDescription = null,
-                        tint = GrayInactive
-                    )
-                },
-                shape = RoundedCornerShape(12.dp), // Rounded corners
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = YellowBorder,
-                    unfocusedBorderColor = VeryPaleYellow,
-                    cursorColor = YellowBorder,
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
-                    focusedPlaceholderColor = GrayInactive,
-                    unfocusedPlaceholderColor = GrayInactive
+            // Animated search field with smooth entrance
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn(animationSpec = tween(400)) + slideInVertically(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    ),
+                    initialOffsetY = { -it }
                 ),
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .height(56.dp)
-            )
+                exit = fadeOut(animationSpec = tween(300)) + slideOutVertically(
+                    animationSpec = tween(300),
+                    targetOffsetY = { -it }
+                )
+            ) {
+                OutlinedTextField(
+                    value = searchText,
+                    onValueChange = { newValue ->
+                        searchText = newValue
+                        if (newValue.isNotEmpty()) {
+                            searchViewModel.searchByName(newValue)
+                        }
+                    },
+                    placeholder = { Text("Search by name...", color = GrayInactive) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = null,
+                            tint = YellowAccent
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchText.isNotEmpty()) {
+                            IconButton(
+                                onClick = { searchText = "" }
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Close,
+                                    contentDescription = "Clear",
+                                    tint = GrayInactive
+                                )
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = YellowBorder,
+                        unfocusedBorderColor = VeryPaleYellow,
+                        cursorColor = YellowBorder,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedPlaceholderColor = GrayInactive,
+                        unfocusedPlaceholderColor = GrayInactive
+                    ),
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .height(56.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 

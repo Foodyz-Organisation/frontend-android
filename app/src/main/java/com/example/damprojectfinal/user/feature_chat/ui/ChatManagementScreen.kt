@@ -2,6 +2,7 @@ package com.example.damprojectfinal.user.feature_chat.ui
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -18,15 +20,24 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -50,12 +61,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.example.damprojectfinal.core.api.PeerDto
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.model.ChatListItem
 import com.example.damprojectfinal.user.feature_chat.ui.components.ChatItemNew
 import com.example.damprojectfinal.user.feature_chat.viewmodel.ChatViewModel
+import com.example.damprojectfinal.user.common._component.TopAppBar
+import com.example.damprojectfinal.UserRoutes
+import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
+import com.example.damprojectfinal.professional.common._component.ProfessionalBottomNavigationBar
+import com.example.damprojectfinal.core.api.UserApiService
+import com.example.damprojectfinal.core.repository.UserRepository
 
 private const val TAG = "ChatManagementScreen"
 
@@ -63,7 +81,32 @@ private const val TAG = "ChatManagementScreen"
 @Composable
 fun ChatManagementScreen(
     navController: NavController
-    ) {
+) {
+    // User-side chat management (uses user TopAppBar and navigation)
+    ChatManagementInternal(
+        navController = navController,
+        isPro = false
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProChatManagementScreen(
+    navController: NavController
+) {
+    // Professional-side chat management (uses pro TopBar and navigation)
+    ChatManagementInternal(
+        navController = navController,
+        isPro = true
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChatManagementInternal(
+    navController: NavController,
+    isPro: Boolean
+) {
     Log.d(TAG, "ChatManagementScreen composing...")
 
     val vm: ChatViewModel = viewModel()
@@ -75,6 +118,29 @@ fun ChatManagementScreen(
     val tokenManager = remember { TokenManager(context) }
     val currentUserId = remember { tokenManager.getUserId() }
     val accessToken by tokenManager.getAccessTokenFlow().collectAsState(initial = null)
+    
+    // State for profile picture URL
+    var profilePictureUrl by remember { mutableStateOf<String?>(null) }
+    
+    // Fetch user profile picture
+    LaunchedEffect(currentUserId) {
+        if (!currentUserId.isNullOrEmpty()) {
+            try {
+                val token = tokenManager.getAccessTokenAsync()
+                if (!token.isNullOrEmpty()) {
+                    val userApiService = UserApiService(tokenManager)
+                    val userRepository = UserRepository(userApiService)
+                    val user = userRepository.getUserById(currentUserId, token)
+                    profilePictureUrl = user.profilePictureUrl
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching profile picture: ${e.message}")
+            }
+        }
+    }
+    
+    // Snackbar for success messages
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(accessToken) {
         accessToken?.let { token ->
@@ -93,7 +159,9 @@ fun ChatManagementScreen(
     val error by vm.errorMessage.collectAsState(initial = null)
     val isStarting by vm.isStartingConversation.collectAsState(initial = false)
     val startConversationError by vm.startConversationError.collectAsState(initial = null)
+    val deleteSuccess by vm.deleteSuccess.collectAsState(initial = false)
 
+    // Filter conversations for display
     val filteredChats = remember(searchQuery, chatList) {
         if (searchQuery.isBlank()) {
             chatList
@@ -105,77 +173,203 @@ fun ChatManagementScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFFAFAFA))
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            TopBar(onNewChat = { isPeerSheetVisible = true })
+    // Filter peers for user/professional search
+    val filteredPeers = remember(searchQuery, peers) {
+        if (searchQuery.isBlank()) {
+            emptyList()
+        } else {
+            peers.filter { peer ->
+                peer.name.contains(searchQuery, ignoreCase = true) ||
+                        peer.email.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
 
-            SearchField(searchQuery = searchQuery, onQueryChange = { searchQuery = it })
+    // Current route (for highlighting bottom nav items)
+    val currentRoute = navController.currentBackStackEntry?.destination?.route ?: ""
 
-            when {
-                isLoading -> LoadingState()
-                error != null -> StatusCard(
-                    text = "Error: $error",
-                    tint = Color.Red,
-                    icon = "⚠️"
-                )
-                filteredChats.isEmpty() -> StatusCard(
-                    text = if (searchQuery.isNotBlank())
-                        "No conversations found"
-                    else
-                        "No conversations yet. Start one from the + button.",
-                    tint = Color(0xFFF59E0B),
-                    icon = "\uD83D\uDCAC"
-                )
-                else -> ConversationList(
-                    chats = filteredChats,
+    // Show success snackbar when conversation is deleted
+    LaunchedEffect(deleteSuccess) {
+        if (deleteSuccess) {
+            snackbarHostState.showSnackbar(
+                message = "Your conversation has been deleted",
+                duration = SnackbarDuration.Short
+            )
+            // Reset the success state
+            vm.resetDeleteSuccess()
+        }
+    }
+
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                snackbar = { snackbarData ->
+                    Snackbar(
+                        snackbarData = snackbarData,
+                        shape = RoundedCornerShape(12.dp),
+                        containerColor = Color(0xFFF59E0B),
+                        contentColor = Color.White,
+                        actionColor = Color.White,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            )
+        },
+        topBar = {
+            if (!isPro) {
+                // 🔹 User-side TopAppBar
+                TopAppBar(
+                    navController = navController,
+                    currentRoute = "chatList",
+                    openDrawer = {
+                        navController.navigate("user_menu")
+                    },
+                    onSearchClick = { /* TODO: Implement search */ },
+                    onProfileClick = { userId ->
+                        navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/$userId")
+                    },
+                    onReelsClick = {
+                        navController.navigate(UserRoutes.REELS_SCREEN)
+                    },
                     currentUserId = currentUserId ?: "unknown",
-                    navController = navController
+                    onLogoutClick = { /* TODO: Implement logout */ },
+                    profilePictureUrl = profilePictureUrl
                 )
+            } else {
+                // 🔹 Pro-side TopBar using Foodyz Pro design
+                val proId = currentUserId ?: "unknown"
+                val hostController = navController as? NavHostController
+
+                if (hostController != null) {
+                    CustomProTopBarWithIcons(
+                        professionalId = proId,
+                        navController = hostController,
+                        onLogout = {
+                            // TODO: Wire this to pro logout flow if needed
+                        },
+                        onMenuClick = {
+                            hostController.navigate("professional_menu/$proId")
+                        }
+                    )
+                }
+            }
+        },
+        bottomBar = {
+            if (isPro) {
+                val hostController = navController as? NavHostController
+                val proId = currentUserId ?: "unknown"
+                if (hostController != null) {
+                    ProfessionalBottomNavigationBar(
+                        navController = hostController,
+                        currentRoute = currentRoute,
+                        professionalId = proId
+                    )
+                }
+            }
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(Color(0xFFFAFAFA))
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                SearchField(
+                    searchQuery = searchQuery,
+                    onQueryChange = { searchQuery = it }
+                )
+
+                // Show search results for users/professionals when typing
+                if (searchQuery.isNotBlank() && filteredPeers.isNotEmpty()) {
+                    SearchResultsDropdown(
+                        peers = filteredPeers,
+                        onPeerSelected = { peer ->
+                            searchQuery = "" // Clear search
+                            accessToken?.let { token ->
+                                vm.startConversationWithPeer(
+                                    peer = peer,
+                                    authToken = token,
+                                    currentUserId = currentUserId
+                                ) { conversation ->
+                                    if (conversation != null && !conversation.id.isNullOrBlank()) {
+                                        val title = vm.displayTitleFor(conversation, currentUserId)
+                                        val resolvedUser = currentUserId ?: "unknown"
+                                        navController.navigate("chatDetail/${conversation.id}/$title/$resolvedUser")
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+
+                // Show conversations when not searching or when search has no peer results
+                when {
+                    isLoading -> LoadingState()
+                    error != null -> StatusCard(
+                        text = "Error: $error",
+                        tint = Color.Red,
+                        icon = "⚠️"
+                    )
+                    filteredChats.isEmpty() && (searchQuery.isBlank() || filteredPeers.isEmpty()) -> StatusCard(
+                        text = if (searchQuery.isNotBlank() && filteredPeers.isEmpty())
+                            "No users or conversations found"
+                        else
+                            "No conversations yet.",
+                        tint = Color(0xFFF59E0B),
+                        icon = "\uD83D\uDCAC"
+                    )
+                    filteredChats.isNotEmpty() -> ConversationList(
+                        chats = filteredChats,
+                        currentUserId = currentUserId ?: "unknown",
+                        navController = navController,
+                        onDeleteConversation = { conversationId ->
+                            accessToken?.let { token ->
+                                vm.deleteConversation(token, conversationId, currentUserId)
+                            }
+                        }
+                    )
+                }
             }
 
-            NewChatFab { isPeerSheetVisible = true }
-        }
-
-        if (isPeerSheetVisible) {
-            PeerBottomSheet(
-                peers = peers,
-                onDismiss = { isPeerSheetVisible = false },
-                isStarting = isStarting,
-                errorMessage = startConversationError,
-                onPeerSelected = { peer ->
-                    accessToken?.let { token ->
-                        vm.startConversationWithPeer(
-                            peer = peer,
-                            authToken = token,
-                            currentUserId = currentUserId
-                        ) { conversation ->
-                            if (conversation != null && !conversation.id.isNullOrBlank()) {
-                                val title = vm.displayTitleFor(conversation, currentUserId)
-                                val resolvedUser = currentUserId ?: "unknown"
-                                navController.navigate("chatDetail/${conversation.id}/$title/$resolvedUser")
+            if (isPeerSheetVisible) {
+                PeerBottomSheet(
+                    peers = peers,
+                    onDismiss = { isPeerSheetVisible = false },
+                    isStarting = isStarting,
+                    errorMessage = startConversationError,
+                    onPeerSelected = { peer: PeerDto ->
+                        accessToken?.let { token ->
+                            vm.startConversationWithPeer(
+                                peer = peer,
+                                authToken = token,
+                                currentUserId = currentUserId
+                            ) { conversation ->
+                                if (conversation != null && !conversation.id.isNullOrBlank()) {
+                                    val title = vm.displayTitleFor(conversation, currentUserId)
+                                    val resolvedUser = currentUserId ?: "unknown"
+                                    navController.navigate("chatDetail/${conversation.id}/$title/$resolvedUser")
+                                }
                             }
                         }
                     }
-                }
-            )
-        }
-
-        if (isStarting) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(Color.Black.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
-                StatusCard(
-                    text = "Starting chat…",
-                    tint = Color(0xFFF59E0B),
-                    icon = "\u23F3"
                 )
+            }
+
+            if (isStarting) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    StatusCard(
+                        text = "Starting chat…",
+                        tint = Color(0xFFF59E0B),
+                        icon = "\u23F3"
+                    )
+                }
             }
         }
     }
@@ -258,7 +452,7 @@ private fun SearchField(searchQuery: String, onQueryChange: (String) -> Unit) {
                 tint = Color(0xFFB87300)
             )
         },
-        placeholder = { Text("Search conversations...") },
+        placeholder = { Text("Search users or conversations...") },
         singleLine = true,
         modifier = Modifier
             .fillMaxWidth()
@@ -277,6 +471,100 @@ private fun SearchField(searchQuery: String, onQueryChange: (String) -> Unit) {
 }
 
 @Composable
+private fun SearchResultsDropdown(
+    peers: List<PeerDto>,
+    onPeerSelected: (PeerDto) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 300.dp),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            item {
+                Text(
+                    text = "Start a conversation with:",
+                    fontSize = 12.sp,
+                    color = Color(0xFF6B7280),
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+            items(peers) { peer ->
+                PeerSearchResultItem(
+                    peer = peer,
+                    onClick = { onPeerSelected(peer) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PeerSearchResultItem(
+    peer: PeerDto,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Avatar
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFFFF3E0)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = peer.name.take(2).uppercase(),
+                color = Color(0xFFB87300),
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+        }
+
+        // Name and email
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = peer.name,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                color = Color(0xFF1F2A37)
+            )
+            Text(
+                text = peer.email,
+                fontSize = 13.sp,
+                color = Color(0xFF6B7280)
+            )
+        }
+
+        // Chat icon
+        Icon(
+            imageVector = Icons.Filled.Chat,
+            contentDescription = "Start chat",
+            tint = Color(0xFFF59E0B),
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+@Composable
 private fun LoadingState() {
     Box(
         modifier = Modifier
@@ -291,7 +579,8 @@ private fun LoadingState() {
 private fun ConversationList(
     chats: List<ChatListItem>,
     currentUserId: String,
-    navController: NavController
+    navController: NavController,
+    onDeleteConversation: (String) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -307,6 +596,9 @@ private fun ConversationList(
                     navController.navigate(
                         "chatDetail/${chat.id}/${chat.title}/$currentUserId"
                     )
+                },
+                onDelete = {
+                    onDeleteConversation(chat.id)
                 }
             )
         }

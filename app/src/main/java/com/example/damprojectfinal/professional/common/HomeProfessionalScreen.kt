@@ -1,6 +1,5 @@
 package com.example.damprojectfinal.professional.common
 
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.order.OrderResponse
 import com.example.damprojectfinal.core.dto.order.OrderStatus
@@ -31,6 +31,7 @@ import com.example.damprojectfinal.core.dto.order.UpdateOrderStatusRequest
 import com.example.damprojectfinal.core.repository.OrderRepository
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
+import com.example.damprojectfinal.professional.common._component.ProfessionalBottomNavigationBar
 import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -153,11 +154,12 @@ fun HomeScreenPro(
 
     // Coroutine scope for async operations
     val scope = rememberCoroutineScope()
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-
-    // State for filter
-    var selectedFilter by remember { mutableStateOf<OrderType?>(null) }
+    
     var showDeleteAllDialog by remember { mutableStateOf(false) }
+    
+    // Get current route for bottom navigation
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route ?: ""
 
     // Load orders on start
     LaunchedEffect(professionalId) {
@@ -174,106 +176,23 @@ fun HomeScreenPro(
         ordersFromBackend?.map { it.toUiOrder() } ?: emptyList()
     }
 
-    // Filter by selected type
-    val filteredOrders = remember(allOrders, selectedFilter) {
-        allOrders.filter { order ->
-            selectedFilter == null || order.type == selectedFilter
-        }
-    }
-
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                Spacer(Modifier.height(24.dp))
-                Text(
-                    text = "Professional Menu",
-                    modifier = Modifier.padding(start = 24.dp, bottom = 12.dp),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
-
-                NavigationDrawerItem(
-                    label = { Text("Deals Management") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        navController.navigate("pro_deals")
-                    },
-                    icon = { Icon(Icons.Default.LocalOffer, null) },
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-
-                NavigationDrawerItem(
-                    label = { Text("Reclamations") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        navController.navigate("restaurant_reclamations")
-                    },
-                    icon = { Icon(Icons.Default.Report, null) },
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-
-                // Menu Management (routed to existing add_meal as requested wrapper for menu buttons)
-                // Assuming "get the routes of the existing buttons" refers to Menu Management button.
-                // Button 1: "Manage Orders" -> menu_management
-                // Button 2: "Menu Management" -> add_meal
-                NavigationDrawerItem(
-                    label = { Text("Menu Management") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        navController.navigate("add_meal/$professionalId")
-                    },
-                    icon = { Icon(Icons.Default.MenuBook, null) },
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-
-                NavigationDrawerItem(
-                    label = { Text("Event Management") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        navController.navigate("event_list_remote")
-                    },
-                    icon = { Icon(Icons.Default.Event, null) },
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-
-                Spacer(Modifier.weight(1f))
-                HorizontalDivider()
-
-                NavigationDrawerItem(
-                    label = { Text("Logout", color = Color.Red, fontWeight = FontWeight.Bold) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        onLogout()
-                    },
-                    icon = { Icon(Icons.Default.ExitToApp, null, tint = Color.Red) },
-                    modifier = Modifier.padding(12.dp)
-                )
-            }
-        }
-    ) {
-        Scaffold(
-            topBar = {
-                CustomProTopBarWithIcons(
-                    professionalId = professionalId,
-                    navController = navController,
-                    onLogout = onLogout,
-                    onMenuClick = { 
-                        // Open the drawer (original functionality)
-                        scope.launch { drawerState.open() }
-                    }
-                )
-            },
+    Scaffold(
+        topBar = {
+            CustomProTopBarWithIcons(
+                professionalId = professionalId,
+                navController = navController,
+                onLogout = onLogout,
+                onMenuClick = { 
+                    // Navigate to full-screen menu
+                    navController.navigate("professional_menu/$professionalId")
+                }
+            )
+        },
             bottomBar = {
-                OrderFilterBottomBar(
-                    selectedFilter = selectedFilter,
-                    onFilterSelected = { selectedFilter = it }
+                ProfessionalBottomNavigationBar(
+                    navController = navController,
+                    currentRoute = currentRoute,
+                    professionalId = professionalId
                 )
             }
         ) { paddingValues ->
@@ -342,7 +261,7 @@ fun HomeScreenPro(
                                         modifier = Modifier.padding(top = 8.dp)
                                     )
                                     Text(
-                                        text = "${filteredOrders.size} orders waiting for confirmation",
+                                        text = "${allOrders.size} orders waiting for confirmation",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = Color.Gray,
                                         modifier = Modifier.padding(bottom = 8.dp)
@@ -350,7 +269,7 @@ fun HomeScreenPro(
                                 }
                                 
                                 // Delete All Button
-                                if (filteredOrders.isNotEmpty()) {
+                                if (allOrders.isNotEmpty()) {
                                     IconButton(
                                         onClick = { showDeleteAllDialog = true }
                                     ) {
@@ -365,7 +284,7 @@ fun HomeScreenPro(
                         }
 
                         // Order List
-                        if (filteredOrders.isEmpty()) {
+                        if (allOrders.isEmpty()) {
                             item {
                                 Box(
                                     modifier = Modifier
@@ -374,14 +293,14 @@ fun HomeScreenPro(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = "No orders matching the selected filter.",
+                                        text = "No orders available.",
                                         color = Color.Gray,
                                         fontSize = 16.sp
                                     )
                                 }
                             }
                         } else {
-                            items(filteredOrders, key = { it.id }) { order ->
+                            items(allOrders, key = { it.id }) { order ->
                                 // Get original OrderResponse to access current status
                                 val originalOrder = ordersFromBackend?.find { it._id == order.id }
                                 val currentStatus = originalOrder?.status ?: OrderStatus.PENDING
@@ -419,9 +338,10 @@ fun HomeScreenPro(
                 // --- 3. Navigation Cards & Recent Activity REMOVED ---
 
             }
+        }
             
-            // Delete All Confirmation Dialog
-            if (showDeleteAllDialog) {
+        // Delete All Confirmation Dialog
+        if (showDeleteAllDialog) {
                 val completedOrdersCount = ordersFromBackend?.count { it.status == OrderStatus.COMPLETED } ?: 0
                 AlertDialog(
                     onDismissRequest = { showDeleteAllDialog = false },
@@ -464,8 +384,8 @@ fun HomeScreenPro(
                 )
             }
         }
-    }
-}
+
+
 
 // ---------------------------------------------------
 // --- Component: Custom Top Bar with 5 Icons ---
@@ -488,84 +408,6 @@ fun NavTopIcon(icon: ImageVector, description: String, selected: Boolean, onClic
         Icon(icon, contentDescription = description, tint = iconColor, modifier = Modifier.size(24.dp))
     }
 }
-
-// ---------------------------------------------------
-// --- Component: Order Filter Bottom Bar ---
-// ---------------------------------------------------
-
-@Composable
-fun OrderFilterBottomBar(
-    selectedFilter: OrderType?,
-    onFilterSelected: (OrderType?) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White)
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceAround,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // --- ALL Orders (Implied by the request) ---
-        BottomBarChip(
-            icon = Icons.Filled.Dashboard, // Using Dashboard icon for 'All'
-            label = "All",
-            isSelected = selectedFilter == null,
-            onClick = { onFilterSelected(null) }
-        )
-
-        // --- Pick-up ---
-        BottomBarChip(
-            icon = Icons.Filled.ShoppingBag,
-            label = "Pick-up",
-            isSelected = selectedFilter == OrderType.PICKUP,
-            onClick = { onFilterSelected(OrderType.PICKUP) }
-        )
-
-        // --- Dine-in ---
-        BottomBarChip(
-            icon = Icons.Filled.TableBar,
-            label = "Dine-in",
-            isSelected = selectedFilter == OrderType.DINE_IN,
-            onClick = { onFilterSelected(OrderType.DINE_IN) }
-        )
-
-        // --- Delivery ---
-        BottomBarChip(
-            icon = Icons.Filled.LocalShipping,
-            label = "Delivery",
-            isSelected = selectedFilter == OrderType.DELIVERY,
-            onClick = { onFilterSelected(OrderType.DELIVERY) }
-        )
-    }
-}
-
-@Composable
-fun BottomBarChip(
-    icon: ImageVector,
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val backgroundColor = if (isSelected) Color(0xFFFFC107) else Color(0xFFF0F0F0)
-    val contentColor = if (isSelected) Color.Black else Color.Gray
-
-    // Using the button style from your screenshot's "Pick-up" button
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(backgroundColor)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = label, tint = contentColor, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(label, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = contentColor)
-        }
-    }
-}
-
 
 // --- OrderCard with Status Dropdown ---
 @OptIn(ExperimentalMaterial3Api::class)

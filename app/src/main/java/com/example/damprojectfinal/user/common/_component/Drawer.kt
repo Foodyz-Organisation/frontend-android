@@ -1,11 +1,8 @@
 package com.example.damprojectfinal.user.common._component
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,13 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.damprojectfinal.R
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 import androidx.navigation.compose.rememberNavController
 
@@ -54,16 +48,11 @@ fun AppDrawer(
     onLogoutClick: () -> Unit,
     loyaltyPoints: Int? = null // ✅ NOUVEAU: Points de fidélité
 ) {
-    ModalDrawerSheet(
-        drawerContainerColor = Color(0xFFFFFFFF),
-        modifier = Modifier.width(300.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFFFFFFF))
     ) {
-        // --- Header ---
-        DrawerHeader(onProfileClick = {
-            navigateTo("user_profile_route")
-            onCloseDrawer()
-        })
-
         // --- ✅ Section Points de Fidélité (toujours affichée) ---
         LoyaltyPointsSection(
             points = loyaltyPoints ?: 0, // Affiche 0 si pas encore chargé
@@ -109,39 +98,6 @@ fun AppDrawer(
             onLogoutClick()
             onCloseDrawer()
         })
-    }
-}
-
-@Composable
-fun DrawerHeader(onProfileClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFFF0F0F0))
-            .padding(24.dp)
-            .clickable(onClick = onProfileClick)
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.profile),
-            contentDescription = "User Profile",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .border(2.dp, Color(0xFFFFCC00), CircleShape)
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = "John Doe",
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = Color(0xFF1F2A37)
-        )
-        Text(
-            text = "john.doe@example.com",
-            fontSize = 14.sp,
-            color = Color(0xFF6B7280)
-        )
     }
 }
 

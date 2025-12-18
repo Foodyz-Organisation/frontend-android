@@ -88,61 +88,58 @@ fun LoginScreen(
                 viewModel.resetState()
                 return@LaunchedEffect
             }
-            if (uiState.loginSuccess && !uiState.userId.isNullOrEmpty()) {
-                // TokenManager.saveTokens is now handled inside LoginViewModel after login success.
-                // This LaunchedEffect only needs to handle navigation and UI feedback.
 
-                // --- Navigation Logic Using UserRoutes Constants (uses formatted roles) ---
-                val destinationRoute: String? = when (role) {
-                    "PROFESSIONAL" -> "${UserRoutes.HOME_SCREEN_PRO}/${uiState.userId}"
-                    "USER" -> UserRoutes.HOME_SCREEN
-                    else -> {
-                        // This case should ideally be handled by ViewModel before reaching here,
-                        // but as a fallback, show error.
-                        scope.launch {
-                            snackbarHostState.showSnackbar(
-                                message = "Login failed: User role '$role' is unsupported for navigation.",
-                                actionLabel = "Error",
-                                duration = SnackbarDuration.Long
-                            )
-                        }
-                        viewModel.resetState()
-                        null // Prevent navigation
-                    }
-                }
-
-                // Save tokens
-                val access = uiState.accessToken
-                val refresh = uiState.refreshToken
-                if (!access.isNullOrEmpty() && !refresh.isNullOrEmpty() && !uiState.userId.isNullOrEmpty() && !uiState.role.isNullOrEmpty()) {
-                    try {
-                        TokenManager(context).saveTokens(
-                            access,
-                            refresh,
-                            uiState.userId!!,
-                            uiState.role!!
+            // --- Navigation Logic Using UserRoutes constants (uses formatted roles) ---
+            val destinationRoute: String? = when (role) {
+                "PROFESSIONAL" -> "${UserRoutes.HOME_SCREEN_PRO}/${uiState.userId}"
+                "USER" -> UserRoutes.HOME_SCREEN
+                else -> {
+                    // Fallback: unsupported role -> show error and stop
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            message = "Login failed: User role '$role' is unsupported for navigation.",
+                            actionLabel = "Error",
+                            duration = SnackbarDuration.Long
                         )
-                    } catch (e: Exception) {
-                        println("Failed to save tokens: ${e.message}")
                     }
+                    viewModel.resetState()
+                    null
                 }
-
-                destinationRoute?.let { route ->
-                    navController.navigate(route) {
-                        popUpTo(AuthRoutes.LOGIN) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                }
-
-                viewModel.resetState()
-
-            } else if (uiState.error != null) {
-                snackbarHostState.showSnackbar(
-                    message = uiState.error ?: "Unknown error",
-                    actionLabel = "Dismiss"
-                )
-                viewModel.resetState()
             }
+
+            // Defensive token save (ViewModel already does this, but we keep a guard here)
+            val access = uiState.accessToken
+            val refresh = uiState.refreshToken
+            if (!access.isNullOrEmpty() && !refresh.isNullOrEmpty()
+                && !uiState.userId.isNullOrEmpty() && !uiState.role.isNullOrEmpty()
+            ) {
+                try {
+                    TokenManager(context).saveTokens(
+                        access,
+                        refresh,
+                        uiState.userId!!,
+                        uiState.role!!
+                    )
+                } catch (e: Exception) {
+                    println("Failed to save tokens: ${e.message}")
+                }
+            }
+
+            destinationRoute?.let { route ->
+                navController.navigate(route) {
+                    popUpTo(AuthRoutes.LOGIN) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+
+            viewModel.resetState()
+        } else if (uiState.error != null) {
+            // 🔴 Login failed → show error snackbar
+            snackbarHostState.showSnackbar(
+                message = uiState.error ?: "Unknown error",
+                actionLabel = "Dismiss"
+            )
+            viewModel.resetState()
         }
     }
 

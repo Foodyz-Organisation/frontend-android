@@ -1,11 +1,15 @@
 package com.example.damprojectfinal.user.feature_posts.ui.post_management
 
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -13,29 +17,31 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import java.text.SimpleDateFormat
+import java.util.*
+import java.util.concurrent.TimeUnit
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -50,9 +56,11 @@ import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 import kotlinx.coroutines.launch // For rememberCoroutineScope
 import androidx.compose.foundation.Canvas // For the Canvas composable
 import androidx.compose.ui.draw.alpha
+import androidx.media3.common.util.UnstableApi
 import com.example.damprojectfinal.core.dto.normalUser.UserProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostDetailsScreen(
@@ -126,18 +134,41 @@ fun PostDetailsScreen(
     }
 
 
+    // Professional color scheme
+    val AccentYellow = Color(0xFFFFC107)
+    val DarkText = Color(0xFF1F2937)
+    val MediumGray = Color(0xFF6B7280)
+    val LightGray = Color(0xFFF3F4F6)
+    val CardBackground = Color(0xFFFFFFFF)
+    
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Post Details") },
+                title = { 
+                    Text(
+                        "Post Details",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = DarkText
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, "backIcon")
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = DarkText
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = CardBackground,
+                    titleContentColor = DarkText
+                )
             )
-        }
+        },
+        containerColor = Color(0xFFFAFAFA)
     ) { paddingValues ->
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -152,297 +183,576 @@ fun PostDetailsScreen(
                 Text("Post not found.")
             }
         } else {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
-                    .verticalScroll(rememberScrollState()) // Make content scrollable
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(bottom = 16.dp)
             ) {
                 val currentPost = post!!
-
-                // 1. Poster's Profile Info (Section 1)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Avatar/Image
-                    AsyncImage(
-                        // --- MODIFIED LINE ---
-                        // Use actual profile image from PostOwnerDetails. Handle nullability.
-                        model = currentPost.ownerId?.profilePictureUrl,
-                        // --- END MODIFIED LINE ---
-                        contentDescription = "Author Avatar",
+                
+                // 1. Enhanced Profile Header Section
+                item {
+                    Card(
                         modifier = Modifier
-                            .size(50.dp)
-                            .clip(CircleShape)
-                            .background(Color.LightGray), // Placeholder background
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        // Username (using fullName as per your latest UI decisions)
-                        Text(
-                            // --- MODIFIED LINE ---
-                            // Use author's full name from PostOwnerDetails. Handle nullability.
-                            text = currentPost.ownerId?.fullName ?: "Unknown", // Provide a default if fullName is null
-                            // --- END MODIFIED LINE ---
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = Color(0xFF1F2937)
-                        )
-                    }
-                    Spacer(Modifier.weight(1f)) // Pushes content to the right
-                    // Profile Rating (if present, hardcoded for now)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFFACC15))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Icon(Icons.Filled.Star, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Text("4.8", fontWeight = FontWeight.Bold, color = Color.White) // Hardcoded for now
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Enhanced Avatar with border
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.radialGradient(
+                                            colors = listOf(AccentYellow.copy(alpha = 0.3f), Color.Transparent)
+                                        )
+                                    )
+                                    .padding(3.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                        .background(CardBackground)
+                                ) {
+                                    AsyncImage(
+                                        model = BaseUrlProvider.getFullImageUrl(currentPost.ownerId?.profilePictureUrl),
+                                        contentDescription = "Author Avatar",
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(CircleShape),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.width(16.dp))
+                            
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = currentPost.ownerId?.fullName ?: "Unknown",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    color = DarkText
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "@${currentPost.ownerId?.username ?: "user"}",
+                                    fontSize = 14.sp,
+                                    color = MediumGray
+                                )
+                            }
+                            
+                            // Enhanced Rating Badge
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = AccentYellow
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Star,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        "${currentPost.postRating ?: 4.8}",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
-                // 2. Post Media (Image/Video)
-                if (currentPost.mediaType == "reel" && currentPost.mediaUrls.firstOrNull() != null) {
-                    // Show video player for reels
-                    val videoUrl = BaseUrlProvider.getFullImageUrl(currentPost.mediaUrls.firstOrNull())
-                    val thumbnailUrl = BaseUrlProvider.getFullImageUrl(currentPost.thumbnailUrl)
-                    PostVideoPlayer(
-                        videoUrl = videoUrl ?: "",
-                        thumbnailUrl = thumbnailUrl,
+                // 2. Enhanced Media Section
+                item {
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(250.dp)
-                            .padding(vertical = 8.dp)
-                    )
-                } else {
-                    // Show image(s) for non-reel posts - support carousel
-                    val isCarousel = currentPost.mediaType == "carousel" && currentPost.mediaUrls.size > 1
-                    
-                    if (isCarousel) {
-                        // Carousel preview - show first image with indicator
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(250.dp)
-                                .padding(vertical = 8.dp)
-                                .clickable {
-                                    initialImageIndex = 0
-                                    showFullscreenImage = true
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        if (currentPost.mediaType == "reel" && currentPost.mediaUrls.firstOrNull() != null) {
+                            val videoUrl = BaseUrlProvider.getFullImageUrl(currentPost.mediaUrls.firstOrNull())
+                            val thumbnailUrl = BaseUrlProvider.getFullImageUrl(currentPost.thumbnailUrl)
+                            PostVideoPlayer(
+                                videoUrl = videoUrl ?: "",
+                                thumbnailUrl = thumbnailUrl,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(400.dp)
+                            )
+                        } else {
+                            val isCarousel = currentPost.mediaType == "carousel" && currentPost.mediaUrls.size > 1
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(400.dp)
+                                    .clickable {
+                                        initialImageIndex = 0
+                                        showFullscreenImage = true
+                                    }
+                            ) {
+                                val imageUrl = BaseUrlProvider.getFullImageUrl(currentPost.mediaUrls.firstOrNull())
+                                AsyncImage(
+                                    model = imageUrl,
+                                    contentDescription = currentPost.caption,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                
+                                if (isCarousel) {
+                                    Surface(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(12.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color.Black.copy(alpha = 0.7f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.Collections,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = "${currentPost.mediaUrls.size}",
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
                                 }
-                        ) {
-                            val firstImageUrl = BaseUrlProvider.getFullImageUrl(currentPost.mediaUrls.firstOrNull())
-                            AsyncImage(
-                                model = firstImageUrl,
-                                contentDescription = currentPost.caption,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
+                            }
+                        }
+                    }
+                }
+
+                // 3. Enhanced Post Details Card
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            // Caption
+                            Text(
+                                text = currentPost.caption,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 24.sp,
+                                color = DarkText,
+                                lineHeight = 32.sp
                             )
                             
-                            // Carousel indicator overlay
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            // Price and Rating Row
                             Row(
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .padding(8.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.Black.copy(alpha = 0.6f))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                if (currentPost.price != null) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "${currentPost.price}",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 28.sp,
+                                            color = AccentYellow
+                                        )
+                                        Text(
+                                            text = "TND",
+                                            fontSize = 16.sp,
+                                            color = MediumGray,
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        )
+                                    }
+                                } else {
+                                    Spacer(modifier = Modifier.width(1.dp))
+                                }
+                                
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Star,
+                                        contentDescription = null,
+                                        tint = AccentYellow,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = "${currentPost.postRating ?: 4.9}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = DarkText
+                                    )
+                                    Text(
+                                        text = "• ${currentPost.reviewsCount ?: 5} reviews",
+                                        fontSize = 14.sp,
+                                        color = MediumGray
+                                    )
+                                }
+                            }
+                            
+                            // Preparation Time
+                            currentPost.preparationTime?.let { prepTime ->
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = LightGray
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.AccessTime,
+                                            contentDescription = "Preparation Time",
+                                            tint = AccentYellow,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            text = "$prepTime minutes",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = DarkText
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 4. Description Card (Conditional)
+                currentPost.description?.takeIf { it.isNotBlank() }?.let { descriptionText ->
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Description,
+                                        contentDescription = null,
+                                        tint = AccentYellow,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        "Description",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = DarkText
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
                                 Text(
-                                    text = "Carousel: ${currentPost.mediaUrls.size} photos",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    descriptionText,
+                                    fontSize = 15.sp,
+                                    color = MediumGray,
+                                    lineHeight = 22.sp
                                 )
                             }
                         }
-                    } else {
-                        // Single image
-                        val imageUrlToLoad = BaseUrlProvider.getFullImageUrl(currentPost.mediaUrls.firstOrNull())
-                        AsyncImage(
-                            model = imageUrlToLoad,
-                            contentDescription = currentPost.caption,
-                            contentScale = ContentScale.Crop,
+                    }
+                }
+
+                // 5. Ingredients Card (Conditional)
+                currentPost.ingredients?.takeIf { it.isNotEmpty() }?.let { ingredientsList ->
+                    item {
+                        Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(250.dp)
-                                .padding(vertical = 8.dp)
-                                .clickable {
-                                    initialImageIndex = 0
-                                    showFullscreenImage = true
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Restaurant,
+                                        contentDescription = null,
+                                        tint = AccentYellow,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        "Ingredients",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = DarkText
+                                    )
                                 }
-                        )
-                    }
-                }
-
-                // 3. Post Details (Caption, Food Type, Price, Preparation Time, Rating/Reviews)
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(
-                        text = currentPost.caption,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp,
-                        color = Color(0xFF1F2937)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Price (if available)
-                        if (currentPost.price != null) {
-                            Text(
-                                text = "${currentPost.price}TND",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 20.sp,
-                                color = Color(0xFF111827)
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.width(1.dp))
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFFACC15), modifier = Modifier.size(18.dp))
-                            Text(
-                                text = "${currentPost.postRating ?: "4.9"} • ${currentPost.reviewsCount ?: 5} reviews", // Placeholder rating/reviews
-                                fontSize = 16.sp,
-                                color = Color.Gray
-                            )
-                        }
-                    }
-                    
-                    // Preparation Time (if available)
-                    currentPost.preparationTime?.let { prepTime ->
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Outlined.AccessTime,
-                                contentDescription = "Preparation Time",
-                                tint = Color(0xFF6B7280),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "$prepTime minutes",
-                                fontSize = 14.sp,
-                                color = Color(0xFF6B7280)
-                            )
-                        }
-                    }
-                }
-
-                // 4. Description (Conditional)
-                currentPost.description?.takeIf { it.isNotBlank() }?.let { descriptionText ->
-                    Divider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text("Description", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(descriptionText, fontSize = 14.sp, color = Color(0xFF374151))
-                    }
-                }
-
-                // 5. Ingredients (Conditional)
-                currentPost.ingredients?.takeIf { it.isNotEmpty() }?.let { ingredientsList ->
-                    Divider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text("Ingredients", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        ingredientsList.forEach { ingredient ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Canvas(modifier = Modifier.size(6.dp), onDraw = {
-                                    drawCircle(color = Color(0xFFFACC15))
-                                })
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(ingredient, fontSize = 14.sp, color = Color(0xFF374151))
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                        }
-                    }
-                }
-
-                // 6. Reviews / Comments Section (integrated from previous plan)
-                Divider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text("Reviews", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Comments List Display
-                    if (isLoadingComments) {
-                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    } else if (commentsError != null) {
-                        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(commentsError!!, color = MaterialTheme.colorScheme.error)
-                            Button(onClick = fetchComments) { Text("Retry") }
-                        }
-                    } else if (comments.isEmpty()) {
-                        Text("No comments yet. Be the first to comment!", fontSize = 14.sp, color = Color.Gray)
-                    } else {
-                        comments.forEach { comment ->
-                            CommentItem(comment = comment)
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Comment Input Field
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        OutlinedTextField(
-                            value = newCommentText,
-                            onValueChange = { newCommentText = it },
-                            label = { Text("Add a comment...") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            shape = RoundedCornerShape(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        FloatingActionButton(
-                            onClick = {
-                                if (newCommentText.isBlank()) return@FloatingActionButton
-                                if (isSubmittingComment) return@FloatingActionButton
-                                    scope.launch {
-                                    isSubmittingComment = true
-                                    try {
-                                        val createdComment = postsViewModel.createCommentImmediate(
-                                            currentPost._id,
-                                            newCommentText.trim()
+                                Spacer(modifier = Modifier.height(16.dp))
+                                ingredientsList.forEachIndexed { index, ingredient ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(AccentYellow)
                                         )
-
-                                        // Optimistically prepend the new comment so it shows immediately
-                                        val enriched = createdComment.copy(
-                                            authorName = createdComment.authorName ?: "You"
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(
+                                            ingredient,
+                                            fontSize = 15.sp,
+                                            color = DarkText,
+                                            modifier = Modifier.weight(1f)
                                         )
-                                        comments = listOf(enriched) + comments
-                                        newCommentText = ""
-
-                                        // Refresh from server to keep in sync (count, etc.)
-                                        fetchComments()
-                                        postsViewModel.fetchPosts()
-                                    } catch (e: Exception) {
-                                        commentsError = "Failed to add comment: ${e.localizedMessage ?: e.message}"
-                                    } finally {
-                                        isSubmittingComment = false
                                     }
                                 }
-                            },
-                            containerColor = Color(0xFFFACC15),
-                            contentColor = Color(0xFF1F2937),
-                            modifier = Modifier
-                                .size(48.dp)
-                                .alpha(if (isSubmittingComment) 0.6f else 1f)
-                        ) {
-                            Icon(Icons.Filled.Send, contentDescription = "Send Comment")
+                            }
+                        }
+                    }
+                }
+
+                // 6. Enhanced Comments Section
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Comment,
+                                        contentDescription = null,
+                                        tint = AccentYellow,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        "Comments",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = DarkText
+                                    )
+                                    if (comments.isNotEmpty()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = AccentYellow.copy(alpha = 0.2f)
+                                        ) {
+                                            Text(
+                                                text = "${comments.size}",
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = AccentYellow
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Comments List
+                            if (isLoadingComments) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(color = AccentYellow)
+                                }
+                            } else if (commentsError != null) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Text(
+                                        commentsError!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 14.sp
+                                    )
+                                    Button(
+                                        onClick = fetchComments,
+                                        colors = ButtonDefaults.buttonColors(containerColor = AccentYellow)
+                                    ) {
+                                        Text("Retry")
+                                    }
+                                }
+                            } else if (comments.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.Comment,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(48.dp),
+                                            tint = MediumGray.copy(alpha = 0.5f)
+                                        )
+                                        Text(
+                                            "No comments yet",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MediumGray
+                                        )
+                                        Text(
+                                            "Be the first to comment!",
+                                            fontSize = 14.sp,
+                                            color = MediumGray.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            } else {
+                                comments.forEach { comment ->
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    EnhancedCommentItem(comment = comment)
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // Enhanced Comment Input
+                            Surface(
+                                shape = RoundedCornerShape(24.dp),
+                                color = LightGray
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedTextField(
+                                        value = newCommentText,
+                                        onValueChange = { newCommentText = it },
+                                        placeholder = { Text("Add a comment...", color = MediumGray) },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(20.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = AccentYellow,
+                                            unfocusedBorderColor = Color.Transparent,
+                                            focusedContainerColor = CardBackground,
+                                            unfocusedContainerColor = CardBackground
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(
+                                        onClick = {
+                                            if (newCommentText.isBlank() || isSubmittingComment) return@IconButton
+                                            scope.launch {
+                                                isSubmittingComment = true
+                                                try {
+                                                    val createdComment = postsViewModel.createCommentImmediate(
+                                                        currentPost._id,
+                                                        newCommentText.trim()
+                                                    )
+                                                    val enriched = createdComment.copy(
+                                                        authorName = createdComment.authorName ?: "You"
+                                                    )
+                                                    comments = listOf(enriched) + comments
+                                                    newCommentText = ""
+                                                    fetchComments()
+                                                    postsViewModel.fetchPosts()
+                                                } catch (e: Exception) {
+                                                    commentsError = "Failed to add comment: ${e.localizedMessage ?: e.message}"
+                                                } finally {
+                                                    isSubmittingComment = false
+                                                }
+                                            }
+                                        },
+                                        enabled = newCommentText.isNotBlank() && !isSubmittingComment,
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .background(
+                                                if (newCommentText.isNotBlank()) AccentYellow else MediumGray.copy(alpha = 0.3f),
+                                                CircleShape
+                                            )
+                                    ) {
+                                        if (isSubmittingComment) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                color = Color.White,
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else {
+                                            Icon(
+                                                Icons.Filled.Send,
+                                                contentDescription = "Send",
+                                                tint = if (newCommentText.isNotBlank()) Color.White else MediumGray,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -677,37 +987,89 @@ fun FullscreenImageViewer(
     }
 }
 
-// Individual Comment Item Composable (moved out for better organization)
+// Helper function to format timestamp
+fun formatTimeAgo(createdAt: String): String {
+    return try {
+        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+        sdf.timeZone = TimeZone.getTimeZone("UTC")
+        val date = sdf.parse(createdAt)
+        val now = Date()
+        val diff = now.time - (date?.time ?: 0)
+        
+        val seconds = TimeUnit.MILLISECONDS.toSeconds(diff)
+        val minutes = TimeUnit.MILLISECONDS.toMinutes(diff)
+        val hours = TimeUnit.MILLISECONDS.toHours(diff)
+        val days = TimeUnit.MILLISECONDS.toDays(diff)
+        
+        when {
+            seconds < 60 -> "${seconds}s ago"
+            minutes < 60 -> "${minutes}m ago"
+            hours < 24 -> "${hours}h ago"
+            days < 7 -> "${days}d ago"
+            else -> {
+                val outputFormat = SimpleDateFormat("MMM d", Locale.US)
+                outputFormat.format(date)
+            }
+        }
+    } catch (e: Exception) {
+        "Just now"
+    }
+}
+
+// Enhanced Comment Item
 @Composable
-fun CommentItem(comment: CommentResponse) {
-    Row(
+fun EnhancedCommentItem(comment: CommentResponse) {
+    val DarkText = Color(0xFF1F2937)
+    val MediumGray = Color(0xFF6B7280)
+    
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        // Placeholder for user avatar
-        Box(
+        Row(
             modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(Color.LightGray) // Replace with AsyncImage for real avatars
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Column {
-            Text(
-                text = comment.authorName ?: comment.authorUsername ?: "Anonymous User",
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            AsyncImage(
+                model = BaseUrlProvider.getFullImageUrl(comment.authorAvatar),
+                contentDescription = "Avatar",
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color.LightGray),
+                contentScale = ContentScale.Crop
             )
-            Text(
-                text = comment.text,
-                fontSize = 14.sp
-            )
-            // You could add timestamp here:
-            // Text(
-            //    text = "2 hours ago", // Format comment.createdAt
-            //    fontSize = 12.sp,
-            //    color = Color.Gray
-            // )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = comment.authorName ?: comment.authorUsername ?: "Anonymous",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = DarkText
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = comment.text,
+                    fontSize = 14.sp,
+                    color = DarkText,
+                    lineHeight = 20.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = formatTimeAgo(comment.createdAt),
+                    fontSize = 12.sp,
+                    color = MediumGray
+                )
+            }
         }
     }
 }

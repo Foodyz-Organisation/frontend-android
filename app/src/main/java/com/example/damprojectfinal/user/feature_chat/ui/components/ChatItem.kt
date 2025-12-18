@@ -2,13 +2,20 @@ package com.example.damprojectfinal.user.feature_chat.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,14 +32,28 @@ import coil.request.ImageRequest
 import com.example.damprojectfinal.core.model.ChatListItem
 
 @Composable
-fun ChatItemNew(chat: ChatListItem, onClick: () -> Unit) {
+fun ChatItemNew(
+    chat: ChatListItem,
+    onClick: () -> Unit,
+    onDelete: (() -> Unit)? = null
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .shadow(8.dp, RoundedCornerShape(16.dp), clip = false)
             .background(Color.White)
-            .clickable { onClick() }
+            .then(
+                if (onDelete != null) {
+                    Modifier.combinedClickable(
+                        onClick = { onClick() },
+                        onLongClick = { showDeleteDialog = true }
+                    )
+                } else {
+                    Modifier.clickable { onClick() }
+                }
+            )
             .padding(12.dp)
     ) {
         Row(
@@ -153,5 +174,64 @@ fun ChatItemNew(chat: ChatListItem, onClick: () -> Unit) {
                 }
             }
         }
+    }
+
+    // Delete confirmation dialog with app design
+    if (showDeleteDialog && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    text = "Delete Conversation",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 20.sp,
+                    color = Color(0xFF1F2937)
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete this conversation? This action cannot be undone.",
+                    fontSize = 15.sp,
+                    color = Color(0xFF6B7280),
+                    lineHeight = 22.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete()
+                        showDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFF59E0B)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text(
+                        "Delete",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteDialog = false },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    Text(
+                        "Cancel",
+                        color = Color(0xFF6B7280),
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 15.sp
+                    )
+                }
+            }
+        )
     }
 }
