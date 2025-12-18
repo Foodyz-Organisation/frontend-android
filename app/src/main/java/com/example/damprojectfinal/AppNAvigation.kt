@@ -71,6 +71,10 @@ import com.example.damprojectfinal.professional.common.HomeScreenPro
 import com.example.damprojectfinal.professional.common._component.ProfessionalMenuScreen
 import com.example.damprojectfinal.professional.feature_posts.CreateContentScreen
 import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileScreen
+import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileManagementScreen
+import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalEmailNameUpdateScreen
+import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalChangePasswordScreen
+import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileSettingsScreen
 import com.example.damprojectfinal.professional.feature_profile.viewmodel.ProfessionalProfileViewModel
 import com.example.damprojectfinal.professional.feature_profile.ui.AllProfilePosts
 import com.example.damprojectfinal.user.feature_chat.ui.ChatDetailScreen
@@ -91,6 +95,7 @@ import com.example.damprojectfinal.user.common.HomeScreen
 import com.example.damprojectfinal.user.common._component.UserMenuScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.CreatePostScreen
 import com.example.damprojectfinal.user.feature_notifications.ui.NotificationsScreen
+import com.example.damprojectfinal.professional.feature_notifications.ui.ProNotificationsScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.CaptionAndPublishScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.EditPostScreen
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostDetailsScreen
@@ -176,7 +181,12 @@ object ProRoutes {
     const val CART_ROUTE = "shopping_cart_route"
     const val CREATE_CONTENT_SCREEN = "create_content_screen"
     const val PROFESSIONAL_PROFILE_SCREEN = "professional_profile_screen/{professionalId}"
+    const val PROFESSIONAL_PROFILE_MANAGEMENT = "professional_profile_management/{professionalId}"
+    const val PROFESSIONAL_PROFILE_SETTINGS = "professional_profile_settings/{professionalId}"
+    const val PROFESSIONAL_EMAIL_NAME_UPDATE = "professional_email_name_update/{professionalId}"
+    const val PROFESSIONAL_CHANGE_PASSWORD = "professional_change_password/{professionalId}"
     const val ALL_PROFILE_POSTS = "all_profile_posts"
+    const val NOTIFICATIONS_SCREEN = "pro_notifications_screen"
 }
 
 object ProfileRoutes {
@@ -499,9 +509,14 @@ fun AppNavigation(
         }
 
         // Chat management (copied from other project, minimal integration)
-        // Notifications Screen
+        // Notifications Screen (User)
         composable(UserRoutes.NOTIFICATIONS_SCREEN) {
             NotificationsScreen(navController = navController)
+        }
+        
+        // Notifications Screen (Professional)
+        composable(ProRoutes.NOTIFICATIONS_SCREEN) {
+            ProNotificationsScreen(navController = navController)
         }
 
         // User chat screen
@@ -1742,6 +1757,62 @@ fun AppNavigation(
                         postsApiService = RetrofitClient.postsApiService
                     )
                 )
+            )
+        }
+
+        // Professional Profile Management Screen (Intermediate screen)
+        composable(
+            route = ProRoutes.PROFESSIONAL_PROFILE_MANAGEMENT,
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId")
+                ?: throw IllegalStateException("Professional ID is required for profile management.")
+
+            ProfessionalProfileManagementScreen(
+                navController = navController,
+                professionalId = professionalId
+            )
+        }
+
+        // Professional Profile Settings Screen
+        composable(
+            route = ProRoutes.PROFESSIONAL_PROFILE_SETTINGS,
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId")
+                ?: throw IllegalStateException("Professional ID is required for profile settings.")
+
+            ProfessionalProfileSettingsScreen(
+                professionalId = professionalId,
+                navController = navController
+            )
+        }
+
+        // Professional Email & Name Update Screen
+        composable(
+            route = ProRoutes.PROFESSIONAL_EMAIL_NAME_UPDATE,
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId")
+                ?: throw IllegalStateException("Professional ID is required for email/name update.")
+
+            ProfessionalEmailNameUpdateScreen(
+                navController = navController,
+                professionalId = professionalId
+            )
+        }
+
+        // Professional Change Password Screen
+        composable(
+            route = ProRoutes.PROFESSIONAL_CHANGE_PASSWORD,
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId")
+                ?: throw IllegalStateException("Professional ID is required for password change.")
+
+            ProfessionalChangePasswordScreen(
+                navController = navController,
+                professionalId = professionalId
             )
         }
 

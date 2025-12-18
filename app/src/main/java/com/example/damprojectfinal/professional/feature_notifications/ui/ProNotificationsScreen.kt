@@ -1,4 +1,4 @@
-package com.example.damprojectfinal.user.feature_notifications.ui
+package com.example.damprojectfinal.professional.feature_notifications.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,51 +28,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.damprojectfinal.UserRoutes
-import com.example.damprojectfinal.core.api.NotificationApiService
 import com.example.damprojectfinal.core.api.TokenManager
-import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.dto.notifications.NotificationResponse
-import com.example.damprojectfinal.core.repository.NotificationRepository
-import com.example.damprojectfinal.core.repository.UserRepository
-import com.example.damprojectfinal.user.common._component.TopAppBar
 import com.example.damprojectfinal.user.feature_notifications.viewmodel.NotificationViewModel
+import androidx.compose.material.icons.filled.ArrowBack
 import android.util.Log
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotificationsScreen(
+fun ProNotificationsScreen(
     navController: NavController
 ) {
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
-    val currentUserId = remember { tokenManager.getUserIdBlocking() ?: "unknown" }
-    
-    // State for profile picture URL
-    var profilePictureUrl by remember { mutableStateOf<String?>(null) }
-    
-    // Fetch user profile picture
-    LaunchedEffect(currentUserId) {
-        if (currentUserId.isNotEmpty() && currentUserId != "unknown") {
-            try {
-                val token = tokenManager.getAccessTokenAsync()
-                if (!token.isNullOrEmpty()) {
-                    val userApiService = UserApiService(tokenManager)
-                    val userRepository = UserRepository(userApiService)
-                    val user = userRepository.getUserById(currentUserId, token)
-                    profilePictureUrl = user.profilePictureUrl
-                }
-            } catch (e: Exception) {
-                Log.e("NotificationsScreen", "Error fetching profile picture: ${e.message}")
-            }
-        }
-    }
+    val currentProfessionalId = remember { tokenManager.getUserIdBlocking() ?: "unknown" }
 
-    // Initialize ViewModel
+    // Initialize ViewModel for professional
     val viewModel: NotificationViewModel = viewModel(
-        factory = NotificationViewModel.Factory(context, isProfessional = false)
+        factory = NotificationViewModel.Factory(context, isProfessional = true)
     )
     
     // Collect state
@@ -86,9 +61,9 @@ fun NotificationsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     
     // Load notifications on first launch
-    LaunchedEffect(currentUserId) {
-        if (currentUserId.isNotEmpty() && currentUserId != "unknown") {
-            viewModel.loadNotifications(currentUserId)
+    LaunchedEffect(currentProfessionalId) {
+        if (currentProfessionalId.isNotEmpty() && currentProfessionalId != "unknown") {
+            viewModel.loadNotifications(currentProfessionalId)
         }
     }
     
@@ -117,7 +92,7 @@ fun NotificationsScreen(
             }
             "post_created", "post_liked", "post_commented" -> {
                 notification.postId?._id?.let { postId ->
-                    navController.navigate("${UserRoutes.POST_DETAILS_SCREEN}/$postId")
+                    navController.navigate("post_details_screen/$postId")
                 }
             }
             "deal_created" -> {
@@ -127,18 +102,18 @@ fun NotificationsScreen(
             }
             "reclamation_created", "reclamation_updated", "reclamation_responded" -> {
                 notification.reclamationId?._id?.let { reclamationId ->
-                    navController.navigate("reclamation_detail/$reclamationId")
+                    navController.navigate("restaurant_reclamation_detail/$reclamationId")
                 }
             }
             "message_received", "conversation_started" -> {
                 notification.conversationId?._id?.let { conversationId ->
                     val title = notification.metadata?.senderName ?: "Chat"
-                    navController.navigate("chatDetail/$conversationId/$title/$currentUserId")
+                    navController.navigate("chatDetail/$conversationId/$title/$currentProfessionalId")
                 }
             }
             "order_created", "order_confirmed", "order_delivered" -> {
                 notification.orderId?._id?.let { orderId ->
-                    navController.navigate("order_details/$orderId")
+                    navController.navigate("pro_order_details/$orderId")
                 }
             }
         }
@@ -161,21 +136,24 @@ fun NotificationsScreen(
         },
         topBar = {
             TopAppBar(
-                navController = navController,
-                currentRoute = UserRoutes.NOTIFICATIONS_SCREEN,
-                openDrawer = {
-                    navController.navigate("user_menu")
+                title = {
+                    Text(
+                        text = "Notifications",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 24.sp
+                    )
                 },
-                onSearchClick = { /* TODO: Implement search */ },
-                onProfileClick = { userId ->
-                    navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/$userId")
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
                 },
-                onReelsClick = {
-                    navController.navigate(UserRoutes.REELS_SCREEN)
-                },
-                currentUserId = currentUserId,
-                onLogoutClick = { /* TODO: Implement logout */ },
-                profilePictureUrl = profilePictureUrl
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White
+                )
             )
         }
     ) { paddingValues ->
@@ -211,8 +189,8 @@ fun NotificationsScreen(
                 }
                 TextButton(
                     onClick = { 
-                        if (currentUserId.isNotEmpty() && currentUserId != "unknown") {
-                            viewModel.markAllAsRead(currentUserId)
+                        if (currentProfessionalId.isNotEmpty() && currentProfessionalId != "unknown") {
+                            viewModel.markAllAsRead(currentProfessionalId)
                         }
                     },
                     enabled = unreadCount > 0 && !isLoading
@@ -256,8 +234,8 @@ fun NotificationsScreen(
                             )
                             Button(
                                 onClick = { 
-                                    if (currentUserId.isNotEmpty() && currentUserId != "unknown") {
-                                        viewModel.refreshNotifications(currentUserId)
+                                    if (currentProfessionalId.isNotEmpty() && currentProfessionalId != "unknown") {
+                                        viewModel.refreshNotifications(currentProfessionalId)
                                     }
                                 }
                             ) {
@@ -303,7 +281,7 @@ fun NotificationsScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(notifications) { notification ->
-                            NotificationCard(
+                            ProNotificationCard(
                                 notification = notification,
                                 viewModel = viewModel,
                                 onClick = { onNotificationClick(notification) }
@@ -317,7 +295,20 @@ fun NotificationsScreen(
 }
 
 @Composable
-fun NotificationCard(
+fun getNotificationIcon(type: String): ImageVector {
+    return when (type) {
+        "event_created" -> Icons.Filled.Event
+        "post_created", "post_liked", "post_commented" -> Icons.Filled.PhotoCamera
+        "deal_created" -> Icons.Filled.LocalOffer
+        "reclamation_created", "reclamation_updated", "reclamation_responded" -> Icons.Filled.Assignment
+        "message_received", "conversation_started" -> Icons.Filled.Message
+        "order_created", "order_confirmed", "order_delivered" -> Icons.Filled.ShoppingCart
+        else -> Icons.Filled.Notifications
+    }
+}
+
+@Composable
+fun ProNotificationCard(
     notification: NotificationResponse,
     viewModel: NotificationViewModel,
     onClick: () -> Unit
@@ -392,19 +383,6 @@ fun NotificationCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-fun getNotificationIcon(type: String): ImageVector {
-    return when (type) {
-        "event_created" -> Icons.Filled.Event
-        "post_created", "post_liked", "post_commented" -> Icons.Filled.PhotoCamera
-        "deal_created" -> Icons.Filled.LocalOffer
-        "reclamation_created", "reclamation_updated", "reclamation_responded" -> Icons.Filled.Assignment
-        "message_received", "conversation_started" -> Icons.Filled.Message
-        "order_created", "order_confirmed", "order_delivered" -> Icons.Filled.ShoppingCart
-        else -> Icons.Filled.Notifications
     }
 }
 
