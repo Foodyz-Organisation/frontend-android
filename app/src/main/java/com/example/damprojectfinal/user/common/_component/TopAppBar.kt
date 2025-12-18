@@ -61,7 +61,7 @@ fun NotificationIconWithDot(onClick: () -> Unit, hasNew: Boolean) {
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(YellowAccent) // Yellow Dot
+                    .background(Color(0xFFFF3B30)) // Red Dot
                     .align(Alignment.TopEnd)
                     .offset(x = (-8).dp, y = 4.dp)
             )
@@ -83,11 +83,12 @@ fun TopAppBar(
     onReelsClick: () -> Unit,
     currentUserId: String,
     onLogoutClick: () -> Unit,
-    profilePictureUrl: String? = null
+    profilePictureUrl: String? = null,
+    hasUnreadNotifications: Boolean = false,
+    hasUnreadMessages: Boolean = false
 ) {
     var showAddOptions by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
-    val hasNewNotifications = true // Assume true for visual display
 
     Column(
         modifier = Modifier
@@ -168,7 +169,9 @@ fun TopAppBar(
         SecondaryNavBar(
             navController = navController,
             currentRoute = currentRoute,
-            onReelsClick = onReelsClick
+            onReelsClick = onReelsClick,
+            hasUnreadMessages = hasUnreadMessages,
+            hasUnreadNotifications = hasUnreadNotifications
         )
 
         // Add Options Popup (Unchanged)
@@ -240,7 +243,9 @@ fun TopAppBar(
 fun SecondaryNavBar(
     navController: NavController,
     currentRoute: String,
-    onReelsClick: () -> Unit
+    onReelsClick: () -> Unit,
+    hasUnreadMessages: Boolean = false,
+    hasUnreadNotifications: Boolean = false
 ) {
     Row(
         modifier = Modifier
@@ -260,11 +265,13 @@ fun SecondaryNavBar(
         NavIcon(Icons.Filled.TrendingUp, currentRoute == UserRoutes.TRENDS_SCREEN) { navController.navigate(UserRoutes.TRENDS_SCREEN) }
         NavIcon(
             Icons.Filled.Message,
-            currentRoute == "chatList"
+            currentRoute == "chatList",
+            showBadge = hasUnreadMessages
         ) { navController.navigate("chatList") }
         NavIcon(
             Icons.Filled.Notifications,
-            currentRoute == UserRoutes.NOTIFICATIONS_SCREEN
+            currentRoute == UserRoutes.NOTIFICATIONS_SCREEN,
+            showBadge = hasUnreadNotifications
         ) {
             navController.navigate(UserRoutes.NOTIFICATIONS_SCREEN) {
                 launchSingleTop = true
@@ -278,6 +285,7 @@ fun SecondaryNavBar(
 fun NavIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     selected: Boolean,
+    showBadge: Boolean = false,
     onClick: () -> Unit
 ) {
     // New, modern color scheme for selection
@@ -301,6 +309,18 @@ fun NavIcon(
             tint = iconColor,
             modifier = Modifier.size(24.dp)
         ) // <-- This applies the dark blue icon tint
+
+        // Small red badge dot for unread items
+        if (showBadge) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 6.dp, y = (-6).dp)
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFF3B30))
+            )
+        }
     }
 }
 

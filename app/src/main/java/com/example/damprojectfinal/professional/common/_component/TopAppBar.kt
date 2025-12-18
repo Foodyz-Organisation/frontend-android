@@ -2,14 +2,8 @@ package com.example.damprojectfinal.professional.common._component
 
 import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable // ⭐ IMPORT ADDED: Necessary for the clickable modifier
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
@@ -27,12 +21,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import coil.compose.AsyncImage
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomProTopBarWithIcons(
     professionalId: String,
     navController: NavHostController,
+    profilePictureUrl: String? = null,
     onLogout: () -> Unit,
     onMenuClick: () -> Unit
 ) {
@@ -44,22 +43,37 @@ fun CustomProTopBarWithIcons(
                 .height(56.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Profile Icon/Avatar
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Profile",
+            // Profile Icon/Avatar with real image when available
+            Box(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
                     .background(Color(0xFFF0F0F0))
-                    .padding(4.dp)
-                    // ⭐ FIX APPLIED: Make the icon clickable and navigate
                     .clickable {
-                        // Navigates to the Pro Profile Edit screen
                         navController.navigate("pro_profile_edit/$professionalId")
                     },
-                tint = Color(0xFF6B7280)
-            )
+                contentAlignment = Alignment.Center
+            ) {
+                // Fallback icon
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Profile",
+                    tint = Color(0xFF6B7280),
+                    modifier = Modifier.size(20.dp)
+                )
+
+                // Overlay profile image if URL is available
+                if (!profilePictureUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = BaseUrlProvider.getFullImageUrl(profilePictureUrl),
+                        contentDescription = "Profile Picture",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        placeholder = rememberVectorPainter(Icons.Default.Person),
+                        error = rememberVectorPainter(Icons.Default.Person)
+                    )
+                }
+            }
 
             Text(
                 text = "Foodyz Pro",

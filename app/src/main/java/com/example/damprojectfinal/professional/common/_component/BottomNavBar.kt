@@ -32,6 +32,7 @@ fun BottomNavItem(
     icon: ImageVector,
     label: String,
     isSelected: Boolean,
+    showBadge: Boolean = false,
     onClick: () -> Unit
 ) {
     // Animated colors for smooth transitions
@@ -120,6 +121,18 @@ fun BottomNavItem(
                     modifier = Modifier.size(24.dp)
                 )
             }
+
+            // Red badge dot for unread indicators
+            if (showBadge) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 4.dp, y = (-4).dp)
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFF3B30))
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -141,7 +154,9 @@ fun BottomNavItem(
 fun ProfessionalBottomNavigationBar(
     navController: NavHostController,
     currentRoute: String,
-    professionalId: String
+    professionalId: String,
+    hasUnreadMessages: Boolean = false,
+    hasUnreadNotifications: Boolean = false
 ) {
     Box(
         modifier = Modifier
@@ -179,6 +194,7 @@ fun ProfessionalBottomNavigationBar(
                     icon = Icons.Filled.Chat,
                     label = "Chat",
                     isSelected = currentRoute.contains("chat"),
+                    showBadge = hasUnreadMessages,
                     onClick = {
                         navController.navigate("chatListPro")
                     }
@@ -199,6 +215,7 @@ fun ProfessionalBottomNavigationBar(
                     icon = Icons.Filled.Notifications,
                     label = "Notifications",
                     isSelected = currentRoute.contains("notification") || currentRoute.contains("notifications"),
+                    showBadge = hasUnreadNotifications,
                     onClick = {
                         navController.navigate("pro_notifications_screen")
                     }
