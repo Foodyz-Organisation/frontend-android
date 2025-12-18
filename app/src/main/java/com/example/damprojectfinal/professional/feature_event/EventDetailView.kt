@@ -33,6 +33,9 @@ import androidx.compose.foundation.Image
 import com.example.damprojectfinal.feature_event.BrandColors
 import com.example.damprojectfinal.feature_event.Event
 import com.example.damprojectfinal.feature_event.EventStatus
+import java.time.OffsetDateTime
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 // ✅ Pour éviter les avertissements Material3 expérimentaux
 @OptIn(ExperimentalMaterial3Api::class)
@@ -214,8 +217,16 @@ fun EventDetailScreen(
 
                 val context = LocalContext.current
 
-                DetailInfoCard(Icons.Filled.CalendarToday, "Date de début", event.date_debut)
-                DetailInfoCard(Icons.Filled.CalendarToday, "Date de fin", event.date_fin)
+                DetailInfoCard(
+                    Icons.Filled.CalendarToday,
+                    "Date de début",
+                    formatEventDate(event.date_debut)
+                )
+                DetailInfoCard(
+                    Icons.Filled.CalendarToday,
+                    "Date de fin",
+                    formatEventDate(event.date_fin)
+                )
 
                 // ✅ Carte Lieu cliquable pour itinéraire
                 DetailInfoCard(
@@ -240,6 +251,28 @@ fun EventDetailScreen(
                 )
             }
         }
+    }
+}
+
+// Format ISO 8601 (avec ou sans 'Z') → "14/12/2025 • 20:03"
+private fun formatEventDate(raw: String): String {
+    return try {
+        val formatterOut = DateTimeFormatter.ofPattern("dd/MM/yyyy • HH:mm")
+
+        val formatted = when {
+            raw.endsWith("Z", ignoreCase = true) -> {
+                val odt = OffsetDateTime.parse(raw)
+                odt.format(formatterOut)
+            }
+            else -> {
+                // Ex: 2025-12-23T12:44:00
+                val ldt = LocalDateTime.parse(raw, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                ldt.format(formatterOut)
+            }
+        }
+        formatted
+    } catch (e: Exception) {
+        raw // fallback si le format ne correspond pas
     }
 }
 

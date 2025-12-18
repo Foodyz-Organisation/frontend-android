@@ -1,7 +1,5 @@
 package com.example.damprojectfinal.feature_deals
 
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import android.content.Context
 import android.location.Geocoder
 import android.net.Uri
@@ -86,6 +84,12 @@ fun AddEditDealScreen(
     var endTime by remember { mutableStateOf("") }   // HH:mm
 
     var isActive by remember { mutableStateOf(true) }
+
+    // 📅 États pour les pickers Material3
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showStartTimePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
+    var showEndTimePicker by remember { mutableStateOf(false) }
 
     // 🔥 État pour la carte
     var showMapPicker by remember { mutableStateOf(false) }
@@ -308,13 +312,11 @@ fun AddEditDealScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Date Picker
                 ClickableTextField(
-                    value = startDate,
+                    value = formatDateForDisplay(startDate),
                     placeholder = "JJ/MM/AAAA",
                     icon = Icons.Default.CalendarToday,
                     modifier = Modifier.weight(1f),
-                    onClick = {
-                        showDatePicker(context) { d -> startDate = d }
-                    }
+                    onClick = { showStartDatePicker = true }
                 )
                 // Time Picker
                 ClickableTextField(
@@ -322,9 +324,7 @@ fun AddEditDealScreen(
                     placeholder = "HH:mm",
                     icon = Icons.Default.Schedule, // Icône Horloge
                     modifier = Modifier.weight(0.8f),
-                    onClick = {
-                        showTimePicker(context) { t -> startTime = t }
-                    }
+                    onClick = { showStartTimePicker = true }
                 )
             }
 
@@ -333,13 +333,11 @@ fun AddEditDealScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Date Picker
                 ClickableTextField(
-                    value = endDate,
+                    value = formatDateForDisplay(endDate),
                     placeholder = "JJ/MM/AAAA",
                     icon = Icons.Default.Event,
                     modifier = Modifier.weight(1f),
-                    onClick = {
-                        showDatePicker(context) { d -> endDate = d }
-                    }
+                    onClick = { showEndDatePicker = true }
                 )
                 // Time Picker
                 ClickableTextField(
@@ -347,9 +345,7 @@ fun AddEditDealScreen(
                     placeholder = "HH:mm",
                     icon = Icons.Default.Schedule,
                     modifier = Modifier.weight(0.8f),
-                    onClick = {
-                        showTimePicker(context) { t -> endTime = t }
-                    }
+                    onClick = { showEndTimePicker = true }
                 )
             }
 
@@ -510,6 +506,52 @@ fun AddEditDealScreen(
             onDismiss = { showMapPicker = false }
         )
     }
+
+    // 📅 Date Picker pour Date de début
+    if (showStartDatePicker) {
+        DealDatePickerDialog(
+            onDateSelected = { date ->
+                startDate = date
+                showStartDatePicker = false
+                showStartTimePicker = true // Automatically show time picker after date selection
+            },
+            onDismiss = { showStartDatePicker = false }
+        )
+    }
+
+    // ⏰ Time Picker pour Date de début
+    if (showStartTimePicker) {
+        DealTimePickerDialog(
+            onTimeSelected = { time ->
+                startTime = time
+                showStartTimePicker = false
+            },
+            onDismiss = { showStartTimePicker = false }
+        )
+    }
+
+    // 📅 Date Picker pour Date de fin
+    if (showEndDatePicker) {
+        DealDatePickerDialog(
+            onDateSelected = { date ->
+                endDate = date
+                showEndDatePicker = false
+                showEndTimePicker = true // Automatically show time picker after date selection
+            },
+            onDismiss = { showEndDatePicker = false }
+        )
+    }
+
+    // ⏰ Time Picker pour Date de fin
+    if (showEndTimePicker) {
+        DealTimePickerDialog(
+            onTimeSelected = { time ->
+                endTime = time
+                showEndTimePicker = false
+            },
+            onDismiss = { showEndTimePicker = false }
+        )
+    }
 }
 
 // ============== Composants & Helpers réutilisables ==============
@@ -559,28 +601,32 @@ fun ClickableTextField(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = {}, // Read-only
-        readOnly = true,
+    Box(
         modifier = modifier
             .shadow(2.dp, RoundedCornerShape(16.dp))
-            .clickable { onClick() }, // Intercepte le clic
-        enabled = false, // Désactive clavier mais permet clic via Box ou modifier
-        placeholder = { Text(placeholder, color = BrandColors.TextSecondary) },
-        leadingIcon = { Icon(icon, contentDescription = null, tint = BrandColors.TextSecondary) },
-        shape = RoundedCornerShape(16.dp),
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = BrandColors.FieldFill,
-            unfocusedContainerColor = BrandColors.FieldFill,
-            disabledContainerColor = BrandColors.FieldFill,
-            disabledTextColor = BrandColors.TextPrimary,
-            disabledPlaceholderColor = BrandColors.TextSecondary,
-            disabledLeadingIconColor = BrandColors.TextSecondary,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent
+            .clickable { onClick() } // Le Box intercepte le clic
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {}, // Read-only
+            readOnly = true,
+            enabled = false, // empêche le clavier mais garde le style
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text(placeholder, color = BrandColors.TextSecondary) },
+            leadingIcon = { Icon(icon, contentDescription = null, tint = BrandColors.TextSecondary) },
+            shape = RoundedCornerShape(16.dp),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = BrandColors.FieldFill,
+                unfocusedContainerColor = BrandColors.FieldFill,
+                disabledContainerColor = BrandColors.FieldFill,
+                disabledTextColor = BrandColors.TextPrimary,
+                disabledPlaceholderColor = BrandColors.TextSecondary,
+                disabledLeadingIconColor = BrandColors.TextSecondary,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent
+            )
         )
-    )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -920,34 +966,155 @@ suspend fun reverseGeocode(
     return@withContext "Lieu sélectionné"
 }
 
-// ============== Fonctions utilitaires Dates ==============
+// ============== Dialogs Material3 pour Date & Heure ==============
 
-fun showDatePicker(context: Context, onDateSelected: (String) -> Unit) {
-    val calendar = Calendar.getInstance()
-    DatePickerDialog(
-        context,
-        { _, year, month, dayOfMonth ->
-            val formattedDate = String.format("%04d-%02d-%02d", year, month + 1, dayOfMonth)
-            onDateSelected(formattedDate)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DealDatePickerDialog(
+    onDateSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = Calendar.getInstance().timeInMillis
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.CalendarToday,
+                    contentDescription = null,
+                    tint = BrandColors.Yellow
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Sélectionnez une date",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    color = BrandColors.TextPrimary
+                )
+            }
         },
-        calendar.get(Calendar.YEAR),
-        calendar.get(Calendar.MONTH),
-        calendar.get(Calendar.DAY_OF_MONTH)
-    ).show()
+        text = {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                tonalElevation = 1.dp,
+                color = Color.White
+            ) {
+                DatePicker(
+                    state = datePickerState,
+                    showModeToggle = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val calendar = Calendar.getInstance().apply { timeInMillis = millis }
+                        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                        onDateSelected(formatter.format(calendar.time))
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BrandColors.Yellow
+                )
+            ) {
+                Text("Confirmer", color = BrandColors.TextPrimary)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler", color = BrandColors.TextSecondary)
+            }
+        },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = Color.White
+    )
 }
 
-fun showTimePicker(context: Context, onTimeSelected: (String) -> Unit) {
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DealTimePickerDialog(
+    onTimeSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
     val calendar = Calendar.getInstance()
-    TimePickerDialog(
-        context,
-        { _, hourOfDay, minute ->
-            val formattedTime = String.format("%02d:%02d", hourOfDay, minute)
-            onTimeSelected(formattedTime)
+    val timePickerState = rememberTimePickerState(
+        initialHour = calendar.get(Calendar.HOUR_OF_DAY),
+        initialMinute = calendar.get(Calendar.MINUTE),
+        is24Hour = true
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Schedule,
+                    contentDescription = null,
+                    tint = BrandColors.Yellow
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Sélectionnez une heure",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    color = BrandColors.TextPrimary
+                )
+            }
         },
-        calendar.get(Calendar.HOUR_OF_DAY),
-        calendar.get(Calendar.MINUTE),
-        true // 24h format
-    ).show()
+        text = {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                tonalElevation = 1.dp,
+                color = Color.White
+            ) {
+                TimePicker(state = timePickerState)
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val formattedTime = String.format(
+                        Locale.getDefault(),
+                        "%02d:%02d",
+                        timePickerState.hour,
+                        timePickerState.minute
+                    )
+                    onTimeSelected(formattedTime)
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BrandColors.Yellow
+                )
+            ) {
+                Text("Confirmer", color = BrandColors.TextPrimary)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler", color = BrandColors.TextSecondary)
+            }
+        },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = Color.White
+    )
+}
+
+// ============== Fonctions utilitaires Dates ==============
+
+// Format YYYY-MM-DD to DD/MM/YYYY for display
+private fun formatDateForDisplay(dateString: String): String {
+    if (dateString.isBlank()) return ""
+    return try {
+        val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val outputFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        val date = inputFormat.parse(dateString)
+        date?.let { outputFormat.format(it) } ?: dateString
+    } catch (e: Exception) {
+        dateString // Return original if parsing fails
+    }
 }
 
 // Combine YYYY-MM-DD + HH:mm -> ISO

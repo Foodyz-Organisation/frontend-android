@@ -61,20 +61,6 @@ fun EventListScreenRemote(
                         )
                     }
                 },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            Log.d("EventListScreenRemote", "➕ Navigation vers create_event (TopBar)")
-                            navController.navigate("create_event")
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add Event",
-                            tint = BrandColors.TextPrimary
-                        )
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.White
                 )
@@ -168,46 +154,75 @@ fun EventListScreenRemote(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         items(events) { event ->
-                            EventCard(
-                                event = event,
-                                onClick = { 
-                                    event._id?.let { eventId ->
-                                        Log.d("EventListScreenRemote", "👁️ Navigation vers event_detail/$eventId")
-                                        navController.navigate("event_detail/$eventId")
-                                    }
-                                },
-                                onEditClick = { 
-                                    event._id?.let { eventId ->
-                                        Log.d("EventListScreenRemote", "✏️ Navigation vers edit_event/$eventId")
-                                        navController.navigate("edit_event/$eventId")
-                                    } ?: run {
-                                        Toast.makeText(context, "Erreur: L'événement n'a pas d'ID", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                onDeleteClick = {
-                                    // Le dialog de confirmation est déjà géré dans EventCard
-                                    // Ce callback est appelé quand l'utilisateur confirme la suppression
-                                    event._id?.let { eventId ->
-                                        Log.d("EventListScreenRemote", "🗑️ Suppression confirmée pour l'événement $eventId")
-                                        
-                                        scope.launch {
-                                            try {
-                                                EventRetrofitClient.api.deleteEvent(eventId)
-                                                Log.d("EventListScreenRemote", "✅ Événement supprimé avec succès")
-                                                Toast.makeText(context, "Événement supprimé", Toast.LENGTH_SHORT).show()
-                                                
-                                                // Recharger la liste
-                                                events = EventRetrofitClient.api.getEvents()
-                                            } catch (e: Exception) {
-                                                Log.e("EventListScreenRemote", "❌ Erreur suppression: ${e.message}", e)
-                                                Toast.makeText(context, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
-                                            }
+                            Box {
+                                EventCard(
+                                    event = event,
+                                    onClick = {
+                                        event._id?.let { eventId ->
+                                            Log.d("EventListScreenRemote", "👁️ Navigation vers event_detail/$eventId")
+                                            navController.navigate("event_detail/$eventId")
                                         }
-                                    } ?: run {
-                                        Toast.makeText(context, "Erreur: L'événement n'a pas d'ID", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+
+                                Row(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            event._id?.let { eventId ->
+                                                Log.d("EventListScreenRemote", "✏️ Navigation vers edit_event/$eventId")
+                                                navController.navigate("edit_event/$eventId")
+                                            }
+                                        },
+                                        colors = IconButtonDefaults.iconButtonColors(
+                                            containerColor = Color.White.copy(alpha = 0.9f)
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Modifier l'événement",
+                                            tint = BrandColors.TextPrimary
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            event._id?.let { eventId ->
+                                                scope.launch {
+                                                    try {
+                                                        EventRetrofitClient.api.deleteEvent(eventId)
+                                                        events = events.filterNot { it._id == eventId }
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Événement supprimé",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Erreur lors de la suppression",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = IconButtonDefaults.iconButtonColors(
+                                            containerColor = Color.White.copy(alpha = 0.9f)
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Supprimer l'événement",
+                                            tint = BrandColors.Red
+                                        )
                                     }
                                 }
-                            )
+                            }
                         }
                     }
                 }

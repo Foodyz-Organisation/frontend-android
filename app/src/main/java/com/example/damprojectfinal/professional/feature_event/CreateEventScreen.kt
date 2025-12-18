@@ -544,12 +544,38 @@ fun DatePickerDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Sélectionnez une date", color = BrandColors.TextPrimary) },
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DateRange,
+                    contentDescription = null,
+                    tint = BrandColors.Yellow
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Sélectionnez une date",
+                    color = BrandColors.TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        },
         text = {
-            DatePicker(state = datePickerState)
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                tonalElevation = 1.dp,
+                color = Color.White
+            ) {
+                DatePicker(
+                    state = datePickerState,
+                    showModeToggle = true
+                )
+            }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
                         val calendar = Calendar.getInstance().apply {
@@ -557,9 +583,12 @@ fun DatePickerDialog(
                         }
                         onDateSelected(calendar)
                     }
-                }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BrandColors.Yellow
+                ),
             ) {
-                Text("OK", color = BrandColors.Yellow)
+                Text("Confirmer", color = BrandColors.TextPrimary)
             }
         },
         dismissButton = {
@@ -567,7 +596,8 @@ fun DatePickerDialog(
                 Text("Annuler", color = BrandColors.TextSecondary)
             }
         },
-        containerColor = Color.White
+        containerColor = Color.White,
+        shape = RoundedCornerShape(28.dp)
     )
 }
 
@@ -586,17 +616,43 @@ fun TimePickerDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Sélectionnez une heure", color = BrandColors.TextPrimary) },
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AccessTime,
+                    contentDescription = null,
+                    tint = BrandColors.Yellow
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Sélectionnez une heure",
+                    color = BrandColors.TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        },
         text = {
-            TimePicker(state = timePickerState)
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                tonalElevation = 1.dp,
+                color = Color.White
+            ) {
+                TimePicker(state = timePickerState)
+            }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = {
                     onTimeSelected(timePickerState.hour, timePickerState.minute)
-                }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BrandColors.Yellow
+                ),
             ) {
-                Text("OK", color = BrandColors.Yellow)
+                Text("Confirmer", color = BrandColors.TextPrimary)
             }
         },
         dismissButton = {
@@ -604,7 +660,8 @@ fun TimePickerDialog(
                 Text("Annuler", color = BrandColors.TextSecondary)
             }
         },
-        containerColor = Color.White
+        containerColor = Color.White,
+        shape = RoundedCornerShape(28.dp)
     )
 }
 

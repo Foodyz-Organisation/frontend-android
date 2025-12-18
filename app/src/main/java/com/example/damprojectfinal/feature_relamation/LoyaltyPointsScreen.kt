@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,8 +126,9 @@ fun LoyaltyPointsScreen(
 
                                 Spacer(modifier = Modifier.height(16.dp))
 
+                                val displayedPoints = loyaltyData.loyaltyPoints.absoluteValue
                                 Text(
-                                    "${loyaltyData.loyaltyPoints}",
+                                    "$displayedPoints",
                                     fontSize = 56.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color.White
