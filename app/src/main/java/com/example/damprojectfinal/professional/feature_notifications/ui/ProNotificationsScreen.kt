@@ -16,6 +16,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,14 +33,20 @@ import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.notifications.NotificationResponse
 import com.example.damprojectfinal.user.feature_notifications.viewmodel.NotificationViewModel
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.damprojectfinal.professional.common._component.ProfessionalBottomNavigationBar
+import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
+import com.example.damprojectfinal.core.retro.RetrofitClient
 import android.util.Log
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProNotificationsScreen(
-    navController: NavController
+    navController: NavHostController
 ) {
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
@@ -59,6 +66,28 @@ fun ProNotificationsScreen(
     
     // Snackbar host state
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    
+    // Profile picture state
+    var profilePictureUrl by remember { mutableStateOf<String?>(null) }
+    
+    // Get current route for bottom navigation
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route ?: ""
+    
+    // Load professional profile picture for top app bar
+    LaunchedEffect(currentProfessionalId) {
+        if (currentProfessionalId.isNotEmpty() && currentProfessionalId != "unknown") {
+            try {
+                val prof = RetrofitClient.professionalApiService.getProfessionalAccount(currentProfessionalId)
+                if (!prof.profilePictureUrl.isNullOrEmpty()) {
+                    profilePictureUrl = prof.profilePictureUrl
+                }
+            } catch (e: Exception) {
+                Log.e("ProNotificationsScreen", "Error fetching profile picture: ${e.message}")
+            }
+        }
+    }
     
     // Load notifications on first launch
     LaunchedEffect(currentProfessionalId) {
@@ -135,25 +164,21 @@ fun ProNotificationsScreen(
             )
         },
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Notifications",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White
-                )
+            CustomProTopBarWithIcons(
+                professionalId = currentProfessionalId,
+                navController = navController,
+                profilePictureUrl = profilePictureUrl,
+                onLogout = { /* TODO: implement logout */ },
+                onMenuClick = {
+                    navController.navigate("professional_menu/$currentProfessionalId")
+                }
+            )
+        },
+        bottomBar = {
+            ProfessionalBottomNavigationBar(
+                navController = navController,
+                currentRoute = currentRoute,
+                professionalId = currentProfessionalId
             )
         }
     ) { paddingValues ->

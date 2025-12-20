@@ -54,7 +54,7 @@ data class NotificationsListResponse(
 
 @Serializable
 data class MarkAsReadResponse(
-    val success: Boolean,
+    val success: Boolean = true,
     val message: String? = null
 )
 

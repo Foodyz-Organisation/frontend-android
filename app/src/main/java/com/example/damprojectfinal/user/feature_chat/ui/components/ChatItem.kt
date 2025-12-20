@@ -72,7 +72,7 @@ fun ChatItemNew(
                 if (showImage && !loadFailed.value) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
-                            .data(chat.avatarUrl)
+                            .data(com.example.damprojectfinal.core.api.BaseUrlProvider.getFullImageUrl(chat.avatarUrl))
                             .crossfade(true)
                             .build(),
                         contentDescription = "Avatar for ${chat.title}",
@@ -118,24 +118,26 @@ fun ChatItemNew(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(),
-                verticalArrangement = Arrangement.SpaceEvenly
+                verticalArrangement = Arrangement.Center
             ) {
                 // Chat name (bold)
                 Text(
                     text = chat.title,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
                     color = Color(0xFF1F2A37),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Last message preview (light gray)
+                Spacer(modifier = Modifier.height(2.dp))
+
+                // Last message preview
                 Text(
                     text = chat.subtitle,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = Color(0xFF6B7280),
+                    fontSize = 14.sp,
+                    fontWeight = if (chat.unreadCount > 0) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (chat.unreadCount > 0) Color(0xFF1F2A37) else Color(0xFF6B7280),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -145,30 +147,31 @@ fun ChatItemNew(
             Column(
                 modifier = Modifier
                     .fillMaxHeight(),
-                verticalArrangement = Arrangement.SpaceEvenly,
+                verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.End
             ) {
                 // Timestamp (light gray)
                 Text(
                     text = chat.updatedTime,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = Color(0xFFB0B0B0)
+                    fontWeight = if (chat.unreadCount > 0) FontWeight.Bold else FontWeight.Normal,
+                    color = if (chat.unreadCount > 0) Color(0xFFF59E0B) else Color(0xFF9CA3AF)
                 )
 
-                // Unread counter badge (if applicable)
                 if (chat.unreadCount > 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
-                            .background(Color(0xFFF59E0B), CircleShape),
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF59E0B)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = chat.unreadCount.toString(),
+                            text = if (chat.unreadCount > 9) "9+" else chat.unreadCount.toString(),
+                            color = Color.White,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }

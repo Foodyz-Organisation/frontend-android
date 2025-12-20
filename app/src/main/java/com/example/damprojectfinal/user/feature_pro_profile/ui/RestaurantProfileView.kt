@@ -2,8 +2,14 @@ package com.example.damprojectfinal.user.feature_pro_profile.ui
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -14,79 +20,73 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.damprojectfinal.core.api.BaseUrlProvider
+import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.dto.posts.PostResponse
+import com.example.damprojectfinal.core.retro.RetrofitClient
+import com.example.damprojectfinal.professional.feature_profile.viewmodel.ProfessionalProfileViewModel
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 
-// --- Design Colors ---
-val PrimaryRed = Color(0xFFEF4444)
-val BackgroundLight = Color(0xFFF9FAFB)
-val CardBackground = Color(0xFFFFFFFF)
-val PrimaryYellow = Color(0xFFFFC107) // Yellow color for primary actions
-val DarkTextForYellow = Color(0xFF1F2937) // Dark text for contrast on yellow
-val DarkText = Color(0xFF1F2937) // Dark text color
+// --- Design Colors (Matching Professional Profile) ---
+val ProfessionalYellow = Color(0xFFF59E0B)
+val ProfessionalYellowLight = Color(0xFFFFF9E6)
+val ProfessionalYellowDark = Color(0xFFD97706)
 
-// --- Data Classes ---
-data class RestaurantDetails(
-    val name: String,
-    val cuisine: String,
-    val priceRange: String,
-    val description: String,
-    val imageUrl: String? = null,
-    val rating: Double? = null,
-    val phone: String? = null,
-    val email: String? = null,
-    val address: String? = null,
-    val deliveryTime: String,
-    val takeawayTime: String,
-    val dineInAvailable: Boolean
-)
+// Tab enum for Reels/Photos
+enum class UserViewProfileTab { REELS, PHOTOS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RestaurantProfileView(
-    professionalId: String, // ⭐ Add this
-    restaurantDetails: RestaurantDetails,
-    onBackClick: () -> Unit,
-    navController: NavController // Add NavController for navigation
+    professionalId: String,
+    navController: NavController,
+    viewModel: ProfessionalProfileViewModel = viewModel(
+        factory = ProfessionalProfileViewModel.Factory(
+            tokenManager = TokenManager(LocalContext.current),
+            professionalApiService = RetrofitClient.professionalApiService,
+            postsApiService = RetrofitClient.postsApiService
+        )
+    )
 ) {
+    val context = LocalContext.current
+
+    // Load profile on first launch
     LaunchedEffect(professionalId) {
-        Log.d("ClientProfile", "Opened profile with professionalId = $professionalId")
+        Log.d("UserViewProfile", "Loading professional profile: $professionalId")
+        viewModel.loadProfessionalProfile(professionalId)
+        viewModel.fetchProfessionalPosts(professionalId)
     }
 
+    val profile by viewModel.profile.collectAsState()
+    val photoPosts by viewModel.photoPosts.collectAsState()
+    val reelPosts by viewModel.reelPosts.collectAsState()
+
+    var selectedTab by remember { mutableStateOf(UserViewProfileTab.REELS) }
+
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = BackgroundLight,
-        topBar = {
-            TopAppBar(
-                title = { Text(restaurantDetails.name, fontWeight = FontWeight.ExtraBold) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { /* TODO: Share */ }) {
-                        Icon(Icons.Default.Share, contentDescription = "Share")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CardBackground)
-            )
-        },
-        // --- Bottom Bar: View Menu & Order Button ---
+        containerColor = Color.White,
         bottomBar = {
-            Surface(shadowElevation = 8.dp, color = CardBackground) {
+            // Bottom Bar: View Menu & Order Button
+            Surface(shadowElevation = 8.dp, color = Color.White) {
                 Button(
                     onClick = {
-                        Log.d("ClientProfile", "Navigating to menu with professionalId = $professionalId")
+                        Log.d("UserViewProfile", "Navigating to menu: $professionalId")
                         navController.navigate("menu_order_route/$professionalId")
                     },
                     modifier = Modifier
@@ -95,236 +95,389 @@ fun RestaurantProfileView(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .clip(RoundedCornerShape(12.dp)),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = PrimaryYellow,
-                        contentColor = DarkTextForYellow
+                        containerColor = ProfessionalYellow,
+                        contentColor = Color.White
                     )
                 ) {
                     Text("View Menu & Order", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
-
     ) { paddingValues ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(paddingValues),
-            contentPadding = PaddingValues(bottom = 16.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
         ) {
-            // 1. Image and Name Header (View-Only)
-            item { HeaderSection(details = restaurantDetails, isEditable = false) }
-
-            // 2. Ratings and Basic Info (View-Only)
-            item { InfoSection(restaurantDetails, isEditable = false) }
-
-            // 3. Core Business Details (View-Only)
+            // ========== HEADER SECTION WITH BACKGROUND IMAGE ==========
             item {
-                ManagementCard(title = "Core Business Details") {
-                    ReadOnlyInfoRow(Icons.Default.Store, "Name", restaurantDetails.name)
-                    ReadOnlyInfoRow(Icons.Default.Restaurant, "Cuisine", restaurantDetails.cuisine)
-                    ReadOnlyInfoRow(Icons.Default.AttachMoney, "Price Range", restaurantDetails.priceRange)
-                }
-            }
-
-            // 4. Public Description (View-Only)
-            item {
-                ManagementCard(title = "Public Description") {
-                    Text(restaurantDetails.description, style = MaterialTheme.typography.bodyLarge, color = DarkText)
-                }
-            }
-
-            // 5. Contact and Location Management (View-Only)
-            item { ContactManagementSection(state = null, details = restaurantDetails, isEditable = false) }
-
-            // 6. Service Times (View-Only)
-            item {
-                ManagementCard(title = "Service Times") {
-                    ReadOnlyInfoRow(Icons.Default.DeliveryDining, "Delivery Time", restaurantDetails.deliveryTime)
-                    ReadOnlyInfoRow(Icons.Default.TakeoutDining, "Takeaway Time", restaurantDetails.takeawayTime)
-                    ReadOnlyInfoRow(Icons.Default.TableBar, "Dine-in", if (restaurantDetails.dineInAvailable) "Available" else "Not Available")
-                }
-            }
-        }
-    }
-}
-// --- Preview Data ---
-val mockChilis = RestaurantDetails(
-    name = "Chili's Grill & Bar",
-    cuisine = "American, Tex-Mex",
-    priceRange = "$$",
-    description = "A popular American casual dining restaurant chain known for its Tex-Mex cuisine, burgers, and margaritas.",
-    imageUrl = "https://picsum.photos/400/300",
-    rating = 4.5,
-    phone = "+1 555-0123",
-    email = "contact@chilis.com",
-    address = "123 Main Street, City, State 12345",
-    deliveryTime = "30-45 min",
-    takeawayTime = "15-20 min",
-    dineInAvailable = true
-)
-
-// --- Composable Components ---
-
-@Composable
-fun HeaderSection(
-    details: RestaurantDetails,
-    isEditable: Boolean
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Restaurant Image
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(BackgroundLight),
-                contentAlignment = Alignment.Center
-            ) {
-                if (details.imageUrl != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                ) {
+                    // Background Image
                     AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(details.imageUrl)
+                        model = ImageRequest.Builder(context)
+                            .data(
+                                profile?.imageUrl?.let { BaseUrlProvider.getFullImageUrl(it) }
+                                    ?: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800"
+                            )
                             .crossfade(true)
                             .build(),
-                        contentDescription = "Restaurant Image",
+                        contentDescription = "Background",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Restaurant,
-                        contentDescription = "Restaurant",
-                        modifier = Modifier.size(64.dp),
-                        tint = PrimaryRed
+
+                    // Gradient Overlay
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color.Black.copy(alpha = 0.6f)
+                                    )
+                                )
+                            )
+                    )
+
+                    // Top App Bar with Back Button and Share Button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        // Back Button
+                        IconButton(
+                            onClick = { navController.popBackStack() },
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White
+                            )
+                        }
+
+                        // Share Button
+                        IconButton(
+                            onClick = { /* TODO: Share */ },
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Share,
+                                contentDescription = "Share",
+                                tint = Color.White
+                            )
+                        }
+                    }
+
+                    // Profile Picture - centered
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .offset(y = 140.dp),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(110.dp)
+                                .clip(CircleShape)
+                                .background(Color.White, CircleShape)
+                                .border(4.dp, ProfessionalYellow, CircleShape)
+                                .padding(4.dp)
+                        ) {
+                            val avatarName = profile?.fullName?.replace(" ", "+") ?: "Restaurant"
+                            val imageModel = profile?.profilePictureUrl
+                                ?.let { BaseUrlProvider.getFullImageUrl(it) }
+                                ?: "https://ui-avatars.com/api/?name=$avatarName&background=F59E0B&color=fff&size=200"
+
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(imageModel)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+
+                    // Business Name at bottom
+                    Text(
+                        text = profile?.fullName ?: "Loading...",
+                        color = Color.White,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 20.dp, bottom = 16.dp)
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = details.name,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
+
+            // ========== PROFILE CONTENT SECTION ==========
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .padding(top = 80.dp)
+                ) {
+                    // Stats Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        UserViewStatItem(
+                            value = profile?.followerCount?.toString() ?: "0",
+                            label = "Followers",
+                            icon = Icons.Filled.People
+                        )
+                        UserViewStatItem(
+                            value = profile?.followingCount?.toString() ?: "0",
+                            label = "Following",
+                            icon = Icons.Filled.PersonAdd
+                        )
+                        UserViewStatItem(
+                            value = (photoPosts.size + reelPosts.size).toString(),
+                            label = "Posts",
+                            icon = Icons.Filled.PhotoCamera
+                        )
+                    }
+
+                    Divider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+
+                    // Description Section
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp)
+                    ) {
+                        if (!profile?.description.isNullOrBlank()) {
+                            Text(
+                                text = profile?.description ?: "",
+                                fontSize = 15.sp,
+                                color = Color(0xFF4B5563),
+                                lineHeight = 22.sp,
+                                modifier = Modifier.padding(bottom = 16.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "No description available",
+                                fontSize = 15.sp,
+                                color = Color(0xFF9CA3AF),
+                                fontStyle = FontStyle.Italic,
+                                modifier = Modifier.padding(bottom = 16.dp)
+                            )
+                        }
+                    }
+
+                    Divider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+
+                    // Contact & Info Section
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Phone
+                        profile?.phone?.let { phone ->
+                            if (phone.isNotBlank()) {
+                                UserViewInfoRow(
+                                    icon = Icons.Filled.Phone,
+                                    text = phone,
+                                    iconColor = ProfessionalYellow
+                                )
+                            }
+                        }
+
+                        // Address
+                        if (!profile?.address.isNullOrBlank()) {
+                            UserViewInfoRow(
+                                icon = Icons.Filled.LocationOn,
+                                text = profile?.address ?: "",
+                                iconColor = ProfessionalYellow
+                            )
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.LocationOn,
+                                    contentDescription = null,
+                                    tint = Color(0xFF9CA3AF),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "No address provided",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF9CA3AF),
+                                    fontStyle = FontStyle.Italic
+                                )
+                            }
+                        }
+
+                        // Hours
+                        profile?.hours?.let { hours ->
+                            if (hours.isNotBlank()) {
+                                UserViewInfoRow(
+                                    icon = Icons.Filled.Schedule,
+                                    text = hours,
+                                    iconColor = ProfessionalYellow
+                                )
+                            }
+                        }
+                    }
+
+                    // Services Section
+                    profile?.services?.let { services ->
+                        if (services.delivery || services.takeaway || services.dineIn) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (services.delivery) {
+                                        UserViewServiceChip("Delivery", Icons.Filled.DeliveryDining)
+                                    }
+                                    if (services.takeaway) {
+                                        UserViewServiceChip("Takeaway", Icons.Filled.Restaurant)
+                                    }
+                                    if (services.dineIn) {
+                                        UserViewServiceChip("Dine In", Icons.Filled.RestaurantMenu)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Divider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+
+                    // ========== TABS SECTION ==========
+                    TabRow(
+                        selectedTabIndex = selectedTab.ordinal,
+                        containerColor = Color.White,
+                        contentColor = ProfessionalYellow,
+                        indicator = { tabPositions ->
+                            TabRowDefaults.Indicator(
+                                Modifier.tabIndicatorOffset(tabPositions[selectedTab.ordinal]),
+                                color = ProfessionalYellow,
+                                height = 3.dp
+                            )
+                        },
+                        divider = { }
+                    ) {
+                        Tab(
+                            selected = selectedTab == UserViewProfileTab.REELS,
+                            onClick = { selectedTab = UserViewProfileTab.REELS },
+                            text = {
+                                Text(
+                                    "Reels",
+                                    fontWeight = if (selectedTab == UserViewProfileTab.REELS) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selectedTab == UserViewProfileTab.REELS) ProfessionalYellow else Color(0xFF6B7280)
+                                )
+                            }
+                        )
+                        Tab(
+                            selected = selectedTab == UserViewProfileTab.PHOTOS,
+                            onClick = { selectedTab = UserViewProfileTab.PHOTOS },
+                            text = {
+                                Text(
+                                    "Photos",
+                                    fontWeight = if (selectedTab == UserViewProfileTab.PHOTOS) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selectedTab == UserViewProfileTab.PHOTOS) ProfessionalYellow else Color(0xFF6B7280)
+                                )
+                            }
+                        )
+                    }
+
+                    // ========== TAB CONTENT ==========
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(400.dp)
+                            .background(Color.White)
+                            .padding(16.dp)
+                    ) {
+                        when (selectedTab) {
+                            UserViewProfileTab.REELS -> {
+                                if (reelPosts.isNotEmpty()) {
+                                    UserViewPostsGrid(reelPosts, navController)
+                                } else {
+                                    UserViewEmptyState(
+                                        icon = Icons.Filled.VideoLibrary,
+                                        message = "No Reels available"
+                                    )
+                                }
+                            }
+                            UserViewProfileTab.PHOTOS -> {
+                                if (photoPosts.isNotEmpty()) {
+                                    UserViewPostsGrid(photoPosts, navController)
+                                } else {
+                                    UserViewEmptyState(
+                                        icon = Icons.Filled.PhotoCamera,
+                                        message = "No Photos available"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
+// ========== HELPER COMPOSABLES ==========
 
 @Composable
-fun InfoSection(
-    details: RestaurantDetails,
-    isEditable: Boolean
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+fun UserViewStatItem(value: String, label: String, icon: ImageVector) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Rating
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.Star,
-                    contentDescription = "Rating",
-                    tint = PrimaryYellow,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = details.rating?.toString() ?: "N/A",
-                    fontWeight = FontWeight.Bold,
-                    color = DarkText
-                )
-            }
-            
-            // Price Range
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.AttachMoney,
-                    contentDescription = "Price",
-                    tint = PrimaryRed,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = details.priceRange,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkText
-                )
-            }
-            
-            // Cuisine
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.Restaurant,
-                    contentDescription = "Cuisine",
-                    tint = PrimaryRed,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = details.cuisine.split(",").firstOrNull() ?: "N/A",
-                    fontWeight = FontWeight.Bold,
-                    color = DarkText,
-                    fontSize = 12.sp
-                )
-            }
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = ProfessionalYellow,
+            modifier = Modifier.size(24.dp)
+        )
+        Text(
+            text = value,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF1F2937)
+        )
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color(0xFF6B7280)
+        )
     }
 }
 
 @Composable
-fun ManagementCard(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
-            Divider(color = BackgroundLight)
-            content()
-        }
-    }
-}
-
-@Composable
-fun ReadOnlyInfoRow(
-    icon: ImageVector,
-    label: String,
-    value: String
-) {
+fun UserViewInfoRow(icon: ImageVector, text: String, iconColor: Color) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -332,42 +485,111 @@ fun ReadOnlyInfoRow(
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = label,
-            tint = PrimaryRed,
+            contentDescription = null,
+            tint = iconColor,
             modifier = Modifier.size(20.dp)
         )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
-                fontSize = 12.sp
+        Text(
+            text = text,
+            fontSize = 14.sp,
+            color = Color(0xFF374151),
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+fun UserViewServiceChip(label: String, icon: ImageVector) {
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, ProfessionalYellow, RoundedCornerShape(20.dp)),
+        color = ProfessionalYellowLight
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = ProfessionalYellow,
+                modifier = Modifier.size(16.dp)
             )
             Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium,
+                text = label,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
-                color = DarkText
+                color = ProfessionalYellowDark
             )
         }
     }
 }
 
 @Composable
-fun ContactManagementSection(
-    state: Any?,
-    details: RestaurantDetails,
-    isEditable: Boolean
+fun UserViewEmptyState(icon: ImageVector, message: String) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color(0xFF9CA3AF),
+                modifier = Modifier.size(64.dp)
+            )
+            Text(
+                text = message,
+                fontSize = 16.sp,
+                color = Color(0xFF6B7280),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+fun UserViewPostsGrid(
+    posts: List<PostResponse>,
+    navController: NavController
 ) {
-    ManagementCard(title = "Contact & Location") {
-        if (details.phone != null) {
-            ReadOnlyInfoRow(Icons.Default.Phone, "Phone", details.phone)
-        }
-        if (details.email != null) {
-            ReadOnlyInfoRow(Icons.Default.Email, "Email", details.email)
-        }
-        if (details.address != null) {
-            ReadOnlyInfoRow(Icons.Default.LocationOn, "Address", details.address)
+    if (posts.isEmpty()) {
+        UserViewEmptyState(
+            icon = Icons.Filled.PhotoCamera,
+            message = "No posts yet"
+        )
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(2.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            items(posts) { post ->
+                val imageUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls.firstOrNull())
+                Box(
+                    modifier = Modifier
+                        .aspectRatio(1f)
+                        .clickable {
+                            // TODO: Navigate to post detail if needed
+                        }
+                ) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = post.caption,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        placeholder = rememberVectorPainter(Icons.Default.Image),
+                        error = rememberVectorPainter(Icons.Default.BrokenImage)
+                    )
+                }
+            }
         }
     }
 }
@@ -379,24 +601,8 @@ fun RestaurantProfileViewScreen(
     professionalId: String,
     navController: NavController
 ) {
-    // TODO: Load actual restaurant details from API/ViewModel
-    // For now, using mock data
-    val restaurantDetails = remember(professionalId) {
-        mockChilis.copy() // In real implementation, load from ViewModel
-    }
-    
     RestaurantProfileView(
         professionalId = professionalId,
-        restaurantDetails = restaurantDetails,
-        onBackClick = { navController.popBackStack() },
         navController = navController
     )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ClientRestaurantProfilePreview() {
-    // Preview requires a mock NavController - using empty lambda for preview
-    // In real usage, this will be provided by RestaurantProfileViewScreen
-    // Note: Preview won't work with NavController, so we skip it here
 }

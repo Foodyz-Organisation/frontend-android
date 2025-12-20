@@ -100,9 +100,26 @@ fun MenuItemManagementScreen(
     var selectedCategory by rememberSaveable { mutableStateOf<String?>(allCategories.firstOrNull()) }
 
     val dummyAuthToken = "YOUR_PROFESSIONAL_AUTH_TOKEN"
+    
+    // State for profile picture URL
+    var profilePictureUrl by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(professionalId) {
         viewModel.fetchGroupedMenu(professionalId, dummyAuthToken)
+    }
+    
+    // Fetch professional profile picture for top app bar
+    LaunchedEffect(professionalId) {
+        if (professionalId.isNotEmpty()) {
+            try {
+                val prof = com.example.damprojectfinal.core.retro.RetrofitClient.professionalApiService.getProfessionalAccount(professionalId)
+                if (!prof.profilePictureUrl.isNullOrEmpty()) {
+                    profilePictureUrl = prof.profilePictureUrl
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MenuItemManagementScreen", "Error fetching pro profile picture: ${e.message}", e)
+            }
+        }
     }
 
     // Get current route for bottom navigation
@@ -115,8 +132,11 @@ fun MenuItemManagementScreen(
             CustomProTopBarWithIcons(
                 professionalId = professionalId,
                 navController = navController,
+                profilePictureUrl = profilePictureUrl,
                 onLogout = { navController.navigate("login_route") },
-                onMenuClick = { /* Drawer not implemented in this screen yet */ }
+                onMenuClick = { 
+                    navController.navigate("professional_menu/$professionalId")
+                }
             )
         },
         bottomBar = {
@@ -325,31 +345,26 @@ fun CategoryIconChip(
     val inactiveColor = Color.White // White background for inactive chips
 
     val backgroundColor = if (isSelected) activeColor else inactiveColor
-    val contentColor = if (isSelected) TextPrimary else TextSecondary // Text color
 
     val chipShape = RoundedCornerShape(32.dp) // Deep rounding for the pill shape
 
     Surface(
         shape = chipShape,
         modifier = Modifier
-            .height(110.dp) // Tall chip height
-            .width(80.dp) // Fixed width
+            .size(70.dp) // Square size for icon-only display
             .clickable(onClick = onClick),
         color = backgroundColor,
         shadowElevation = 4.dp // Subtle elevation
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceAround
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            // Icon Background: Smaller, slightly elevated circle on top
+            // Icon Background: Smaller, slightly elevated circle
             Surface(
                 shape = CircleShape,
                 modifier = Modifier.size(50.dp),
-                color = if (isSelected) Color.White else Color.White, // Icon background is always white
+                color = Color.White, // Icon background is always white
                 shadowElevation = 2.dp
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -361,17 +376,6 @@ fun CategoryIconChip(
                     )
                 }
             }
-
-            // Text at the bottom
-            Text(
-                text = categoryName.replace("_", " "),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                color = contentColor,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
         }
     }
 }

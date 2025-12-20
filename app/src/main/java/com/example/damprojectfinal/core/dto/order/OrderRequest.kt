@@ -14,7 +14,8 @@ data class CreateOrderRequest(
     @SerializedName("items") val items: List<OrderItemRequest>,
     @SerializedName("totalPrice") val totalPrice: Double,
     @SerializedName("deliveryAddress") val deliveryAddress: String? = null,
-    @SerializedName("notes") val notes: String? = null
+    @SerializedName("notes") val notes: String? = null,
+    @SerializedName("paymentMethod") val paymentMethod: String // "CASH" or "CARD"
 )
 
 // ---------------------------------------------------------
@@ -80,6 +81,8 @@ data class OrderResponse(
     @SerializedName("items") val items: List<OrderItemResponse>,
     @SerializedName("totalPrice") val totalPrice: Double,
     @SerializedName("status") val status: OrderStatus,
+    @SerializedName("paymentMethod") val paymentMethod: String? = null,  // "CASH" or "CARD"
+    @SerializedName("paymentId") val paymentId: String? = null,  // Payment ID for CARD payments
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("updatedAt") val updatedAt: String
 ) {
@@ -136,4 +139,37 @@ data class ChosenIngredientResponse(
 data class ChosenOptionResponse(
     @SerializedName("name") val name: String,
     @SerializedName("price") val price: Double
+)
+
+// ---------------------------------------------------------
+// PAYMENT RESPONSE (for CARD payments)
+// ---------------------------------------------------------
+data class CreateOrderWithPaymentResponse(
+    @SerializedName("order") val order: OrderResponse,
+    @SerializedName("clientSecret") val clientSecret: String?,
+    @SerializedName("paymentIntentId") val paymentIntentId: String?
+)
+
+// ---------------------------------------------------------
+// PAYMENT CONFIRMATION REQUEST
+// ---------------------------------------------------------
+// Current backend validation only accepts:
+// - paymentIntentId (required, string)
+// - paymentMethodId (required, string, non-empty)
+//
+// Backend rejects: cardNumber, cardholderName, cvv, expMonth, expYear
+//
+// SOLUTION: Backend needs to be updated to accept card details
+// and create PaymentMethod server-side (see backend code below)
+data class ConfirmPaymentRequest(
+    @SerializedName("paymentIntentId") val paymentIntentId: String,
+    @SerializedName("paymentMethodId") val paymentMethodId: String  // Required by backend validation
+)
+
+// ---------------------------------------------------------
+// PAYMENT CONFIRMATION RESPONSE
+// ---------------------------------------------------------
+data class ConfirmPaymentResponse(
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("order") val order: OrderResponse
 )

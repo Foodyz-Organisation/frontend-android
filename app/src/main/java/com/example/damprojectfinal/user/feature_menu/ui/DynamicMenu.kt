@@ -297,7 +297,7 @@ fun RestaurantMenuScreen(
             )
         },
         modifier = Modifier.fillMaxSize(),
-        containerColor = AppBackgroundLight
+        containerColor = Color(0xFFF8F9FA) // Light gray background for contrast
     ) { paddingValues ->
         // Content based on state
         when {
@@ -350,9 +350,10 @@ fun RestaurantMenuScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp), // Reduced top padding
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(paddingValues)
+                        .background(Color(0xFFF8F9FA)), // Light gray background
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // ============================================================
                     // SECTION 1: Category Selector
@@ -388,8 +389,8 @@ fun RestaurantMenuScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    .padding(horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 // First column item
                                 Box(modifier = Modifier.weight(1f)) {
@@ -401,7 +402,6 @@ fun RestaurantMenuScreen(
                                 
                                 // Second column item (if exists)
                                 if (rowItems.size > 1) {
-                                    Spacer(Modifier.width(16.dp))
                                     Box(modifier = Modifier.weight(1f)) {
                                         MenuItemCard(
                                             item = rowItems[1],
@@ -413,7 +413,7 @@ fun RestaurantMenuScreen(
                                     Spacer(Modifier.weight(1f))
                                 }
                             }
-                            Spacer(Modifier.height(16.dp))
+                            Spacer(Modifier.height(12.dp))
                         }
                     }
 
@@ -1511,111 +1511,175 @@ fun MenuItemCard(
     
     Card(
         modifier = finalModifier
-            .height(240.dp) // Reduced height to eliminate space
+            .height(260.dp) // Slightly increased for better spacing
             .clickable { onAddClick() },
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 4.dp,
+            pressedElevation = 8.dp,
+            hoveredElevation = 6.dp
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Image Area
-            AsyncImage(
-                model = item.imageUrl,
-                contentDescription = item.name,
-                contentScale = ContentScale.Crop,
-                placeholder = painterResource(id = R.drawable.placeholder),
-                error = painterResource(id = R.drawable.placeholder),
+            // Top Section: Image
+            Box(
                 modifier = Modifier
-                    .size(90.dp)
-                    .clip(CircleShape)
-            )
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                // Background circle for image
+                Box(
+                    modifier = Modifier
+                        .size(110.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFFF8F0)) // Light cream background
+                        .padding(8.dp)
+                ) {
+                    AsyncImage(
+                        model = item.imageUrl,
+                        contentDescription = item.name,
+                        contentScale = ContentScale.Crop,
+                        placeholder = painterResource(id = R.drawable.placeholder),
+                        error = painterResource(id = R.drawable.placeholder),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                    )
+                }
+            }
 
-            Spacer(Modifier.height(4.dp))
+            // Middle Section: Product Info
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Product Name
+                Text(
+                    text = item.name,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 17.sp,
+                    color = AppDarkText,
+                    maxLines = 1,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
 
-            // Title (Name)
-            Text(
-                text = item.name,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                color = AppDarkText,
-                maxLines = 1,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
+                // Short Description
+                Text(
+                    text = item.description?.take(50) ?: "Fresh and delicious",
+                    fontSize = 11.sp,
+                    color = Color.Gray,
+                    maxLines = 1,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    lineHeight = 13.sp
+                )
+            }
 
-            Spacer(Modifier.height(2.dp))
-
-            // Description
-            Text(
-                text = item.description ?: "Delicious ${item.name.lowercase()}",
-                fontSize = 12.sp,
-                color = Color.Gray,
-                maxLines = 2,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                lineHeight = 14.sp
-            )
-
-            Spacer(Modifier.height(6.dp))
-
-            // Price
-            Text(
-                text = "${String.format("%.2f", item.priceDT)} TND",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                color = AppDarkText
-            )
+            // Bottom Section: Price and Add Button
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Price Badge
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = AppCartButtonYellow,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Text(
+                        text = "${String.format("%.2f", item.priceDT)} TND",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
 fun MenuBottomBar(totalOrderPrice: Float, onConfirmClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(AppCardBackground)
-            .padding(horizontal = 16.dp, vertical = 16.dp)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shadowElevation = 12.dp,
+        color = Color.White
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Total Price:",
-                fontSize = 18.sp,
-                color = AppDarkText
-            )
-            Text(
-                text = String.format("%.2f TND", totalOrderPrice),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = AppCartButtonYellow
-            )
-        }
-        Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = onConfirmClick,
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .clip(RoundedCornerShape(12.dp)),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = AppCartButtonYellow,
-                contentColor = AppDarkText
-            )
+                .padding(horizontal = 20.dp, vertical = 20.dp)
         ) {
-            Text(
-                text = "Confirm Order",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.width(8.dp))
-            Icon(Icons.Default.ArrowForward, contentDescription = null, tint = AppDarkText)
+            // Total Price Section with better styling
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Total Price:",
+                        fontSize = 14.sp,
+                        color = Color.Gray,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = String.format("%.2f TND", totalOrderPrice),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = AppCartButtonYellow
+                    )
+                }
+            }
+            
+            // Confirm Order Button with modern design
+            Button(
+                onClick = onConfirmClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppCartButtonYellow,
+                    contentColor = Color.White
+                ),
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = 4.dp,
+                    pressedElevation = 8.dp
+                )
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Confirm Order",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -1629,28 +1693,39 @@ fun CategorySelector(
     selectedCategory: Category?,
     onCategorySelected: (Category?) -> Unit
 ) {
-    LazyRow(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
-            .padding(vertical = 16.dp), // Increased padding
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(horizontal = 24.dp)
     ) {
-        items(categories) { categoryItem ->
-            CategoryChip(
-                categoryItem = categoryItem,
-                isSelected = selectedCategory == categoryItem.category,
-                onClick = {
-                    onCategorySelected(
-                        if (selectedCategory == categoryItem.category) null
-                        else categoryItem.category
-                    )
-                }
-            )
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp)
+        ) {
+            items(categories) { categoryItem ->
+                CategoryChip(
+                    categoryItem = categoryItem,
+                    isSelected = selectedCategory == categoryItem.category,
+                    onClick = {
+                        onCategorySelected(
+                            if (selectedCategory == categoryItem.category) null
+                            else categoryItem.category
+                        )
+                    }
+                )
+            }
         }
+        
+        // Subtle divider
+        Divider(
+            color = Color(0xFFF0F0F0),
+            thickness = 1.dp,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
     }
-    // Removed Divider, sticking to clean white look
 }
 
 @Composable
@@ -1660,37 +1735,53 @@ fun CategoryChip(
     onClick: () -> Unit
 ) {
     val backgroundColor = if (isSelected) AppCartButtonYellow else Color.White
-    // Keep it white or use a light gray for unselected if needed, but screenshot implies white with maybe shadow or border?
-    // Let's use a subtle shadow for unselected and yellow for selected.
+    val textColor = if (isSelected) Color.White else AppDarkText
     
     Card(
         modifier = Modifier
-            .size(width = 80.dp, height = 100.dp) // Fixed size for uniformity
+            .size(width = 85.dp, height = 105.dp) // Slightly larger for better touch targets
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp), // Squircle-ish
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 2.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isSelected) 6.dp else 3.dp,
+            pressedElevation = 8.dp
+        )
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Icon
-            Text(
-                text = categoryItem.icon,
-                fontSize = 32.sp
-            )
+            // Icon with subtle background
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isSelected) Color.White.copy(alpha = 0.2f) 
+                        else Color(0xFFFFF8F0)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = categoryItem.icon,
+                    fontSize = 28.sp
+                )
+            }
             
             Spacer(Modifier.height(8.dp))
             
             // Name
             Text(
                 text = categoryItem.displayName,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = AppDarkText,
-                maxLines = 1
+                color = textColor,
+                maxLines = 1,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }
