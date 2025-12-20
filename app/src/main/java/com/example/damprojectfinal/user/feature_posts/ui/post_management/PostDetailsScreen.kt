@@ -87,13 +87,16 @@ fun PostDetailsScreen(
 
 
     // --- Fetch Post Details ---
+    // Note: Backend automatically tracks view interaction if x-user-id header is present
+    // The AuthInterceptor automatically adds x-user-id header to all requests
     LaunchedEffect(postId) {
         isLoading = true
         errorMessage = null
         try {
             post = postsViewModel.posts.value.find { it._id == postId }
             if (post == null) {
-                post = RetrofitClient.postsApiService.getPostById(postId) // For now, assume it works without viewerId in API endpoint itself.
+                // Backend will automatically track view interaction and update preferences
+                post = RetrofitClient.postsApiService.getPostById(postId)
             }
         } catch (e: Exception) {
             errorMessage = "Failed to load post details: ${e.localizedMessage ?: e.message}"

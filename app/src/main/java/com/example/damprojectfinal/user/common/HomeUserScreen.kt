@@ -319,7 +319,7 @@ fun HomeScreen(
                             
                             // "Ready to be ordered" Section Header - Enhanced
                             EnhancedSectionHeader(
-                                title = "Ready to be ordered",
+                                title = "For you ",
                                 onClearClick = { /* Clear filter or dismiss */ }
                             )
                             

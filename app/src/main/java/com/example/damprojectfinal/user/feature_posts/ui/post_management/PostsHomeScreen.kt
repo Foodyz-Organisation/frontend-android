@@ -239,26 +239,36 @@ fun PersonalizedFeedBanner(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Person,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Personalized for you",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                     Text(
-                        text = "Personalized for you",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        text = "Based on your interactions",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(start = 28.dp)
                     )
                 }
 
                 Text(
-                    text = "${preferredTypes.size} preferences",
+                    text = "${preferredTypes.size} food types learned",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                 )
@@ -267,50 +277,11 @@ fun PersonalizedFeedBanner(
     }
 
 // ------------------------------------------------------
-// ⭐ Prefer Food Type Button Component
+// ⭐ Prefer Food Type Button Component - REMOVED
 // ------------------------------------------------------
-@Composable
-fun PreferFoodTypeButton(
-        post: PostResponse,
-        postsViewModel: PostsViewModel,
-        modifier: Modifier = Modifier
-    ) {
-        val isPreferred by remember(post._id) {
-            derivedStateOf {
-                postsViewModel.isPostFoodTypePreferred(post._id)
-            }
-        }
-
-        val isPreferring by postsViewModel.preferringPosts.collectAsState()
-        val isLoading = isPreferring.contains(post._id)
-
-        val icon = if (isPreferred) {
-            Icons.Filled.Star
-        } else {
-            Icons.Outlined.Star
-        }
-
-        val color = if (isPreferred) {
-            Color(0xFFFFC107) // Amber/Gold color for preferred
-        } else {
-            Color(0xFF6B7280) // Gray for not preferred
-        }
-
-        Icon(
-            imageVector = icon,
-            contentDescription = if (isPreferred) "Remove from preferences" else "Add to preferences",
-            tint = color,
-            modifier = modifier
-                .clickable(
-                    enabled = !isLoading && post.foodType != null,
-                    onClick = {
-                        if (!isPreferred) {
-                            postsViewModel.preferFoodType(post._id)
-                        }
-                    }
-                )
-        )
-    }
+// This component has been removed as preferences are now tracked implicitly
+// from user interactions (likes, comments, saves, views).
+// The backend automatically learns preferences from these interactions.
 
 // ------------------------------------------------------
 // 🥗 Recipe Card (MODIFIED to accept onPostClick parameter)

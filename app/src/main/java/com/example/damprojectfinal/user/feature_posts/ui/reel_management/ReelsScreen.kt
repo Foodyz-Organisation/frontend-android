@@ -83,18 +83,36 @@ fun ReelsScreen(
                     registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
                         override fun onPageSelected(position: Int) {
                             super.onPageSelected(position)
-                            reelsViewModel.onReelSelected(position) // Notify ViewModel of new current reel
+                            
+                            val reelsPagerAdapter = adapter as? ReelsPagerAdapter
+                            
+                            // Map looped position to actual position for ViewModel
+                            val actualPosition = reelsPagerAdapter?.getActualPositionFromLooped(position) ?: position
+                            reelsViewModel.onReelSelected(actualPosition)
+                            
                             // Also tell the adapter the new playing position for playback control
-                            (adapter as? ReelsPagerAdapter)?.setCurrentlyPlayingPosition(position)
+                            reelsPagerAdapter?.setCurrentlyPlayingPosition(position)
                         }
 
-                        // --- MODIFIED: Handle scroll state changes for better playback control ---
+                        // --- MODIFIED: Handle scroll state changes for better playback control and infinite loop ---
                         override fun onPageScrollStateChanged(state: Int) {
                             super.onPageScrollStateChanged(state)
                             val reelsPagerAdapter = adapter as? ReelsPagerAdapter
+                            
                             if (state == ViewPager2.SCROLL_STATE_IDLE) {
-                                // When scrolling stops, ensure the current item's player is active
-                                reelsPagerAdapter?.setCurrentlyPlayingPosition(currentItem)
+                                // When scrolling stops, check if we need to jump for infinite loop
+                                val jumpPosition = reelsPagerAdapter?.shouldJumpToLoop(currentItem)
+                                if (jumpPosition != null) {
+                                    // Jump to maintain infinite loop (without animation)
+                                    setCurrentItem(jumpPosition, false)
+                                    reelsPagerAdapter?.setCurrentlyPlayingPosition(jumpPosition)
+                                    // Update ViewModel with actual position
+                                    val actualPos = reelsPagerAdapter.getActualPositionFromLooped(jumpPosition)
+                                    reelsViewModel.onReelSelected(actualPos)
+                                } else {
+                                    // Normal case: ensure the current item's player is active
+                                    reelsPagerAdapter?.setCurrentlyPlayingPosition(currentItem)
+                                }
                             } else {
                                 // When scrolling, pause the current item's player
                                 // Pass NO_POSITION to indicate no reel is actively playing
@@ -106,16 +124,34 @@ fun ReelsScreen(
                 }
             },
             update = { viewPager ->
-                // --- MODIFIED: Use submitList for ListAdapter ---
-                (viewPager.adapter as? ReelsPagerAdapter)?.submitList(reelsList)
-
-                // Ensure ViewPager2 scrolls to the current index
-                if (viewPager.currentItem != currentReelIndex) {
-                    viewPager.setCurrentItem(currentReelIndex, false) // false for no smooth scroll
+                val adapter = viewPager.adapter as? ReelsPagerAdapter
+                
+                // --- MODIFIED: Use submitActualList for infinite loop support ---
+                val previousItemCount = adapter?.itemCount ?: 0
+                adapter?.submitActualList(reelsList)
+                
+                if (reelsList.isNotEmpty()) {
+                    // Initialize to middle position for infinite loop (only on first load or when list was empty)
+                    if (previousItemCount == 0) {
+                        val initialPosition = adapter?.getInitialPosition() ?: 0
+                        viewPager.setCurrentItem(initialPosition, false)
+                        adapter?.setCurrentlyPlayingPosition(initialPosition)
+                        // Update ViewModel with actual position (0 for first item)
+                        reelsViewModel.onReelSelected(0)
+                    } else {
+                        // For subsequent updates, maintain current position by mapping to looped position
+                        // Get current actual position and map it to the new looped list
+                        val currentActualPos = currentReelIndex.coerceIn(0, reelsList.size - 1)
+                        val initialPos = adapter?.getInitialPosition() ?: 0
+                        val loopedPosition = initialPos + currentActualPos
+                        
+                        // Only update if position changed significantly
+                        if (kotlin.math.abs(viewPager.currentItem - loopedPosition) > reelsList.size) {
+                            viewPager.setCurrentItem(loopedPosition, false)
+                        }
+                        adapter?.setCurrentlyPlayingPosition(viewPager.currentItem)
+                    }
                 }
-                // --- MODIFIED: Set the playing position initially and on update ---
-                // This ensures the correct reel plays if the list changes or viewPager state is restored
-                (viewPager.adapter as? ReelsPagerAdapter)?.setCurrentlyPlayingPosition(currentReelIndex)
             }
         )
 

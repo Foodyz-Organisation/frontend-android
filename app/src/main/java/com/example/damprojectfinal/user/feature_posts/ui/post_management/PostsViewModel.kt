@@ -32,19 +32,17 @@ open class PostsViewModel : ViewModel() {
     protected val postsApiService: PostsApiService = RetrofitClient.postsApiService
     // --- END NEW ---
 
-    // --- NEW: Food Type Preference State ---
-    // Track user's preferred food types (cached locally)
+    // --- Food Type Preference State (Implicit System) ---
+    // Preferences are now tracked implicitly by the backend from user interactions
+    // This state is kept for UI display purposes only (e.g., showing preferences in settings)
+    // Preferences are automatically updated by backend when user interacts with posts
     private val _userPreferences = MutableStateFlow<List<String>>(emptyList())
     open val userPreferences: StateFlow<List<String>> = _userPreferences
-
-    // Track which posts are currently being processed for preference (loading state per post)
-    private val _preferringPosts = MutableStateFlow<Set<String>>(emptySet())
-    open val preferringPosts: StateFlow<Set<String>> = _preferringPosts
 
     // Success message for snackbar
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     open val snackbarMessage: StateFlow<String?> = _snackbarMessage
-    // --- END NEW ---
+    // --- END ---
 
     init {
         // Fetch posts immediately when the ViewModel is created
@@ -96,9 +94,12 @@ open class PostsViewModel : ViewModel() {
         }
     }
 
-    // Corrected: Make this a suspend function and call the API
-    open suspend fun getPostById (postId: String): PostResponse { // <--- ADD 'suspend'
-        return postsApiService.getPostById(postId) // <--- Call the API service
+    // Get post by ID
+    // Note: Backend automatically tracks view interaction if x-user-id header is present
+    // The AuthInterceptor automatically adds x-user-id header to all requests
+    open suspend fun getPostById (postId: String): PostResponse {
+        // Backend will automatically track view interaction and update preferences
+        return postsApiService.getPostById(postId)
     }
 
 
@@ -146,6 +147,7 @@ open class PostsViewModel : ViewModel() {
     }
 
     // Function to increment like count
+    // Note: Backend automatically tracks preference from this interaction
     open fun incrementLikeCount(postId: String) {
         viewModelScope.launch {
             try {
@@ -155,6 +157,8 @@ open class PostsViewModel : ViewModel() {
                         if (post._id == postId) updatedPost else post
                     }
                 }
+                // Backend automatically updates user preferences from this like interaction
+                Log.d("PostsViewModel", "Post liked - backend will track preference automatically")
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to like post: ${e.localizedMessage ?: e.message}"
             }
@@ -178,6 +182,7 @@ open class PostsViewModel : ViewModel() {
     }
 
     // Function to create a comment
+    // Note: Backend automatically tracks preference from this interaction
     open fun createComment(postId: String, commentText: String) {
         viewModelScope.launch {
             try {
@@ -188,6 +193,8 @@ open class PostsViewModel : ViewModel() {
                         if (post._id == postId) updatedPost else post
                     }
                 }
+                // Backend automatically updates user preferences from this comment interaction
+                Log.d("PostsViewModel", "Comment added - backend will track preference automatically")
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to add comment: ${e.localizedMessage ?: e.message}"
             }
@@ -204,6 +211,7 @@ open class PostsViewModel : ViewModel() {
     }
 
     // Function to increment save count
+    // Note: Backend automatically tracks preference from this interaction
     open fun incrementSaveCount(postId: String) {
         viewModelScope.launch {
             try {
@@ -213,6 +221,8 @@ open class PostsViewModel : ViewModel() {
                         if (post._id == postId) updatedPost else post
                     }
                 }
+                // Backend automatically updates user preferences from this save interaction
+                Log.d("PostsViewModel", "Post saved - backend will track preference automatically")
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to save post: ${e.localizedMessage ?: e.message}"
             }
@@ -235,56 +245,31 @@ open class PostsViewModel : ViewModel() {
         }
     }
 
-    // --- NEW: Food Type Preference Functions ---
+    // --- Food Type Preference Functions (Implicit System) ---
 
     /**
-     * Prefer a post's food type - adds it to user's preferred food types
-     * The x-user-id header is automatically added by AuthInterceptor
+     * @deprecated Preferences are now tracked implicitly by the backend from user interactions.
+     * This method is kept for backward compatibility but is no longer needed.
+     * Preferences are automatically updated when users like, comment, save, or view posts.
+     * 
+     * If you still want to support explicit preference actions, you can keep this method.
+     * Otherwise, it can be removed in a future version.
      */
+    @Deprecated(
+        message = "Preferences are now tracked implicitly. Use interactions (like, comment, save, view) instead.",
+        replaceWith = ReplaceWith("// Preferences are automatically tracked from interactions")
+    )
     open fun preferFoodType(postId: String) {
         viewModelScope.launch {
-            // Check if already processing this post
-            if (_preferringPosts.value.contains(postId)) {
-                Log.d("PostsViewModel", "Already processing preference for post: $postId")
-                return@launch
-            }
-
-            // Get the post to extract food type
-            val post = _posts.value.find { it._id == postId }
-            if (post == null || post.foodType.isNullOrBlank()) {
-                _errorMessage.value = "Post not found or has no food type"
-                return@launch
-            }
-
-            val foodType = post.foodType
-
-            // Check if already preferred
-            if (_userPreferences.value.contains(foodType)) {
-                Log.d("PostsViewModel", "Food type '$foodType' is already preferred")
-                _snackbarMessage.value = "Already in your preferences"
-                return@launch
-            }
-
-            // Mark as processing
-            _preferringPosts.update { it + postId }
-
             try {
-                // Call API to prefer food type
+                // Call API to prefer food type (still works but not recommended)
                 val updatedUser = postsApiService.preferFoodType(postId)
-
-                // Update local preferences
+                
+                // Update local preferences for display purposes
                 _userPreferences.value = updatedUser.preferredFoodTypes
-
-                // Show success message
+                
                 _snackbarMessage.value = "Added to preferences"
-
-                // Optionally refresh feed to get personalized results
-                // Uncomment if you want immediate feed refresh after preference
-                // fetchPosts()
-
-                Log.d("PostsViewModel", "Successfully preferred food type: $foodType")
                 Log.d("PostsViewModel", "Updated preferences: ${updatedUser.preferredFoodTypes}")
-
             } catch (e: Exception) {
                 val errorMsg = when {
                     e.message?.contains("404") == true -> "Post or user not found"
@@ -295,15 +280,13 @@ open class PostsViewModel : ViewModel() {
                 _errorMessage.value = errorMsg
                 _snackbarMessage.value = errorMsg
                 Log.e("PostsViewModel", "Error preferring food type: ${e.message}", e)
-            } finally {
-                // Remove from processing set
-                _preferringPosts.update { it - postId }
             }
         }
     }
 
     /**
-     * Check if a food type is preferred
+     * Check if a food type is in user's preferences (for display purposes only)
+     * Note: Preferences are now tracked implicitly by backend, this is just for UI display
      */
     open fun isFoodTypePreferred(foodType: String?): Boolean {
         if (foodType.isNullOrBlank()) return false
@@ -311,18 +294,16 @@ open class PostsViewModel : ViewModel() {
     }
 
     /**
-     * Check if a specific post's food type is preferred
+     * Check if a specific post's food type is in user's preferences (for display purposes only)
+     * Note: Preferences are now tracked implicitly by backend, this is just for UI display
      */
+    @Deprecated(
+        message = "Preferences are tracked implicitly. This method is kept for display purposes only.",
+        replaceWith = ReplaceWith("// No longer needed - preferences tracked automatically")
+    )
     open fun isPostFoodTypePreferred(postId: String): Boolean {
         val post = _posts.value.find { it._id == postId }
         return post?.foodType?.let { isFoodTypePreferred(it) } ?: false
-    }
-
-    /**
-     * Check if a post is currently being processed for preference
-     */
-    open fun isPreferring(postId: String): Boolean {
-        return _preferringPosts.value.contains(postId)
     }
 
     /**

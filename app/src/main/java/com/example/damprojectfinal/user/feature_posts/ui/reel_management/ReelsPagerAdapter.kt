@@ -10,6 +10,7 @@ import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 
 // The adapter for ViewPager2, which uses a ListAdapter for efficient updates
+// Modified to support infinite loop scrolling
 class ReelsPagerAdapter(
     private val context: Context, // Context might not be strictly needed if only creating ComposeView
     private val onReelClick: (String) -> Unit, // Callback when a reel is clicked
@@ -20,6 +21,52 @@ class ReelsPagerAdapter(
 
     // Keep track of the currently playing reel's position to control playback
     private var currentlyPlayingPosition: Int = RecyclerView.NO_POSITION
+    
+    // Multiplier for infinite looping - creates a large number of items
+    private val loopMultiplier = 1000
+    
+    // The actual list of reels (not looped)
+    private var actualReelsList: List<PostResponse> = emptyList()
+    
+    // Get the actual reel count
+    private fun getActualItemCount(): Int = actualReelsList.size
+    
+    // Get the total item count (looped)
+    override fun getItemCount(): Int {
+        val actualCount = getActualItemCount()
+        return if (actualCount > 0) actualCount * loopMultiplier else 0
+    }
+    
+    // Map looped position to actual position
+    private fun getActualPosition(position: Int): Int {
+        val actualCount = getActualItemCount()
+        return if (actualCount > 0) position % actualCount else 0
+    }
+    
+    // Get the starting position in the middle of the looped list
+    fun getInitialPosition(): Int {
+        val actualCount = getActualItemCount()
+        return if (actualCount > 0) (actualCount * loopMultiplier) / 2 else 0
+    }
+    
+    // Check if we need to jump to maintain infinite loop
+    fun shouldJumpToLoop(currentPosition: Int): Int? {
+        val actualCount = getActualItemCount()
+        if (actualCount == 0) return null
+        
+        val totalItems = actualCount * loopMultiplier
+        val jumpThreshold = actualCount * 2 // Jump when within 2x actual count from edges
+        
+        // If near the beginning, jump to near the end
+        if (currentPosition < jumpThreshold) {
+            return totalItems - jumpThreshold
+        }
+        // If near the end, jump to near the beginning
+        if (currentPosition > totalItems - jumpThreshold) {
+            return jumpThreshold
+        }
+        return null
+    }
 
     // Update the position of the currently playing reel
     fun setCurrentlyPlayingPosition(position: Int) {
@@ -35,6 +82,18 @@ class ReelsPagerAdapter(
             }
         }
     }
+    
+    // Override submitList to store the actual list
+    fun submitActualList(list: List<PostResponse>) {
+        actualReelsList = list
+        // Submit the looped list to the adapter
+        val loopedList = if (list.isNotEmpty()) {
+            List(loopMultiplier) { list }.flatten()
+        } else {
+            emptyList()
+        }
+        submitList(loopedList)
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ReelViewHolder {
         // Create a ComposeView to host our ReelItem composable
@@ -48,11 +107,19 @@ class ReelsPagerAdapter(
     }
 
     override fun onBindViewHolder(holder: ReelViewHolder, position: Int) {
-        val reelPost = getItem(position)
+        // Map the looped position to actual position
+        val actualPosition = getActualPosition(position)
+        val reelPost = actualReelsList.getOrNull(actualPosition) ?: return
+        
         // Pass whether this item is the currently focused item to the Composable
         val isCurrentItem = position == currentlyPlayingPosition
 
         holder.bind(reelPost, isCurrentItem, onReelClick, navController, postsViewModel, reelsViewModel)
+    }
+    
+    // Get actual position from looped position (for ViewModel)
+    fun getActualPositionFromLooped(loopedPosition: Int): Int {
+        return getActualPosition(loopedPosition)
     }
 
     // ViewHolder that holds a ComposeView and binds the ReelItem composable
