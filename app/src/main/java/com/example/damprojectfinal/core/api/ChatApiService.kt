@@ -18,7 +18,9 @@ data class ConversationDto(
     val title: String? = null,
     val meta: Map<String, String>? = null,
     val createdAt: String? = null,
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+    val lastMessage: MessageDto? = null,
+    val unreadCount: Int = 0
 )
 
 data class MessageDto(
@@ -49,7 +51,8 @@ data class PeerDto(
     val id: String,
     val name: String,
     val email: String,
-    val avatarUrl: String? = null
+    val avatarUrl: String? = null,
+    val kind: String? = null  // "user" or "professional"
 )
 
 // ===== API Service Interface =====

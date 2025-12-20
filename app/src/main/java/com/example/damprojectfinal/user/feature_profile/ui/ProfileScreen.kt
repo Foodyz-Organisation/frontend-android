@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -68,150 +71,148 @@ fun ProfileScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = uiState.userProfile?.username ?: "Profile",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = ProfileAccent
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = { navController.popBackStack() },
-                        modifier = Modifier
-                    ) {
-                        Icon(
-                            Icons.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = ProfileAccent
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            navController.navigate(UserRoutes.PROFILE_SETTINGS)
-                        },
-                        modifier = Modifier
-                    ) {
-                        Icon(
-                            Icons.Outlined.Settings,
-                            contentDescription = "Settings",
-                            tint = ProfileAccent
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = ProfileCard,
-                    titleContentColor = ProfileAccent
+    val scrollState = rememberScrollState()
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ProfileBackground)
+            .verticalScroll(scrollState)
+    ) {
+        // TopAppBar - now scrolls with content
+        TopAppBar(
+            title = {
+                Text(
+                    text = uiState.userProfile?.username ?: "Profile",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = ProfileAccent
                 )
+            },
+            navigationIcon = {
+                IconButton(
+                    onClick = { navController.popBackStack() },
+                    modifier = Modifier
+                ) {
+                    Icon(
+                        Icons.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = ProfileAccent
+                    )
+                }
+            },
+            actions = {
+                IconButton(
+                    onClick = {
+                        navController.navigate(UserRoutes.PROFILE_SETTINGS)
+                    },
+                    modifier = Modifier
+                ) {
+                    Icon(
+                        Icons.Outlined.Settings,
+                        contentDescription = "Settings",
+                        tint = ProfileAccent
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = ProfileCard,
+                titleContentColor = ProfileAccent
+            )
+        )
+
+        // Loading indicator
+        if (uiState.isLoadingProfile || uiState.isLoadingPosts) {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
+                color = CustomYellow,
+                trackColor = Color(0xFFE5E7EB)
             )
         }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(ProfileBackground)
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Loading indicator
-                if (uiState.isLoadingProfile || uiState.isLoadingPosts) {
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = CustomYellow,
-                        trackColor = Color(0xFFE5E7EB)
-                    )
+
+        // Error message
+        uiState.errorMessage?.let { errorMessage ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFFFEBEE)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = errorMessage,
+                    color = Color(0xFFD32F2F),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        // Profile content
+        uiState.userProfile?.let { userProfile ->
+            ProfileHeader(
+                userProfile = userProfile,
+                viewModel = viewModel,
+                navController = navController
+            )
+            
+            // Tabs
+            ProfileTabs(
+                uiState = uiState,
+                onTabSelected = { viewModel.onTabSelected(it) }
+            )
+
+            // Content of the selected tab
+            AnimatedContent(
+                targetState = uiState.selectedTabIndex,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(300)) togetherWith
+                    fadeOut(animationSpec = tween(300))
                 }
-
-                // Error message
-                uiState.errorMessage?.let { errorMessage ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFFFEBEE)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = errorMessage,
-                            color = Color(0xFFD32F2F),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
-                // Profile content
-                uiState.userProfile?.let { userProfile ->
-                    ProfileHeader(
-                        userProfile = userProfile,
-                        viewModel = viewModel,
-                        navController = navController
+            ) { tabIndex ->
+                when (tabIndex) {
+                    0 -> PostsGrid(
+                        posts = uiState.userPosts,
+                        userId = userId,
+                        navController = navController,
+                        isSavedPosts = false
                     )
-                    
-                    // Tabs
-                    ProfileTabs(
-                        uiState = uiState,
-                        onTabSelected = { viewModel.onTabSelected(it) }
-                    )
-
-                    // Content of the selected tab
-                    AnimatedContent(
-                        targetState = uiState.selectedTabIndex,
-                        transitionSpec = {
-                            fadeIn(animationSpec = tween(300)) togetherWith
-                            fadeOut(animationSpec = tween(300))
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) { tabIndex ->
-                        when (tabIndex) {
-                            0 -> PostsGrid(
-                                posts = uiState.userPosts,
+                    1 -> {
+                        if (uiState.isLoadingSavedPosts) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(400.dp)
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = CustomYellow)
+                            }
+                        } else {
+                            PostsGrid(
+                                posts = uiState.savedPosts,
                                 userId = userId,
                                 navController = navController,
-                                isSavedPosts = false
+                                isSavedPosts = true
                             )
-                            1 -> {
-                                if (uiState.isLoadingSavedPosts) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(16.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator(color = CustomYellow)
-                                    }
-                                } else {
-                                    PostsGrid(
-                                        posts = uiState.savedPosts,
-                                        userId = userId,
-                                        navController = navController,
-                                        isSavedPosts = true
-                                    )
-                                }
-                            }
                         }
                     }
-                } ?: run {
-                    if (!uiState.isLoadingProfile && uiState.errorMessage == null) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = CustomYellow)
-                        }
-                    }
+                }
+            }
+        } ?: run {
+            if (!uiState.isLoadingProfile && uiState.errorMessage == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(400.dp)
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = CustomYellow)
                 }
             }
         }
@@ -481,9 +482,18 @@ fun PostsGrid(
             }
         }
     } else {
+        // Calculate height based on number of posts (3 columns)
+        // Each item is roughly square, so we estimate based on screen width / 3
+        val configuration = LocalConfiguration.current
+        val screenWidth = configuration.screenWidthDp
+        val itemSizeValue = screenWidth / 3f
+        val rows = (posts.size + 2) / 3 // Ceiling division
+        val spacingValue = (rows - 1) * 1f // Spacing between rows
+        val gridHeight = ((rows * itemSizeValue) + spacingValue).dp
+        
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.height(gridHeight),
             contentPadding = PaddingValues(1.dp),
             verticalArrangement = Arrangement.spacedBy(1.dp),
             horizontalArrangement = Arrangement.spacedBy(1.dp)

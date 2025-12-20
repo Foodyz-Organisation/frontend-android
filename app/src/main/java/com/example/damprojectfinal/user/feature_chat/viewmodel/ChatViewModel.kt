@@ -1,6 +1,9 @@
 package com.example.damprojectfinal.user.feature_chat.viewmodel
 
+import android.content.ContentValues.TAG
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.damprojectfinal.R
 import com.example.damprojectfinal.core.api.ChatApiService
@@ -10,6 +13,8 @@ import com.example.damprojectfinal.core.api.CreateConversationDto
 import com.example.damprojectfinal.core.api.MessageDto
 import com.example.damprojectfinal.core.api.PeerDto
 import com.example.damprojectfinal.core.api.SendMessageDto
+import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.model.ChatListItem
 import com.example.damprojectfinal.core.model.ChatMessage
@@ -24,9 +29,25 @@ import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
 
-class ChatViewModel : ViewModel() {
+class ChatViewModel(
+    private val tokenManager: TokenManager? = null
+) : ViewModel() {
 
     private val chatApiService: ChatApiService = RetrofitClient.chatApiService
+    private val userApiService: UserApiService by lazy {
+        UserApiService(tokenManager ?: throw IllegalStateException("TokenManager is required"))
+    }
+
+    // Factory for creating ChatViewModel with TokenManager
+    class Factory(private val tokenManager: TokenManager) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(ChatViewModel::class.java)) {
+                return ChatViewModel(tokenManager) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class")
+        }
+    }
 
 
     // ===== Liste des conversations (écran liste) =====
@@ -86,9 +107,56 @@ class ChatViewModel : ViewModel() {
 
             if (showLoading) _isLoading.value = true
             try {
+                // ALWAYS load and enrich peers for fresh data
+                try {
+                    val peersResponse = chatApiService.getPeers("Bearer $authToken")
+                    Log.d("ChatViewModel", "✅ Loaded ${peersResponse.size} peers from /chat/peers")
+                    
+                    // Enrich peer data with real user/professional information
+                    val enrichedPeers = peersResponse.map { peer ->
+                        try {
+                            // Check if peer is a professional or a user
+                            val displayName: String
+                            val avatarUrl: String?
+                            
+                            if (peer.kind == "professional") {
+                                // Fetch professional data
+                                val proResponse = RetrofitClient.professionalApiService.getProfessionalAccount(peer.id)
+                                displayName = proResponse.fullName ?: peer.name
+                                avatarUrl = proResponse.profilePictureUrl ?: peer.avatarUrl
+                            } else {
+                                // Fetch user data
+                                val userResponse = userApiService.getUserById(peer.id, authToken)
+                                displayName = userResponse.username.ifEmpty { peer.name }
+                                avatarUrl = userResponse.profilePictureUrl ?: peer.avatarUrl
+                            }
+                            
+                            val enrichedPeer = peer.copy(
+                                name = displayName,
+                                avatarUrl = avatarUrl
+                            )
+                            Log.d("ChatViewModel", "  ✅ Enriched peer (${peer.kind}): id=${peer.id}, name='$displayName', avatarUrl='$avatarUrl'")
+                            enrichedPeer
+                        } catch (e: Exception) {
+                            Log.w("ChatViewModel", "  ⚠️ Failed to enrich peer ${peer.id}: ${e.message}")
+                            peer
+                        }
+                    }
+                    
+                    _peers.value = enrichedPeers.sortedBy { it.name.lowercase() }
+                    peersCache = enrichedPeers.associateBy { it.id }
+                } catch (e: Exception) {
+                    Log.e("ChatViewModel", "❌ Failed to load peers: ${e.message}", e)
+                }
+
                 // Aligne les endpoints avec iOS: liste des conversations
                 val response: List<ConversationDto> =
                     chatApiService.getConversations("Bearer $authToken")
+
+                Log.d("ChatViewModel", "✅ Loaded ${response.size} conversations:")
+                response.forEach { conv ->
+                    Log.d("ChatViewModel", "  - Conv: id=${conv.id}, kind=${conv.kind}, title='${conv.title}', participants=${conv.participants}")
+                }
 
                 // Filter out conversations with null IDs
                 val validConversations = response.filter { it.id != null }
@@ -97,6 +165,32 @@ class ChatViewModel : ViewModel() {
                 conversations = validConversations
                 _chats.value = validConversations.map { it.toChatMessage() }
                 _chatItems.value = validConversations.map { it.toChatListItem(currentUserId) }
+                
+                Log.d("ChatViewModel", "✅ Mapped to ${_chatItems.value.size} chat items:")
+                _chatItems.value.forEach { item ->
+                    Log.d("ChatViewModel", "  - ChatItem: title='${item.title}', avatarUrl='${item.avatarUrl}', initials='${item.initials}'")
+                }
+
+                // Load last message for each conversation
+                validConversations.forEach { conversation ->
+                    conversation.id?.let { id ->
+                        launch {
+                            try {
+                                val messages = chatApiService.getMessages(
+                                    bearerToken = "Bearer $authToken",
+                                    conversationId = id,
+                                    limit = 1
+                                )
+                                val lastMessage = messages.lastOrNull()
+                                if (lastMessage != null) {
+                                    updateConversationLastMessage(id, lastMessage, currentUserId)
+                                }
+                            } catch (e: Exception) {
+                                // Silently fail for individual conversation messages
+                            }
+                        }
+                    }
+                }
 
                 _errorMessage.value = null
             } catch (e: Exception) {
@@ -113,9 +207,42 @@ class ChatViewModel : ViewModel() {
             if (authToken.isNullOrBlank()) return@launch
 
             try {
-                val response = chatApiService.getPeers("Bearer $authToken")
-                _peers.value = response.sortedBy { it.name.lowercase() }
-                peersCache = response.associateBy { it.id }
+                val peersResponse = chatApiService.getPeers("Bearer $authToken")
+                Log.d(TAG, "✅ loadPeers: Loaded ${peersResponse.size} peers from /chat/peers")
+                
+                // Enrich peer data with real user/professional information
+                val enrichedPeers = peersResponse.map { peer ->
+                    try {
+                        val displayName: String
+                        val avatarUrl: String?
+                        
+                        if (peer.kind == "professional") {
+                            // Fetch professional data
+                            val proResponse = RetrofitClient.professionalApiService.getProfessionalAccount(peer.id)
+                            displayName = proResponse.fullName ?: peer.name
+                            avatarUrl = proResponse.profilePictureUrl ?: peer.avatarUrl
+                        } else {
+                            // Fetch user data
+                            val userResponse = userApiService.getUserById(peer.id, authToken)
+                            displayName = userResponse.username.ifEmpty { peer.name }
+                            avatarUrl = userResponse.profilePictureUrl ?: peer.avatarUrl
+                        }
+                        
+                        val enrichedPeer = peer.copy(
+                            name = displayName,
+                            avatarUrl = avatarUrl
+                        )
+                        Log.d(TAG, "  ✅ Enriched peer (${peer.kind}): id=${peer.id}, name='$displayName', avatarUrl='$avatarUrl'")
+                        enrichedPeer
+                    } catch (e: Exception) {
+                        Log.w(TAG, "  ⚠️ Failed to enrich peer ${peer.id}: ${e.message}")
+                        peer
+                    }
+                }
+                
+                _peers.value = enrichedPeers.sortedBy { it.name.lowercase() }
+                peersCache = enrichedPeers.associateBy { it.id }
+                
                 if (conversations.isNotEmpty()) {
                     _chatItems.value = conversations.map { it.toChatListItem(currentUserId) }
                 }
@@ -233,6 +360,8 @@ class ChatViewModel : ViewModel() {
 
             setOnMessageReceived { msg ->
                 _messages.value = _messages.value + msg
+                // Update conversation with this new message
+                updateConversationLastMessage(conversationId, msg, null)
             }
         }
 
@@ -263,7 +392,7 @@ class ChatViewModel : ViewModel() {
         _messages.value = emptyList()
     }
 
-    fun loadMessages(authToken: String?, conversationId: String, showLoading: Boolean = true) {
+    fun loadMessages(authToken: String?, conversationId: String, showLoading: Boolean = true, currentUserId: String? = null) {
         viewModelScope.launch {
             if (authToken.isNullOrBlank()) {
                 _errorMessage.value = "Missing authentication token"
@@ -278,6 +407,13 @@ class ChatViewModel : ViewModel() {
                     conversationId = conversationId
                 )
                 _messages.value = response.sortedBy { it.createdAt ?: "" }
+                
+                // Update conversation with last message
+                val lastMessage = response.maxByOrNull { it.createdAt ?: "" }
+                if (lastMessage != null) {
+                    updateConversationLastMessage(conversationId, lastMessage, currentUserId)
+                }
+                
                 _errorMessage.value = null
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Unable to load messages"
@@ -290,12 +426,13 @@ class ChatViewModel : ViewModel() {
     fun startMessagesAutoRefresh(
         authToken: String?,
         conversationId: String,
-        intervalSeconds: Long = 5
+        intervalSeconds: Long = 5,
+        currentUserId: String? = null
     ) {
         if (messagesRefreshJob != null) return
         messagesRefreshJob = viewModelScope.launch {
             while (isActive) {
-                loadMessages(authToken, conversationId, showLoading = false)
+                loadMessages(authToken, conversationId, showLoading = false, currentUserId = currentUserId)
                 delay(intervalSeconds * 1000)
             }
         }
@@ -384,9 +521,9 @@ class ChatViewModel : ViewModel() {
         return ChatMessage(
             conversationId = id ?: "unknown",
             name = title?.takeIf { it.isNotBlank() } ?: "Conversation",
-            message = "No message yet",
+            message = lastMessage?.content ?: "No message yet",
             time = updatedAt ?: createdAt ?: "",
-            unreadCount = 0,
+            unreadCount = unreadCount,
             profileImage = R.drawable.profile,  // à personnaliser plus tard
             online = false
         )
@@ -397,9 +534,9 @@ class ChatViewModel : ViewModel() {
         return ChatListItem(
             id = id ?: "unknown",
             title = resolvedTitle,
-            subtitle = summary(),
+            subtitle = lastMessage?.content ?: summary(),
             updatedTime = formatTimestamp(updatedAt ?: createdAt),
-            unreadCount = 0,
+            unreadCount = unreadCount,
             isOnline = false,
             avatarUrl = avatarFor(currentUserId),
             initials = initialsFrom(resolvedTitle)
@@ -407,12 +544,27 @@ class ChatViewModel : ViewModel() {
     }
 
     private fun ConversationDto.resolveTitle(currentUserId: String?): String {
-        if (!title.isNullOrBlank()) return title
+        // For private chats, ALWAYS use the peer's name from cache, ignore backend title
+        if (kind == "private") {
+            val otherId = participants.firstOrNull { it != null && it != currentUserId }
+            Log.d("ChatViewModel", "🔍 Resolving title: currentUserId=$currentUserId, otherId=$otherId, participants=$participants")
+            val peer = otherId?.let { peersCache[it] }
+            Log.d("ChatViewModel", "🔍 Found peer: name='${peer?.name}', email='${peer?.email}', avatarUrl='${peer?.avatarUrl}'")
+            if (peer?.name != null) {
+                Log.d("ChatViewModel", "✅ Using peer name: '${peer.name}'")
+                return peer.name
+            }
+        }
+        
+        // For group chats, use the title if available
+        if (!title.isNullOrBlank()) {
+            Log.d("ChatViewModel", "⚠️ Falling back to backend title: '$title'")
+            return title
+        }
         if (kind == "group") return "Group conversation"
-
-        val otherId = participants.firstOrNull { it != null && it != currentUserId }
-        val peerName = otherId?.let { peersCache[it]?.name }
-        return peerName ?: "Conversation"
+        
+        Log.d("ChatViewModel", "⚠️ No title found, using default 'Conversation'")
+        return "Conversation"
     }
 
     fun displayTitleFor(conversation: ConversationDto, currentUserId: String?): String {
@@ -430,14 +582,28 @@ class ChatViewModel : ViewModel() {
     private fun formatTimestamp(raw: String?): String {
         if (raw.isNullOrBlank()) return ""
         return try {
-            // Parse ISO 8601 format (e.g., "2024-01-15T10:30:00Z" or "2024-01-15T10:30:00.000Z")
             val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
             dateFormat.timeZone = TimeZone.getTimeZone("UTC")
-            val date = dateFormat.parse(raw.substringBefore(".").substringBefore("Z"))
+            val date = dateFormat.parse(raw.substringBefore(".").substringBefore("Z")) ?: return raw
             
-            val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-            timeFormat.timeZone = TimeZone.getDefault()
-            timeFormat.format(date ?: return raw)
+            val now = Calendar.getInstance()
+            val messageDate = Calendar.getInstance().apply { time = date }
+            
+            val isToday = now.get(Calendar.YEAR) == messageDate.get(Calendar.YEAR) &&
+                          now.get(Calendar.DAY_OF_YEAR) == messageDate.get(Calendar.DAY_OF_YEAR)
+            
+            val isYesterday = now.get(Calendar.YEAR) == messageDate.get(Calendar.YEAR) &&
+                              now.get(Calendar.DAY_OF_YEAR) - 1 == messageDate.get(Calendar.DAY_OF_YEAR)
+
+            if (isToday) {
+                SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
+            } else if (isYesterday) {
+                "Yesterday"
+            } else if (now.get(Calendar.YEAR) == messageDate.get(Calendar.YEAR)) {
+                SimpleDateFormat("MMM dd", Locale.getDefault()).format(date)
+            } else {
+                SimpleDateFormat("dd/MM/yy", Locale.getDefault()).format(date)
+            }
         } catch (e: Exception) {
             raw
         }
@@ -466,10 +632,46 @@ class ChatViewModel : ViewModel() {
         _chatItems.value = conversations.map { it.toChatListItem(currentUserId) }
     }
 
+    private fun updateConversationLastMessage(conversationId: String, message: MessageDto, currentUserId: String?) {
+        val mutable = conversations.toMutableList()
+        val index = mutable.indexOfFirst { it.id == conversationId }
+        if (index >= 0) {
+            val updated = mutable[index].copy(
+                lastMessage = message,
+                updatedAt = message.createdAt
+            )
+            mutable[index] = updated
+            conversations = mutable
+            _chats.value = conversations.map { it.toChatMessage() }
+            _chatItems.value = conversations.map { it.toChatListItem(currentUserId) }
+        }
+    }
+
+    fun markConversationAsRead(conversationId: String, currentUserId: String?) {
+        val mutable = conversations.toMutableList()
+        val index = mutable.indexOfFirst { it.id == conversationId }
+        if (index >= 0) {
+            val updated = mutable[index].copy(unreadCount = 0)
+            mutable[index] = updated
+            conversations = mutable
+            _chats.value = conversations.map { it.toChatMessage() }
+            _chatItems.value = conversations.map { it.toChatListItem(currentUserId) }
+        }
+    }
+
     private fun ConversationDto.avatarFor(currentUserId: String?): String? {
         if (kind != "private") return null
         val otherId = participants.firstOrNull { it != currentUserId }
-        return otherId?.let { peersCache[it]?.avatarUrl }
+        val avatarUrl = otherId?.let { peersCache[it]?.avatarUrl }
+        Log.d("ChatViewModel", "🖼️ Avatar for otherId=$otherId: '$avatarUrl'")
+        return avatarUrl
+    }
+
+    // Get profile picture URL for a specific conversation
+    fun getProfilePictureUrl(conversationId: String?, currentUserId: String?): String? {
+        if (conversationId == null) return null
+        val conversation = conversations.firstOrNull { it.id == conversationId }
+        return conversation?.avatarFor(currentUserId)
     }
 
     private fun initialsFrom(value: String): String {

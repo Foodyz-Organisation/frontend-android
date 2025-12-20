@@ -176,19 +176,59 @@ class CartViewModel(
     fun checkout(
         professionalId: String,
         orderType: OrderType,
+        paymentMethod: String, // "CASH" or "CARD"
         deliveryAddress: String? = null,
         notes: String? = null,
         scheduledTime: String? = null,
         onSuccess: (OrderResponse) -> Unit,
         onError: (String) -> Unit
     ) {
+        checkoutWithPayment(
+            professionalId = professionalId,
+            orderType = orderType,
+            paymentMethod = paymentMethod,
+            deliveryAddress = deliveryAddress,
+            notes = notes,
+            scheduledTime = scheduledTime,
+            onSuccess = { orderResponse, _ -> onSuccess(orderResponse) },
+            onError = onError
+        )
+    }
+    
+    // -----------------------------
+    // Checkout with Payment Info (for CARD payments)
+    // -----------------------------
+    fun checkoutWithPayment(
+        professionalId: String,
+        orderType: OrderType,
+        paymentMethod: String, // "CASH" or "CARD"
+        deliveryAddress: String? = null,
+        notes: String? = null,
+        scheduledTime: String? = null,
+        onSuccess: (OrderResponse, String?) -> Unit, // OrderResponse and paymentIntentId (null for CASH)
+        onError: (String) -> Unit
+    ) {
         viewModelScope.launch {
+            // First check current cart state
             val currentState = _uiState.value
+            var cart: com.example.damprojectfinal.core.dto.cart.CartResponse? = null
 
-            // Validate cart is loaded and has items
-            if (currentState !is CartUiState.Success) {
-                onError("Cart is empty or not loaded")
-                return@launch
+            // If we have a valid cart in state, use it
+            if (currentState is CartUiState.Success && currentState.cart.items.isNotEmpty()) {
+                android.util.Log.d("CartViewModel", "✅ Using cart from UI state: ${currentState.cart.items.size} items")
+                cart = currentState.cart
+            } else {
+                // Otherwise, reload from database
+                android.util.Log.d("CartViewModel", "🔄 Reloading cart from database...")
+                cart = repository.getUserCart(userId)
+                
+                if (cart == null || cart.items.isEmpty()) {
+                    android.util.Log.e("CartViewModel", "❌ Cart is empty in database and UI state")
+                    onError("Cart is empty. Please add items to cart first.")
+                    return@launch
+                }
+
+                android.util.Log.d("CartViewModel", "✅ Cart loaded from database: ${cart.items.size} items")
             }
 
             // Validate delivery address for delivery orders
@@ -197,9 +237,8 @@ class CartViewModel(
                 return@launch
             }
 
-            val cart = currentState.cart
-
             // Convert cart items to order items
+            android.util.Log.d("CartViewModel", "📦 Converting ${cart.items.size} cart items to order items")
             val orderItems = cart.items.map { cartItem ->
                 android.util.Log.d("CartViewModel", "🛒 Converting cart item: ${cartItem.name}")
                 android.util.Log.d("CartViewModel", "  Ingredients count: ${cartItem.chosenIngredients.size}")
@@ -248,18 +287,123 @@ class CartViewModel(
                 items = orderItems,
                 totalPrice = totalPrice,
                 deliveryAddress = deliveryAddress,
-                notes = notes
+                notes = notes,
+                paymentMethod = paymentMethod
             )
 
             // Create order via OrderRepository
-            val createdOrder = orderRepository.createOrder(orderRequest)
-
-            if (createdOrder != null) {
-                // Clear cart after successful order
-                clearCart()
-                onSuccess(createdOrder)
+            // NOTE: Don't clear cart here - backend validates cart exists
+            // For CARD payments, clear cart only after payment confirmation
+            // For CASH payments, clear cart after order creation
+            android.util.Log.d("CartViewModel", "💳 Processing payment method: $paymentMethod")
+            
+            if (paymentMethod == "CARD") {
+                android.util.Log.d("CartViewModel", "💳 CARD payment - creating order with payment info")
+                // For CARD payments, get payment info
+                val paymentResponse = orderRepository.createOrderWithPayment(orderRequest)
+                if (paymentResponse != null) {
+                    android.util.Log.d("CartViewModel", "✅ CARD order created: ${paymentResponse.order._id}")
+                    android.util.Log.d("CartViewModel", "💳 PaymentIntentId: ${paymentResponse.paymentIntentId}")
+                    android.util.Log.d("CartViewModel", "💳 Order PaymentId: ${paymentResponse.order.paymentId}")
+                    android.util.Log.d("CartViewModel", "🚫 CARD payment - NOT clearing cart yet (waiting for payment confirmation)")
+                    android.util.Log.d("CartViewModel", "📤 Calling onSuccess callback with order and paymentIntentId")
+                    // Don't clear cart yet - wait for payment confirmation
+                    onSuccess(paymentResponse.order, paymentResponse.paymentIntentId)
+                    android.util.Log.d("CartViewModel", "✅ onSuccess callback completed")
+                } else {
+                    android.util.Log.e("CartViewModel", "❌ Failed to create CARD order - paymentResponse is null")
+                    onError("Failed to create order. Please try again.")
+                }
             } else {
-                onError("Failed to create order. Please try again.")
+                android.util.Log.d("CartViewModel", "💵 CASH payment - creating order")
+                // For CASH payments, just create order
+                val createdOrder = orderRepository.createOrder(orderRequest)
+                if (createdOrder != null) {
+                    android.util.Log.d("CartViewModel", "✅ CASH order created: ${createdOrder._id}")
+                    android.util.Log.d("CartViewModel", "💵 CASH payment - clearing cart immediately")
+                    android.util.Log.d("CartViewModel", "🚫 CASH payment - NOT calling payment confirmation (not needed)")
+                    // Clear cart after successful order creation for CASH
+                    clearCart()
+                    // Pass null for paymentIntentId to indicate this is CASH
+                    onSuccess(createdOrder, null)
+                } else {
+                    android.util.Log.e("CartViewModel", "❌ Failed to create CASH order")
+                    onError("Failed to create order. Please try again.")
+                }
+            }
+        }
+    }
+    
+    // -----------------------------
+    // Confirm Card Payment (with PaymentMethod ID - legacy)
+    // -----------------------------
+    fun confirmPayment(
+        paymentIntentId: String,
+        paymentMethodId: String,
+        onSuccess: (com.example.damprojectfinal.core.dto.order.OrderResponse) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            android.util.Log.d("CartViewModel", "💳 Confirming payment (legacy method with PaymentMethod ID)...")
+            android.util.Log.d("CartViewModel", "  PaymentIntentId: $paymentIntentId")
+            android.util.Log.d("CartViewModel", "  PaymentMethodId: $paymentMethodId")
+            
+            val confirmResponse = orderRepository.confirmPayment(paymentIntentId, paymentMethodId)
+            
+            if (confirmResponse != null && confirmResponse.success) {
+                android.util.Log.d("CartViewModel", "✅ Payment confirmed successfully")
+                android.util.Log.d("CartViewModel", "  Order ID: ${confirmResponse.order._id}")
+                // Clear cart only after payment is confirmed
+                clearCart()
+                onSuccess(confirmResponse.order)
+            } else {
+                android.util.Log.e("CartViewModel", "❌ Payment confirmation failed")
+                onError("Payment confirmation failed. Please try again.")
+            }
+        }
+    }
+    
+    // -----------------------------
+    // Confirm Card Payment with Card Details
+    // Backend will create PaymentMethod from card details
+    // -----------------------------
+    fun confirmPaymentWithCardDetails(
+        paymentIntentId: String,
+        cardNumber: String,
+        expMonth: Int,
+        expYear: Int,
+        cvv: String,
+        cardholderName: String,
+        onSuccess: (com.example.damprojectfinal.core.dto.order.OrderResponse) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            android.util.Log.d("CartViewModel", "💳 Confirming payment with card details...")
+            android.util.Log.d("CartViewModel", "  PaymentIntentId: $paymentIntentId")
+            android.util.Log.d("CartViewModel", "  Card Number: ${cardNumber.take(4)}****${cardNumber.takeLast(4)}")
+            android.util.Log.d("CartViewModel", "  Expiry: $expMonth/$expYear")
+            android.util.Log.d("CartViewModel", "  CVV: ${cvv.length} digits")
+            android.util.Log.d("CartViewModel", "  Cardholder: $cardholderName")
+            android.util.Log.d("CartViewModel", "  ✅ Backend will create PaymentMethod from these details")
+            
+            val confirmResponse = orderRepository.confirmPaymentWithCardDetails(
+                paymentIntentId = paymentIntentId,
+                cardNumber = cardNumber,
+                expMonth = expMonth,
+                expYear = expYear,
+                cvv = cvv,
+                cardholderName = cardholderName
+            )
+            
+            if (confirmResponse != null && confirmResponse.success) {
+                android.util.Log.d("CartViewModel", "✅ Payment confirmed successfully")
+                android.util.Log.d("CartViewModel", "  Order ID: ${confirmResponse.order._id}")
+                // Clear cart only after payment is confirmed
+                clearCart()
+                onSuccess(confirmResponse.order)
+            } else {
+                android.util.Log.e("CartViewModel", "❌ Payment confirmation failed")
+                onError("Payment confirmation failed. Please try again.")
             }
         }
     }

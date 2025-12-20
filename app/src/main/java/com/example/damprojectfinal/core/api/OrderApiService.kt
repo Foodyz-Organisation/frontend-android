@@ -3,6 +3,9 @@ package com.example.damprojectfinal.core.api
 import com.example.damprojectfinal.core.dto.order.CreateOrderRequest
 import com.example.damprojectfinal.core.dto.order.OrderResponse
 import com.example.damprojectfinal.core.dto.order.UpdateOrderStatusRequest
+import com.example.damprojectfinal.core.dto.order.ConfirmPaymentRequest
+import com.example.damprojectfinal.core.dto.order.ConfirmPaymentResponse
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -14,6 +17,13 @@ interface OrderApiService {
         @Body body: CreateOrderRequest,
         @Header("Authorization") token: String
     ): Response<OrderResponse>
+
+    // CREATE ORDER WITH PAYMENT (returns raw ResponseBody for CARD payments)
+    @POST("orders")
+    suspend fun createOrderRaw(
+        @Body body: CreateOrderRequest,
+        @Header("Authorization") token: String
+    ): Response<ResponseBody>
 
     // GET ORDERS BY USER
     @GET("orders/user/{userId}")
@@ -71,5 +81,12 @@ interface OrderApiService {
         @Path("professionalId") professionalId: String,
         @Header("Authorization") token: String
     ): Response<Unit>
+
+    // CONFIRM CARD PAYMENT
+    @POST("orders/payment/confirm")
+    suspend fun confirmPayment(
+        @Body body: ConfirmPaymentRequest,
+        @Header("Authorization") token: String
+    ): Response<ConfirmPaymentResponse>
 
 }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -29,16 +30,19 @@ import androidx.navigation.NavController
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.UserRoutes
 import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.api.ProfessionalApiService
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.auth.ProfessionalDto
 import com.example.damprojectfinal.core.`object`.KtorClient
 import com.example.damprojectfinal.core.repository.ProfessionalRepository
 import com.example.damprojectfinal.user.common.viewmodel.SearchViewModel
 import io.ktor.client.HttpClient
+import androidx.compose.ui.platform.LocalConfiguration
 
 // --- Design Colors/Constants ---
 private val PrimaryDark = Color(0xFF1F2A37) // Dark Gray for text/icons
@@ -51,10 +55,19 @@ private val YellowBorder = Color(0xFFFACC15) // Light yellow when focused
 private val VeryPaleYellow = Color(0xFFFDE68A) // Very pale yellow when unfocused
 
 @Composable
-fun NotificationIconWithDot(onClick: () -> Unit, hasNew: Boolean) {
+fun NotificationIconWithDot(
+    onClick: () -> Unit,
+    hasNew: Boolean,
+    iconSize: androidx.compose.ui.unit.Dp = 24.dp
+) {
     Box(contentAlignment = Alignment.Center) {
         IconButton(onClick = onClick) {
-            Icon(Icons.Filled.Notifications, contentDescription = "Notifications", tint = PrimaryDark)
+            Icon(
+                Icons.Filled.Notifications,
+                contentDescription = "Notifications",
+                tint = PrimaryDark,
+                modifier = Modifier.size(iconSize)
+            )
         }
         if (hasNew) {
             Box(
@@ -89,6 +102,12 @@ fun TopAppBar(
 ) {
     var showAddOptions by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
+    
+    // Get screen configuration for responsive design
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val isSmallScreen = screenWidth < 360
+    val isTablet = screenWidth > 600
 
     Column(
         modifier = Modifier
@@ -102,70 +121,54 @@ fun TopAppBar(
             modifier = Modifier
                 .fillMaxWidth()
                 // Removed top padding here, as it's handled by windowInsetsPadding above
-                .padding(vertical = 12.dp, horizontal = 16.dp)
+                .padding(
+                    vertical = if (isSmallScreen) 8.dp else 14.dp,
+                    horizontal = if (isSmallScreen) 8.dp else 14.dp
+                )
         ) {
-            // Profile Avatar Button with Profile Picture
-            Box(
-                modifier = Modifier
-                    .size(40.dp) // Smaller size
-                    .clip(CircleShape)
-                    .background(Color(0xFFE5E7EB)) // Simple gray background
-                    .clickable { onProfileClick(currentUserId) },
-                contentAlignment = Alignment.Center
-            ) {
-                // Show icon as fallback when no image URL or when image fails
-                if (profilePictureUrl.isNullOrEmpty()) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Profile Placeholder",
-                        tint = PrimaryDark,
-                        modifier = Modifier.size(20.dp)
-                    )
-                } else {
-                    // Show image with icon as placeholder/error fallback
-                    AsyncImage(
-                        model = BaseUrlProvider.getFullImageUrl(profilePictureUrl),
-                        contentDescription = "Profile Picture",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        placeholder = rememberVectorPainter(Icons.Default.Person),
-                        error = rememberVectorPainter(Icons.Default.Person),
-                        onError = {
-                            // Ensure icon is shown on error
-                        }
-                    )
-                }
+            // '+' button moved to left side (replaces profile icon)
+            IconButton(onClick = { navController.navigate(UserRoutes.CREATE_POST) }) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = "Add Content",
+                    tint = PrimaryDark,
+                    modifier = Modifier.size(if (isTablet) 28.dp else 24.dp)
+                )
             }
 
-            // App title (Unchanged)
+            // App title (Responsive)
             Text(
                 text = "Foodies",
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 28.sp, // Larger title
+                fontSize = if (isSmallScreen) 22.sp else if (isTablet) 32.sp else 28.sp,
                 color = PrimaryDark,
                 modifier = Modifier
-                    .padding(start = 12.dp)
+                    .padding(start = if (isSmallScreen) 4.dp else 8.dp)
                     .weight(1f)
             )
 
-            // '+' navigates directly to post creation
-            IconButton(onClick = { navController.navigate(UserRoutes.CREATE_POST) }) {
-                Icon(Icons.Filled.Add, contentDescription = "Add Content", tint = PrimaryDark)
-            }
-
-            // Search Button
+            // Search Button (Always visible)
             IconButton(onClick = onSearchClick) {
-                Icon(Icons.Filled.Search, contentDescription = "Search", tint = PrimaryDark)
+                Icon(
+                    Icons.Filled.Search,
+                    contentDescription = "Search",
+                    tint = PrimaryDark,
+                    modifier = Modifier.size(if (isTablet) 28.dp else 24.dp)
+                )
             }
 
-            // Drawer Button (Simplified Styling)
+            // Drawer Button (Always visible)
             IconButton(onClick = openDrawer) {
-                Icon(Icons.Filled.Menu, contentDescription = "Drawer", tint = PrimaryDark)
+                Icon(
+                    Icons.Filled.Menu,
+                    contentDescription = "Drawer",
+                    tint = PrimaryDark,
+                    modifier = Modifier.size(if (isTablet) 28.dp else 24.dp)
+                )
             }
         }
-        
 
-        // Secondary Nav Bar (Unchanged)
+        // Secondary Nav Bar - Back at the top
         SecondaryNavBar(
             navController = navController,
             currentRoute = currentRoute,
@@ -237,7 +240,7 @@ fun TopAppBar(
 }
 
 // -----------------------------------------------------------------------------
-// SECONDARY NAVBAR COMPOSABLES (Unchanged)
+// SECONDARY NAVBAR COMPOSABLES (Responsive)
 // -----------------------------------------------------------------------------
 @Composable
 fun SecondaryNavBar(
@@ -245,43 +248,108 @@ fun SecondaryNavBar(
     currentRoute: String,
     onReelsClick: () -> Unit,
     hasUnreadMessages: Boolean = false,
-    hasUnreadNotifications: Boolean = false
+    hasUnreadNotifications: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
+    // Get screen configuration for responsive design
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    val isSmallScreen = screenWidth < 360
+    val isMediumScreen = screenWidth >= 360 && screenWidth < 600
+    val isTablet = screenWidth >= 600
+    val isLargeTablet = screenWidth >= 840
+    
+    // Responsive icon sizes - scale based on screen width
+    val iconSize = when {
+        isSmallScreen -> 20.dp
+        isMediumScreen -> 22.dp
+        isTablet && !isLargeTablet -> 26.dp
+        isLargeTablet -> 28.dp
+        else -> 24.dp
+    }
+    
+    // Responsive padding - adapts to screen size
+    val horizontalPadding = when {
+        isSmallScreen -> 4.dp
+        isMediumScreen -> 8.dp
+        isTablet && !isLargeTablet -> 16.dp
+        isLargeTablet -> 24.dp
+        else -> 12.dp
+    }
+    
+    val verticalPadding = when {
+        isSmallScreen -> 8.dp
+        isMediumScreen -> 10.dp
+        isTablet && !isLargeTablet -> 12.dp
+        isLargeTablet -> 16.dp
+        else -> 12.dp
+    }
+    
+    // Icon padding - smaller for small screens to fit all icons
+    val iconPadding = when {
+        isSmallScreen -> 8.dp
+        isMediumScreen -> 10.dp
+        isTablet && !isLargeTablet -> 14.dp
+        isLargeTablet -> 18.dp
+        else -> 12.dp
+    }
+    
+    // Secondary navigation bar styling - at the top
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp, horizontal = 16.dp),
+            .padding(vertical = verticalPadding, horizontal = horizontalPadding),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        NavIcon(Icons.Filled.Home, currentRoute == UserRoutes.HOME_SCREEN) {
+        NavIcon(
+            icon = Icons.Filled.Home,
+            selected = currentRoute == UserRoutes.HOME_SCREEN,
+            iconSize = iconSize,
+            paddingSize = iconPadding
+        ) {
             navController.navigate(UserRoutes.HOME_SCREEN) {
                 popUpTo(UserRoutes.HOME_SCREEN) {
                     inclusive = true
-                } // optional: clear back stack
+                }
                 launchSingleTop = true
             }
         }
-        NavIcon(Icons.Filled.PlayArrow, currentRoute == UserRoutes.REELS_SCREEN) { onReelsClick() }
-        NavIcon(Icons.Filled.TrendingUp, currentRoute == UserRoutes.TRENDS_SCREEN) { navController.navigate(UserRoutes.TRENDS_SCREEN) }
+        
         NavIcon(
-            Icons.Filled.Message,
-            currentRoute == "chatList",
-            showBadge = hasUnreadMessages
-        ) { navController.navigate("chatList") }
-        // Orders history icon
-        NavIcon(
-            Icons.Filled.ReceiptLong,
-            currentRoute == UserRoutes.ORDERS_ROUTE
+            icon = Icons.Filled.PlayArrow,
+            selected = currentRoute == UserRoutes.REELS_SCREEN,
+            iconSize = iconSize,
+            paddingSize = iconPadding
         ) {
-            navController.navigate(UserRoutes.ORDERS_ROUTE) {
-                launchSingleTop = true
-                restoreState = true
-            }
+            onReelsClick()
         }
+        
         NavIcon(
-            Icons.Filled.Notifications,
-            currentRoute == UserRoutes.NOTIFICATIONS_SCREEN,
-            showBadge = hasUnreadNotifications
+            icon = Icons.Filled.TrendingUp,
+            selected = currentRoute == UserRoutes.TRENDS_SCREEN,
+            iconSize = iconSize,
+            paddingSize = iconPadding
+        ) {
+            navController.navigate(UserRoutes.TRENDS_SCREEN)
+        }
+        
+        NavIcon(
+            icon = Icons.Filled.Message,
+            selected = currentRoute == "chatList",
+            showBadge = hasUnreadMessages,
+            iconSize = iconSize,
+            paddingSize = iconPadding
+        ) {
+            navController.navigate("chatList")
+        }
+        
+        NavIcon(
+            icon = Icons.Filled.Notifications,
+            selected = currentRoute == UserRoutes.NOTIFICATIONS_SCREEN,
+            showBadge = hasUnreadNotifications,
+            iconSize = iconSize,
+            paddingSize = iconPadding
         ) {
             navController.navigate(UserRoutes.NOTIFICATIONS_SCREEN) {
                 launchSingleTop = true
@@ -296,8 +364,23 @@ fun NavIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     selected: Boolean,
     showBadge: Boolean = false,
+    iconSize: androidx.compose.ui.unit.Dp = 24.dp,
+    paddingSize: androidx.compose.ui.unit.Dp = 16.dp,
     onClick: () -> Unit
 ) {
+    // Get screen configuration for responsive vertical padding
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val isSmallScreen = screenWidth < 360
+    val isTablet = screenWidth >= 600
+    
+    // Responsive vertical padding
+    val verticalPadding = when {
+        isSmallScreen -> 6.dp
+        isTablet -> 12.dp
+        else -> 8.dp
+    }
+    
     // New, modern color scheme for selection
     val backgroundColor =
         if (selected) Color(0xFFFFF9C4) else Color.Transparent // light yellow background
@@ -310,15 +393,15 @@ fun NavIcon(
             .clip(RoundedCornerShape(12.dp))
             .background(backgroundColor) // <-- This applies the light yellow background
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = paddingSize, vertical = verticalPadding),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             icon,
             contentDescription = null,
             tint = iconColor,
-            modifier = Modifier.size(24.dp)
-        ) // <-- This applies the dark blue icon tint
+            modifier = Modifier.size(iconSize)
+        ) // <-- Responsive icon size
 
         // Small red badge dot for unread items
         if (showBadge) {
@@ -431,8 +514,10 @@ fun DynamicSearchOverlay(
     modifier: Modifier = Modifier
 ) {
     // --- Dependencies & ViewModel Setup ---
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
     val client = remember { HttpClient() }
-    val apiService = remember { ProfessionalApiService(client) }
+    val apiService = remember { ProfessionalApiService(client, tokenManager) }
     val repository = remember { ProfessionalRepository(apiService) }
 
     val searchViewModel: SearchViewModel = viewModel(
@@ -512,6 +597,9 @@ fun DynamicSearchOverlay(
                         searchText = newValue
                         if (newValue.isNotEmpty()) {
                             searchViewModel.searchByName(newValue)
+                        } else {
+                            // Clear search results when text is empty
+                            searchViewModel.clearSearch()
                         }
                     },
                     placeholder = { Text("Search by name...", color = GrayInactive) },
@@ -525,7 +613,10 @@ fun DynamicSearchOverlay(
                     trailingIcon = {
                         if (searchText.isNotEmpty()) {
                             IconButton(
-                                onClick = { searchText = "" }
+                                onClick = {
+                                    searchText = ""
+                                    searchViewModel.clearSearch()
+                                }
                             ) {
                                 Icon(
                                     Icons.Outlined.Close,
@@ -566,13 +657,35 @@ fun DynamicSearchOverlay(
 
                 errorMessage != null -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = errorMessage ?: "Error loading results", color = Color.Red)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = errorMessage ?: "Error loading results",
+                                color = Color.Red,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                            Text(
+                                text = "Please check your connection and try again",
+                                color = GrayInactive,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
                     }
                 }
 
-                searchResults.isEmpty() && searchText.isNotEmpty() -> {
+                searchResults.isEmpty() && searchText.isNotEmpty() && !isLoading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(text = "No professionals found", color = GrayInactive)
+                    }
+                }
+                
+                searchText.isEmpty() -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "Type a name to search for professionals",
+                            color = GrayInactive,
+                            fontSize = 14.sp
+                        )
                     }
                 }
 

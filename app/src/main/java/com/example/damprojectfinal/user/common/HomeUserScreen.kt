@@ -1,30 +1,34 @@
 package com.example.damprojectfinal.user.common
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeliveryDining
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.LocalMall
 import androidx.compose.material.icons.filled.Redeem
-import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -39,25 +43,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
 import com.example.damprojectfinal.user.common._component.TopAppBar
-import com.example.damprojectfinal.user.common._component.UserMenuScreen
-import com.example.damprojectfinal.ProfileRoutes
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
+import com.example.damprojectfinal.user.common._component.SecondaryNavBar
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.api.ReclamationRetrofitClient
@@ -65,6 +64,7 @@ import com.example.damprojectfinal.UserRoutes // <--- Ensure this imports the Us
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsScreen
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import android.util.Log
+import androidx.compose.animation.core.animateFloatAsState
 import com.example.damprojectfinal.user.common._component.UserMenuScreenContent
 import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.repository.UserRepository
@@ -140,15 +140,17 @@ fun HomeScreen(
         mutableStateOf(tokenManager.getUserIdBlocking() ?: "placeholder_user_id_123")
     }
 
-    // State for profile picture URL - use rememberSaveable to persist across navigation
+    // State for user profile information
     var profilePictureUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var userName by rememberSaveable { mutableStateOf<String?>(null) }
+    var userEmail by rememberSaveable { mutableStateOf<String?>(null) }
     var isLoadingProfilePicture by remember { mutableStateOf(false) }
 
-    // Fetch user profile picture - only fetch if not already loaded
+    // Fetch user profile information - only fetch if not already loaded
     LaunchedEffect(currentUserId) {
         if (currentUserId.isNotEmpty() && currentUserId != "placeholder_user_id_123" && !isLoadingProfilePicture) {
-            // Only fetch if we don't already have the URL
-            if (profilePictureUrl == null) {
+            // Only fetch if we don't already have the data
+            if (profilePictureUrl == null || userName == null) {
                 isLoadingProfilePicture = true
                 try {
                     val token = tokenManager.getAccessTokenAsync()
@@ -156,14 +158,14 @@ fun HomeScreen(
                         val userApiService = UserApiService(tokenManager)
                         val userRepository = UserRepository(userApiService)
                         val user = userRepository.getUserById(currentUserId, token)
-                        // Only update if we got a valid URL
-                        if (!user.profilePictureUrl.isNullOrEmpty()) {
-                            profilePictureUrl = user.profilePictureUrl
-                        }
+                        // Update profile information
+                        profilePictureUrl = user.profilePictureUrl
+                        userName = user.username
+                        userEmail = user.email
                     }
                 } catch (e: Exception) {
-                    Log.e("HomeScreen", "Error fetching profile picture: ${e.message}")
-                    // Keep the previous value if there's an error - don't reset to null
+                    Log.e("HomeScreen", "Error fetching user profile: ${e.message}")
+                    // Keep the previous values if there's an error
                 } finally {
                     isLoadingProfilePicture = false
                 }
@@ -211,7 +213,7 @@ fun HomeScreen(
 
     // --- Main Screen Content with Right-Side Drawer ---
     Box(modifier = Modifier.fillMaxSize()) {
-        // Main content
+        // Main content with fixed TopAppBar
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -240,84 +242,106 @@ fun HomeScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
                     .background(
-                        Brush.verticalGradient(listOf(Color(0xFFF9FAFB), Color(0xFFF3F4F6)))
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFFFFFFFF),
+                                Color(0xFFF8F9FA)
+                            )
+                        )
                     )
             ) {
-                // Body scrolls; top bar stays fixed via Scaffold
-                Box(modifier = Modifier.padding(horizontal = 2.dp)) {
-                    PostsScreen(
-                        navController = navController,
-                        selectedFoodType = selectedFoodType,
-                        headerContent = {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 12.dp)
+                // Body scrolls; TopAppBar stays fixed via Scaffold
+                PostsScreen(
+                    navController = navController,
+                    selectedFoodType = selectedFoodType,
+                    headerContent = {
+                        val configuration = LocalConfiguration.current
+                        val screenWidth = configuration.screenWidthDp
+                        val isTablet = screenWidth > 600
+                        val isSmallScreen = screenWidth < 360
+                        
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    top = if (isTablet) 20.dp else if (isSmallScreen) 12.dp else 16.dp,
+                                    bottom = if (isSmallScreen) 6.dp else 8.dp)
+                        ) {
+                            // Feature Cards Section - Enhanced Food App Style
+                            FoodAppFeatureCards(navController = navController)
+                            
+                            Spacer(modifier = Modifier.height(if (isTablet) 28.dp else if (isSmallScreen) 18.dp else 24.dp))
+                            
+                            // Category Filter Chips - Enhanced with better design
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(if (isTablet) 12.dp else if (isSmallScreen) 8.dp else 10.dp),
+                                contentPadding = PaddingValues(horizontal = if (isTablet) 24.dp else 16.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                HighlightCard(navController = navController)
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    modifier = Modifier
-                                        .padding(horizontal = 20.dp, vertical = 16.dp)
-                                ) {
-                                    // Always show "All" as the first item
-                                    item {
-                                        FilterChipItem(
-                                            text = "All",
-                                            selected = selectedFoodType == null,
-                                            onClick = {
-                                                selectedFoodType = null
-                                            }
-                                        )
-                                    }
-
-                                    // Display fetched food types dynamically
-                                    if (isLoadingFoodTypes) {
-                                        // Show loading indicator or nothing while loading
-                                        item {
-                                            Box(modifier = Modifier.padding(horizontal = 8.dp)) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(20.dp),
-                                                    strokeWidth = 2.dp
-                                                )
-                                            }
+                                // Always show "All" as the first item with icon
+                                item {
+                                    EnhancedFoodCategoryChip(
+                                        text = "All",
+                                        emoji = "🍽️",
+                                        selected = selectedFoodType == null,
+                                        onClick = {
+                                            selectedFoodType = null
                                         }
-                                    } else {
-                                        // Display all fetched food types
-                                        items(foodTypes) { foodType ->
-                                            FilterChipItem(
-                                                text = foodType,
-                                                selected = selectedFoodType == foodType,
-                                                onClick = {
-                                                    selectedFoodType = foodType
-                                                }
+                                    )
+                                }
+
+                                // Display fetched food types dynamically with emojis
+                                if (isLoadingFoodTypes) {
+                                    item {
+                                        Box(modifier = Modifier.padding(horizontal = 8.dp)) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                strokeWidth = 2.dp,
+                                                color = Color(0xFFFFC107)
                                             )
                                         }
                                     }
+                                } else {
+                                    items(foodTypes) { foodType ->
+                                        EnhancedFoodCategoryChip(
+                                            text = foodType,
+                                            emoji = getEmojiForFoodType(foodType),
+                                            selected = selectedFoodType == foodType,
+                                            onClick = {
+                                                selectedFoodType = foodType
+                                            }
+                                        )
+                                    }
                                 }
-                                Spacer(Modifier.height(8.dp))
                             }
+                            
+                            Spacer(modifier = Modifier.height(if (isTablet) 28.dp else if (isSmallScreen) 18.dp else 24.dp))
+                            
+                            // "Ready to be ordered" Section Header - Enhanced
+                            EnhancedSectionHeader(
+                                title = "Ready to be ordered",
+                                onClearClick = { /* Clear filter or dismiss */ }
+                            )
+                            
+                            Spacer(modifier = Modifier.height(if (isTablet) 20.dp else if (isSmallScreen) 12.dp else 16.dp))
                         }
-                    )
-                }
-
-                // 🌟 REMOVED: DynamicSearchOverlay should NOT be inside this padded Box.
+                    }
+                )
             }
         }
 
-        // Right-side drawer overlay (starts below TopAppBar and SecondaryNavBar)
+        // Full-screen drawer overlay
         if (isDrawerOpen) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight()
-                    .offset(y = 180.dp) // Start right after TopAppBar and SecondaryNavBar
                     .background(Color.Black.copy(alpha = 0.5f))
                     .clickable { isDrawerOpen = false }
             )
         }
 
-        // Right-side drawer - slides from right, starts below TopAppBar and SecondaryNavBar
+        // Full-screen drawer - slides from right, covers everything including TopAppBar
         AnimatedVisibility(
             visible = isDrawerOpen,
             enter = slideInHorizontally(
@@ -329,31 +353,30 @@ fun HomeScreen(
                 targetOffsetX = { fullWidth -> fullWidth }
             ) + fadeOut(animationSpec = tween(300))
         ) {
-            Column(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight()
                     .align(Alignment.TopEnd)
-                    .offset(y = 180.dp) // Start right after TopAppBar and SecondaryNavBar (no gap)
+                    .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)),
+                color = Color.White
             ) {
-                // White background for the drawer content only
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .background(Color.White)
-                ) {
-                    UserMenuScreenContent(
-                        navController = navController,
-                        onLogout = {
-                            isDrawerOpen = false
-                            onLogout()
-                        },
-                        onBackClick = { isDrawerOpen = false },
-                        loyaltyPoints = loyaltyPoints,
-                        showTopBar = false
-                    )
-                }
+                // Make the content fill the Surface and be scrollable
+                UserMenuScreenContent(
+                    navController = navController,
+                    onLogout = {
+                        isDrawerOpen = false
+                        onLogout()
+                    },
+                    onBackClick = { isDrawerOpen = false },
+                    loyaltyPoints = loyaltyPoints,
+                    showTopBar = true, // Show top bar since drawer covers everything
+                    paddingValues = PaddingValues(0.dp),
+                    userId = currentUserId,
+                    profilePictureUrl = profilePictureUrl,
+                    userName = userName,
+                    userEmail = userEmail
+                )
             }
         }
     }
@@ -378,125 +401,268 @@ fun HomeScreen(
 }
 
 @Composable
-fun HighlightCard(navController: NavHostController) {
-    val dynamicHighlights = listOf(
-        HighlightCardData(
-            startColor = Color(0xFFE0E7FF),
-            endColor = Color(0xFFC7D2FE),
-            iconTint = Color(0xFF4F46E5),
-            title = "Takeaway",
-            subtitle = "Pick up your food",
-            iconPainter = rememberVectorPainter(Icons.Filled.LocalMall),
-            contentDescription = "Takeaway"
-        ),
-        HighlightCardData(
-            startColor = Color(0xFFE6FFFA),
-            endColor = Color(0xFFB2F5EA),
-            iconTint = Color(0xFF059669),
-            title = "Delivery",
-            subtitle = "Delivered to your door",
-            iconPainter = rememberVectorPainter(Icons.Filled.DeliveryDining),
-            contentDescription = "Delivery"
-        ),
-        HighlightCardData(
-            startColor = Color(0xFFFFF0F6),
-            endColor = Color(0xFFFBCFE8),
-            iconTint = Color(0xFFDB2777),
-            title = "Eat-in",
-            subtitle = "Dine with us",
-            iconPainter = rememberVectorPainter(Icons.Filled.Restaurant),
-            contentDescription = "Eat-in"
-        )
-    )
-
-    var currentIndex by remember { mutableStateOf(0) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(3000)
-            currentIndex = (currentIndex + 1) % dynamicHighlights.size
-        }
-    }
-
-    val currentHighlight = dynamicHighlights[currentIndex]
-
-    val dealsCardData = HighlightCardData(
-        startColor = Color(0xFFFFFBEB),
-        endColor = Color(0xFFFEF3C7),
-        iconTint = Color(0xFFF59E0B),
-        title = "Daily Deals",
-        subtitle = "Up to 50% off",
-        iconPainter = rememberVectorPainter(Icons.Filled.Redeem),
-        contentDescription = "Daily Deals"
-    )
-
-    val takeawayCardData = HighlightCardData(
-        startColor = Color(0xFFE0E7FF),
-        endColor = Color(0xFFC7D2FE),
-        iconTint = Color(0xFF4F46E5),
-        title = "Takeaway",
-        subtitle = "Grab & Go",
-        iconPainter = rememberVectorPainter(Icons.Filled.LocalMall),
-        contentDescription = "Takeaway"
-    )
-
+fun FoodAppFeatureCards(navController: NavHostController) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val isTablet = screenWidth > 600
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = if (isTablet) 24.dp else 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (isTablet) 20.dp else 14.dp)
     ) {
-        listOf(currentHighlight, dealsCardData).forEach { data ->
-            Card(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(120.dp)
-                    .clickable {
-                        if (data.title == "Daily Deals") {
-                            navController.navigate("deals")
-                        }
-                    },
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        // Deliver Now Card - Enhanced
+        EnhancedFoodFeatureCard(
+            title = "Deliver Now",
+            subtitle = "Fast delivery",
+            icon = Icons.Filled.DeliveryDining,
+            iconTint = Color(0xFF1F2937),
+            gradientColors = listOf(
+                Color(0xFFFFFFFF),
+                Color(0xFFF5F7FA)
+            ),
+            iconBackground = Color(0xFFF3F4F6),
+            onClick = { /* Navigate to delivery */ }
+        )
+        
+        // Daily Deals Card - More vibrant and exceptional
+        EnhancedFoodFeatureCard(
+            title = "Daily Deals",
+            subtitle = "Up to 50% off",
+            icon = Icons.Filled.Redeem,
+            iconTint = Color(0xFFF59E0B),
+            gradientColors = listOf(
+                Color(0xFFFFFBEB),
+                Color(0xFFFFF4D6)
+            ),
+            iconBackground = Color(0xFFFFE4B5),
+            onClick = {
+                navController.navigate("deals")
+            }
+        )
+    }
+}
+
+@Composable
+fun RowScope.EnhancedFoodFeatureCard(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    gradientColors: List<Color>,
+    iconBackground: Color,
+    onClick: () -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val isTablet = screenWidth > 600
+    val isSmallScreen = screenWidth < 360
+    
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    
+    Card(
+        modifier = Modifier
+            .weight(1f)
+            .height(if (isTablet) 160.dp else if (isSmallScreen) 120.dp else 140.dp)
+            .clickable(
+                onClick = onClick,
+                interactionSource = interactionSource,
+                indication = null
+            )
+            .shadow(
+                elevation = if (isPressed) 8.dp else 10.dp,
+                shape = RoundedCornerShape(24.dp),
+                spotColor = Color.Black.copy(alpha = 0.15f),
+                ambientColor = Color.Black.copy(alpha = 0.1f)
+            ),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = gradientColors,
+                        start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                        end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                    )
+                )
+                .padding(if (isTablet) 24.dp else if (isSmallScreen) 16.dp else 20.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
+                // Icon with background circle
                 Box(
                     modifier = Modifier
+                        .size(if (isTablet) 56.dp else if (isSmallScreen) 40.dp else 48.dp)
                         .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(data.startColor, data.endColor)
-                            )
-                        )
-                        .fillMaxSize()
-                        .padding(16.dp)
+                            color = iconBackground,
+                            shape = RoundedCornerShape(if (isTablet) 14.dp else 12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.SpaceBetween,
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        Icon(
-                            painter = data.iconPainter,
-                            contentDescription = data.contentDescription,
-                            tint = data.iconTint,
-                            modifier = Modifier.size(32.dp)
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = title,
+                        tint = iconTint,
+                        modifier = Modifier.size(if (isTablet) 32.dp else if (isSmallScreen) 24.dp else 28.dp)
+                    )
+                }
+                
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = if (isTablet) 22.sp else if (isSmallScreen) 16.sp else 20.sp,
+                            letterSpacing = (-0.5).sp,
+                            color = Color(0xFF111827)
                         )
-                        Column {
-                            Text(
-                                text = data.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.Black
-                            )
-                            Text(
-                                text = data.subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.DarkGray
-                            )
-                        }
-                    }
+                    )
+                    Spacer(modifier = Modifier.height(if (isSmallScreen) 4.dp else 6.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = if (isTablet) 15.sp else if (isSmallScreen) 12.sp else 14.sp,
+                            color = Color(0xFF6B7280),
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
                 }
             }
         }
+    }
+}
 
+@Composable
+fun EnhancedFoodCategoryChip(
+    text: String,
+    emoji: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val isTablet = screenWidth > 600
+    val isSmallScreen = screenWidth < 360
+    
+    val backgroundColor by animateColorAsState(
+        targetValue = if (selected) Color(0xFF111827) else Color.White,
+        animationSpec = androidx.compose.animation.core.tween(300)
+    )
+    val textColor by animateColorAsState(
+        targetValue = if (selected) Color.White else Color(0xFF111827),
+        animationSpec = androidx.compose.animation.core.tween(300)
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.05f else 1f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+        )
+    )
+
+    Card(
+        modifier = Modifier
+            .graphicsLayer(scaleX = scale, scaleY = scale)
+            .clickable(onClick = onClick)
+            .shadow(
+                elevation = if (selected) 6.dp else 3.dp,
+                shape = RoundedCornerShape(28.dp),
+                spotColor = if (selected) Color.Black.copy(alpha = 0.25f) else Color.Black.copy(alpha = 0.1f),
+                ambientColor = if (selected) Color.Black.copy(alpha = 0.15f) else Color.Transparent
+            ),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(
+                horizontal = if (isTablet) 20.dp else if (isSmallScreen) 14.dp else 18.dp,
+                vertical = if (isTablet) 14.dp else if (isSmallScreen) 10.dp else 12.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(if (isSmallScreen) 8.dp else 10.dp)
+        ) {
+            Text(
+                text = emoji,
+                fontSize = if (isTablet) 22.sp else if (isSmallScreen) 18.sp else 20.sp
+            )
+            Text(
+                text = text,
+                color = textColor,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                fontSize = if (isTablet) 16.sp else if (isSmallScreen) 13.sp else 15.sp,
+                letterSpacing = 0.2.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun EnhancedSectionHeader(
+    title: String,
+    onClearClick: () -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val isTablet = screenWidth > 600
+    val isSmallScreen = screenWidth < 360
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = if (isTablet) 24.dp else 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = if (isTablet) 24.sp else if (isSmallScreen) 18.sp else 22.sp,
+                letterSpacing = (-0.5).sp,
+                color = Color(0xFF111827)
+            )
+        )
+        IconButton(
+            onClick = onClearClick,
+            modifier = Modifier
+                .size(if (isTablet) 40.dp else if (isSmallScreen) 32.dp else 36.dp)
+                .background(
+                    color = Color(0xFFF3F4F6),
+                    shape = CircleShape
+                )
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "Clear",
+                tint = Color(0xFF6B7280),
+                modifier = Modifier.size(if (isTablet) 20.dp else if (isSmallScreen) 16.dp else 18.dp)
+            )
+        }
+    }
+}
+
+fun getEmojiForFoodType(foodType: String): String {
+    return when (foodType.lowercase()) {
+        "spicy", "épicé" -> "🌶️"
+        "healthy", "sain" -> "🥗"
+        "sweet", "sucré", "dessert" -> "🍰"
+        "italian", "italien" -> "🍝"
+        "asian", "asiatique" -> "🍜"
+        "fast food" -> "🍔"
+        "vegan", "végétarien" -> "🌱"
+        "seafood", "fruits de mer" -> "🦐"
+        "breakfast", "petit-déjeuner" -> "🥐"
+        "drinks", "boissons" -> "🥤"
+        else -> "🍽️"
     }
 }
 
@@ -559,25 +725,15 @@ private fun HighlightCardItem(
         }
     }
 }
+// Keep FilterChipItem for backward compatibility if needed elsewhere
 @Composable
 fun FilterChipItem(text: String, selected: Boolean, onClick: () -> Unit = {}) {
-    val backgroundColor by animateColorAsState(if (selected) Color(0xFF111827) else Color(0xFFF3F4F6))
-    val textColor by animateColorAsState(if (selected) Color.White else Color(0xFF111827))
-
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(backgroundColor)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 10.dp)
-    ) {
-        Text(
-            text = text,
-            color = textColor,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            fontSize = 14.sp
-        )
-    }
+    EnhancedFoodCategoryChip(
+        text = text,
+        emoji = "🍽️",
+        selected = selected,
+        onClick = onClick
+    )
 }
 
 @Composable
@@ -731,7 +887,7 @@ fun HomeScreenPreview() {
 @Composable
 fun HighlightCardPreview() {
     val navController = rememberNavController() // Dummy NavController pour la preview
-    HighlightCard(navController = navController)
+    FoodAppFeatureCards(navController = navController)
     // Fake logout state so preview doesn't crash
     val fakeLogoutState = MutableStateFlow(false)
 

@@ -127,7 +127,12 @@ class NotificationApiService(private val tokenManager: TokenManager) {
                 append(HttpHeaders.Authorization, "Bearer $token")
             }
         }
-        return response.body()
+        return try {
+            response.body<MarkAsReadResponse>()
+        } catch (e: Exception) {
+            // If backend returns empty response or different format, return success
+            MarkAsReadResponse(success = true, message = "Marked as read")
+        }
     }
     
     /**
@@ -141,7 +146,12 @@ class NotificationApiService(private val tokenManager: TokenManager) {
                 append(HttpHeaders.Authorization, "Bearer $token")
             }
         }
-        return response.body()
+        return try {
+            response.body<MarkAsReadResponse>()
+        } catch (e: Exception) {
+            // If backend returns empty response or different format, return success
+            MarkAsReadResponse(success = true, message = "Marked all as read")
+        }
     }
     
     /**
@@ -155,7 +165,12 @@ class NotificationApiService(private val tokenManager: TokenManager) {
                 append(HttpHeaders.Authorization, "Bearer $token")
             }
         }
-        return response.body()
+        return try {
+            response.body<MarkAsReadResponse>()
+        } catch (e: Exception) {
+            // If backend returns empty response or different format, return success
+            MarkAsReadResponse(success = true, message = "Marked all as read")
+        }
     }
 }
 

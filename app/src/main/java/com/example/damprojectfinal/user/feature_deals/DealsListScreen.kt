@@ -66,11 +66,12 @@ fun DealsListScreen(
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
     
-    // Responsive: 2 columns for phones, 3 for tablets
+    // Responsive: Adaptive columns based on screen width
     val columns = remember(configuration.screenWidthDp) {
         when {
-            configuration.screenWidthDp > 600 -> 3 // Tablet
-            else -> 2 // Phone
+            configuration.screenWidthDp > 900 -> 4 // Large tablets
+            configuration.screenWidthDp > 600 -> 3 // Normal tablets
+            else -> 2 // Phones
         }
     }
 
@@ -87,7 +88,10 @@ fun DealsListScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(
+                            horizontal = if (screenWidth > 600.dp) 24.dp else 16.dp,
+                            vertical = if (screenWidth > 600.dp) 16.dp else 12.dp
+                        ),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -95,14 +99,14 @@ fun DealsListScreen(
                     IconButton(
                         onClick = onBackClick,
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(if (screenWidth > 600.dp) 48.dp else 40.dp)
                             .background(BrandColors.YellowLight, shape = CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Retour",
                             tint = BrandColors.TextPrimary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(if (screenWidth > 600.dp) 24.dp else 20.dp)
                         )
                     }
 
@@ -116,14 +120,15 @@ fun DealsListScreen(
                             imageVector = Icons.Default.CardGiftcard,
                             contentDescription = null,
                             tint = BrandColors.Orange,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(if (screenWidth > 600.dp) 32.dp else 24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "Daily Deals",
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = BrandColors.TextPrimary
+                                color = BrandColors.TextPrimary,
+                                fontSize = if (screenWidth > 600.dp) 28.sp else 22.sp
                             )
                         )
                     }
@@ -131,19 +136,22 @@ fun DealsListScreen(
                     // "Up to 50% OFF" button - responsive text size
                     Surface(
                         modifier = Modifier
-                            .height(32.dp)
+                            .height(if (screenWidth > 600.dp) 40.dp else 32.dp)
                             .padding(start = 8.dp),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(20.dp),
                         color = BrandColors.YellowLight
                     ) {
                         Text(
                             "Up to 50% OFF",
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = if (screenWidth > 360.dp) 12.sp else 10.sp
+                                fontSize = if (screenWidth > 600.dp) 14.sp else if (screenWidth > 360.dp) 12.sp else 10.sp
                             ),
                             color = BrandColors.TextPrimary,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            modifier = Modifier.padding(
+                                horizontal = if (screenWidth > 600.dp) 16.dp else 12.dp,
+                                vertical = if (screenWidth > 600.dp) 8.dp else 6.dp
+                            )
                         )
                     }
                 }
@@ -152,13 +160,16 @@ fun DealsListScreen(
                 Text(
                     "Limited time offers",
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = if (screenWidth > 360.dp) 14.sp else 12.sp
+                        fontSize = if (screenWidth > 600.dp) 16.sp else if (screenWidth > 360.dp) 14.sp else 12.sp
                     ),
                     color = BrandColors.TextSecondary,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(
+                        horizontal = if (screenWidth > 600.dp) 24.dp else 16.dp,
+                        vertical = 4.dp
+                    )
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(if (screenWidth > 600.dp) 12.dp else 8.dp))
             }
         },
         containerColor = BrandColors.Background
@@ -179,8 +190,8 @@ fun DealsListScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(
-                                        horizontal = 16.dp,
-                                        vertical = 16.dp
+                                        horizontal = if (screenWidth > 600.dp) 24.dp else 16.dp,
+                                        vertical = if (screenWidth > 600.dp) 24.dp else 16.dp
                                     ),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
@@ -190,7 +201,7 @@ fun DealsListScreen(
                                         imageVector = Icons.Default.Star,
                                         contentDescription = null,
                                         tint = BrandColors.YellowPrimary,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(if (screenWidth > 600.dp) 28.dp else 20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
@@ -198,14 +209,14 @@ fun DealsListScreen(
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             fontWeight = FontWeight.Bold,
                                             color = BrandColors.TextPrimary,
-                                            fontSize = if (screenWidth > 360.dp) 18.sp else 16.sp
+                                            fontSize = if (screenWidth > 600.dp) 22.sp else if (screenWidth > 360.dp) 18.sp else 16.sp
                                         )
                                     )
                                 }
                                 Text(
                                     "${state.deals.size} deals available",
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = if (screenWidth > 360.dp) 12.sp else 10.sp
+                                        fontSize = if (screenWidth > 600.dp) 14.sp else if (screenWidth > 360.dp) 12.sp else 10.sp
                                     ),
                                     color = BrandColors.TextSecondary
                                 )
@@ -215,14 +226,14 @@ fun DealsListScreen(
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(columns),
                                 contentPadding = PaddingValues(
-                                    horizontal = 16.dp,
+                                    horizontal = if (screenWidth > 600.dp) 24.dp else 16.dp,
                                     vertical = 8.dp
                                 ),
                                 horizontalArrangement = Arrangement.spacedBy(
-                                    if (screenWidth > 600.dp) 16.dp else 12.dp
+                                    if (screenWidth > 600.dp) 20.dp else 12.dp
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(
-                                    if (screenWidth > 600.dp) 20.dp else 16.dp
+                                    if (screenWidth > 600.dp) 24.dp else 16.dp
                                 ),
                                 modifier = Modifier.fillMaxSize()
                             ) {
@@ -262,8 +273,9 @@ fun DealCard(
     // Responsive image height
     val imageHeight = remember(screenWidth) {
         when {
+            screenWidth > 900.dp -> 220.dp // Large tablet
             screenWidth > 600.dp -> 180.dp // Tablet
-            screenWidth > 360.dp -> 140.dp // Normal phone
+            screenWidth > 360.dp -> 160.dp // Normal phone
             else -> 120.dp // Small phone
         }
     }
@@ -285,12 +297,12 @@ fun DealCard(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 4.dp,
-                shape = RoundedCornerShape(16.dp),
-                spotColor = Color.Black.copy(alpha = 0.1f)
+                elevation = if (screenWidth > 600.dp) 8.dp else 4.dp,
+                shape = RoundedCornerShape(if (screenWidth > 600.dp) 20.dp else 16.dp),
+                spotColor = Color.Black.copy(alpha = 0.15f)
             )
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(if (screenWidth > 600.dp) 20.dp else 16.dp),
         colors = CardDefaults.cardColors(containerColor = BrandColors.Surface),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
@@ -326,7 +338,7 @@ fun DealCard(
                             imageVector = Icons.Default.Image,
                             contentDescription = null,
                             tint = BrandColors.TextSecondary,
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier.size(if (screenWidth > 600.dp) 64.dp else 48.dp)
                         )
                     }
                 }
@@ -334,7 +346,7 @@ fun DealCard(
                 // Discount badge (top-left)
                 Surface(
                     modifier = Modifier
-                        .padding(8.dp)
+                        .padding(if (screenWidth > 600.dp) 12.dp else 8.dp)
                         .align(Alignment.TopStart),
                     shape = RoundedCornerShape(8.dp),
                     color = BrandColors.Red
@@ -342,10 +354,11 @@ fun DealCard(
                     Text(
                         text = "-$discountPercent%",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            fontSize = if (screenWidth > 600.dp) 14.sp else 11.sp
                         ),
                         color = Color.White,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
 
@@ -353,42 +366,43 @@ fun DealCard(
                 IconButton(
                     onClick = { isFavorite = !isFavorite },
                     modifier = Modifier
-                        .padding(8.dp)
+                        .padding(if (screenWidth > 600.dp) 12.dp else 8.dp)
                         .align(Alignment.TopEnd)
-                        .size(32.dp)
+                        .size(if (screenWidth > 600.dp) 40.dp else 32.dp)
                         .background(Color.White.copy(alpha = 0.9f), shape = CircleShape)
                 ) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                         contentDescription = "Favorite",
                         tint = if (isFavorite) BrandColors.Red else BrandColors.TextSecondary,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(if (screenWidth > 600.dp) 24.dp else 18.dp)
                     )
                 }
 
                 // Rating (bottom-left overlay)
                 Surface(
                     modifier = Modifier
-                        .padding(8.dp)
+                        .padding(if (screenWidth > 600.dp) 12.dp else 8.dp)
                         .align(Alignment.BottomStart),
                     shape = RoundedCornerShape(8.dp),
                     color = Color.Black.copy(alpha = 0.6f)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = null,
                             tint = BrandColors.YellowPrimary,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(if (screenWidth > 600.dp) 18.dp else 14.dp)
                         )
                         Spacer(modifier = Modifier.width(2.dp))
                         Text(
                             text = String.format(Locale.getDefault(), "%.1f", rating),
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                fontSize = if (screenWidth > 600.dp) 14.sp else 11.sp
                             ),
                             color = Color.White
                         )
@@ -398,37 +412,37 @@ fun DealCard(
 
             // Content section - responsive padding
             val contentPadding = remember(screenWidth) {
-                if (screenWidth > 600.dp) 16.dp else 12.dp
+                if (screenWidth > 600.dp) 20.dp else 12.dp
             }
             Column(
                 modifier = Modifier.padding(contentPadding)
             ) {
                 // Title - responsive font size
                 Text(
-                    text = deal.description.take(if (screenWidth > 360.dp) 30 else 20).ifEmpty { deal.restaurantName },
+                    text = deal.description.take(if (screenWidth > 600.dp) 40 else if (screenWidth > 360.dp) 30 else 20).ifEmpty { deal.restaurantName },
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
                         color = BrandColors.TextPrimary,
-                        fontSize = if (screenWidth > 600.dp) 16.sp else if (screenWidth > 360.dp) 14.sp else 12.sp
+                        fontSize = if (screenWidth > 900.dp) 18.sp else if (screenWidth > 600.dp) 16.sp else if (screenWidth > 360.dp) 14.sp else 12.sp
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(if (screenWidth > 600.dp) 6.dp else 4.dp))
 
                 // Restaurant name - responsive font size
                 Text(
                     text = deal.restaurantName,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = if (screenWidth > 360.dp) 12.sp else 10.sp
+                        fontSize = if (screenWidth > 600.dp) 14.sp else if (screenWidth > 360.dp) 12.sp else 10.sp
                     ),
                     color = BrandColors.TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(if (screenWidth > 600.dp) 12.dp else 8.dp))
 
                 // Offer dates in yellow rounded rectangle - responsive
                 Surface(
@@ -438,8 +452,8 @@ fun DealCard(
                 ) {
                     Row(
                         modifier = Modifier.padding(
-                            horizontal = if (screenWidth > 360.dp) 8.dp else 6.dp,
-                            vertical = if (screenWidth > 360.dp) 6.dp else 4.dp
+                            horizontal = if (screenWidth > 600.dp) 12.dp else if (screenWidth > 360.dp) 8.dp else 6.dp,
+                            vertical = if (screenWidth > 600.dp) 8.dp else if (screenWidth > 360.dp) 6.dp else 4.dp
                         ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -447,26 +461,26 @@ fun DealCard(
                             imageVector = Icons.Default.CalendarToday,
                             contentDescription = null,
                             tint = BrandColors.TextPrimary,
-                            modifier = Modifier.size(if (screenWidth > 360.dp) 14.dp else 12.dp)
+                            modifier = Modifier.size(if (screenWidth > 600.dp) 16.dp else if (screenWidth > 360.dp) 14.dp else 12.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Offer available from ${formatDateRange(deal.startDate)} until ${formatDateRange(deal.endDate)}",
+                            text = "Offer: ${formatDateRange(deal.startDate)} - ${formatDateRange(deal.endDate)}",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = if (screenWidth > 360.dp) 10.sp else 9.sp
+                                fontSize = if (screenWidth > 600.dp) 12.sp else if (screenWidth > 360.dp) 10.sp else 9.sp
                             ),
                             color = BrandColors.TextPrimary,
-                            maxLines = 2,
+                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(if (screenWidth > 600.dp) 12.dp else 8.dp))
 
                 // Tags - responsive
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (screenWidth > 600.dp) 8.dp else 6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     tags.take(2).forEach { tag ->
@@ -477,19 +491,19 @@ fun DealCard(
                             Text(
                                 text = tag,
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = if (screenWidth > 360.dp) 10.sp else 9.sp
+                                    fontSize = if (screenWidth > 600.dp) 12.sp else if (screenWidth > 360.dp) 10.sp else 9.sp
                                 ),
                                 color = BrandColors.TextPrimary,
                                 modifier = Modifier.padding(
-                                    horizontal = if (screenWidth > 360.dp) 8.dp else 6.dp,
-                                    vertical = if (screenWidth > 360.dp) 4.dp else 3.dp
+                                    horizontal = if (screenWidth > 600.dp) 10.dp else if (screenWidth > 360.dp) 8.dp else 6.dp,
+                                    vertical = if (screenWidth > 600.dp) 6.dp else if (screenWidth > 360.dp) 4.dp else 3.dp
                                 )
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(if (screenWidth > 600.dp) 16.dp else 12.dp))
 
                 // Price row - responsive
                 Row(
@@ -502,7 +516,7 @@ fun DealCard(
                             text = "$originalPrice DT",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 textDecoration = TextDecoration.LineThrough,
-                                fontSize = if (screenWidth > 360.dp) 12.sp else 10.sp
+                                fontSize = if (screenWidth > 600.dp) 14.sp else if (screenWidth > 360.dp) 12.sp else 10.sp
                             ),
                             color = BrandColors.TextSecondary
                         )
@@ -510,7 +524,7 @@ fun DealCard(
                             text = "$discountedPrice DT",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = if (screenWidth > 600.dp) 18.sp else if (screenWidth > 360.dp) 16.sp else 14.sp
+                                fontSize = if (screenWidth > 900.dp) 22.sp else if (screenWidth > 600.dp) 20.sp else if (screenWidth > 360.dp) 18.sp else 16.sp
                             ),
                             color = BrandColors.TextPrimary
                         )
@@ -519,28 +533,28 @@ fun DealCard(
                     // "Grab Deal" button - responsive
                     Button(
                         onClick = onClick,
-                        modifier = Modifier.height(if (screenWidth > 360.dp) 32.dp else 28.dp),
-                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.height(if (screenWidth > 600.dp) 40.dp else if (screenWidth > 360.dp) 36.dp else 32.dp),
+                        shape = RoundedCornerShape(20.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = BrandColors.YellowPrimary
                         ),
                         contentPadding = PaddingValues(
-                            horizontal = if (screenWidth > 360.dp) 12.dp else 8.dp,
-                            vertical = 4.dp
+                            horizontal = if (screenWidth > 600.dp) 16.dp else if (screenWidth > 360.dp) 12.dp else 10.dp,
+                            vertical = if (screenWidth > 600.dp) 8.dp else 6.dp
                         )
                     ) {
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = null,
                             tint = BrandColors.TextPrimary,
-                            modifier = Modifier.size(if (screenWidth > 360.dp) 16.dp else 14.dp)
+                            modifier = Modifier.size(if (screenWidth > 600.dp) 20.dp else if (screenWidth > 360.dp) 18.dp else 16.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(if (screenWidth > 600.dp) 8.dp else 4.dp))
                         Text(
                             "Grab Deal",
-                            style = MaterialTheme.typography.labelSmall.copy(
+                            style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = if (screenWidth > 360.dp) 12.sp else 10.sp
+                                fontSize = if (screenWidth > 600.dp) 14.sp else if (screenWidth > 360.dp) 12.sp else 11.sp
                             ),
                             color = BrandColors.TextPrimary
                         )
@@ -568,6 +582,9 @@ fun LoadingView() {
 
 @Composable
 fun EmptyStateView() {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -575,26 +592,31 @@ fun EmptyStateView() {
     ) {
         Box(
             modifier = Modifier
-                .size(120.dp)
-                .background(BrandColors.YellowLight, shape = RoundedCornerShape(60.dp)),
+                .size(if (screenWidth > 600.dp) 180.dp else 120.dp)
+                .background(BrandColors.YellowLight, shape = CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.LocalOffer,
                 contentDescription = null,
-                modifier = Modifier.size(60.dp),
+                modifier = Modifier.size(if (screenWidth > 600.dp) 90.dp else 60.dp),
                 tint = BrandColors.YellowPrimary
             )
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(if (screenWidth > 600.dp) 32.dp else 24.dp))
         Text(
             text = "Aucune offre pour le moment",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = if (screenWidth > 600.dp) 24.sp else 20.sp
+            ),
             color = BrandColors.TextPrimary
         )
         Text(
             text = "Revenez plus tard pour découvrir de nouveaux deals !",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = if (screenWidth > 600.dp) 16.sp else 14.sp
+            ),
             color = BrandColors.TextSecondary,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.padding(horizontal = 40.dp, vertical = 8.dp)
@@ -604,6 +626,9 @@ fun EmptyStateView() {
 
 @Composable
 fun ErrorView(message: String, onRetry: () -> Unit) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -612,32 +637,42 @@ fun ErrorView(message: String, onRetry: () -> Unit) {
         Icon(
             imageVector = Icons.Default.Refresh,
             contentDescription = null,
-            modifier = Modifier.size(60.dp),
+            modifier = Modifier.size(if (screenWidth > 600.dp) 80.dp else 60.dp),
             tint = BrandColors.Error
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(if (screenWidth > 600.dp) 24.dp else 16.dp))
         Text(
             text = "Oups, une erreur est survenue",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = if (screenWidth > 600.dp) 22.sp else 18.sp
+            ),
             color = BrandColors.TextPrimary
         )
         Text(
             text = message,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = if (screenWidth > 600.dp) 14.sp else 12.sp
+            ),
             color = BrandColors.TextSecondary,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp)
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(if (screenWidth > 600.dp) 32.dp else 24.dp))
         Button(
             onClick = onRetry,
             colors = ButtonDefaults.buttonColors(
                 containerColor = BrandColors.YellowPrimary,
                 contentColor = BrandColors.TextPrimary
             ),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.height(if (screenWidth > 600.dp) 48.dp else 40.dp)
         ) {
-            Text("Réessayer")
+            Text(
+                "Réessayer",
+                fontSize = if (screenWidth > 600.dp) 16.sp else 14.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

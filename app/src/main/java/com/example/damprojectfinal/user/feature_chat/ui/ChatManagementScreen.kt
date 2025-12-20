@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -69,11 +71,14 @@ import com.example.damprojectfinal.core.model.ChatListItem
 import com.example.damprojectfinal.user.feature_chat.ui.components.ChatItemNew
 import com.example.damprojectfinal.user.feature_chat.viewmodel.ChatViewModel
 import com.example.damprojectfinal.user.common._component.TopAppBar
+import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
 import com.example.damprojectfinal.UserRoutes
 import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
 import com.example.damprojectfinal.professional.common._component.ProfessionalBottomNavigationBar
 import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.repository.UserRepository
+import com.example.damprojectfinal.core.retro.RetrofitClient
+import coil.compose.AsyncImage
 
 private const val TAG = "ChatManagementScreen"
 
@@ -109,29 +114,39 @@ private fun ChatManagementInternal(
 ) {
     Log.d(TAG, "ChatManagementScreen composing...")
 
-    val vm: ChatViewModel = viewModel()
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+    val vm: ChatViewModel = viewModel(
+        factory = ChatViewModel.Factory(tokenManager)
+    )
     Log.d(TAG, "ViewModel created successfully")
 
     var searchQuery by remember { mutableStateOf("") }
     var isPeerSheetVisible by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val tokenManager = remember { TokenManager(context) }
+    var isSearchActive by remember { mutableStateOf(false) }
     val currentUserId = remember { tokenManager.getUserId() }
     val accessToken by tokenManager.getAccessTokenFlow().collectAsState(initial = null)
     
     // State for profile picture URL
     var profilePictureUrl by remember { mutableStateOf<String?>(null) }
     
-    // Fetch user profile picture
-    LaunchedEffect(currentUserId) {
+    // Fetch user or professional profile picture
+    LaunchedEffect(currentUserId, isPro) {
         if (!currentUserId.isNullOrEmpty()) {
             try {
-                val token = tokenManager.getAccessTokenAsync()
-                if (!token.isNullOrEmpty()) {
-                    val userApiService = UserApiService(tokenManager)
-                    val userRepository = UserRepository(userApiService)
-                    val user = userRepository.getUserById(currentUserId, token)
-                    profilePictureUrl = user.profilePictureUrl
+                if (isPro) {
+                    // Fetch professional profile picture
+                    val prof = RetrofitClient.professionalApiService.getProfessionalAccount(currentUserId)
+                    profilePictureUrl = prof.profilePictureUrl
+                } else {
+                    // Fetch user profile picture
+                    val token = tokenManager.getAccessTokenAsync()
+                    if (!token.isNullOrEmpty()) {
+                        val userApiService = UserApiService(tokenManager)
+                        val userRepository = UserRepository(userApiService)
+                        val user = userRepository.getUserById(currentUserId, token)
+                        profilePictureUrl = user.profilePictureUrl
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error fetching profile picture: ${e.message}")
@@ -200,93 +215,148 @@ private fun ChatManagementInternal(
         }
     }
 
-    Scaffold(
-        snackbarHost = {
-            SnackbarHost(
-                hostState = snackbarHostState,
-                snackbar = { snackbarData ->
-                    Snackbar(
-                        snackbarData = snackbarData,
-                        shape = RoundedCornerShape(12.dp),
-                        containerColor = Color(0xFFF59E0B),
-                        contentColor = Color.White,
-                        actionColor = Color.White,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            )
-        },
-        topBar = {
-            if (!isPro) {
-                // 🔹 User-side TopAppBar
-                TopAppBar(
-                    navController = navController,
-                    currentRoute = "chatList",
-                    openDrawer = {
-                        navController.navigate("user_menu")
-                    },
-                    onSearchClick = { /* TODO: Implement search */ },
-                    onProfileClick = { userId ->
-                        navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/$userId")
-                    },
-                    onReelsClick = {
-                        navController.navigate(UserRoutes.REELS_SCREEN)
-                    },
-                    currentUserId = currentUserId ?: "unknown",
-                    onLogoutClick = { /* TODO: Implement logout */ },
-                    profilePictureUrl = profilePictureUrl
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            snackbarHost = {
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    snackbar = { snackbarData ->
+                        Snackbar(
+                            snackbarData = snackbarData,
+                            shape = RoundedCornerShape(12.dp),
+                            containerColor = Color(0xFFF59E0B),
+                            contentColor = Color.White,
+                            actionColor = Color.White,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
                 )
-            } else {
-                // 🔹 Pro-side TopBar using Foodyz Pro design
-                val proId = currentUserId ?: "unknown"
-                val hostController = navController as? NavHostController
-
-                if (hostController != null) {
-                    CustomProTopBarWithIcons(
-                        professionalId = proId,
-                        navController = hostController,
-                        onLogout = {
-                            // TODO: Wire this to pro logout flow if needed
+            },
+            topBar = {
+                if (!isPro) {
+                    // 🔹 User-side TopAppBar
+                    TopAppBar(
+                        navController = navController,
+                        currentRoute = "chatList",
+                        openDrawer = {
+                            navController.navigate("user_menu")
                         },
-                        onMenuClick = {
-                            hostController.navigate("professional_menu/$proId")
-                        }
+                        onSearchClick = { isSearchActive = true },
+                        onProfileClick = { userId ->
+                            navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/$userId")
+                        },
+                        onReelsClick = {
+                            navController.navigate(UserRoutes.REELS_SCREEN)
+                        },
+                        currentUserId = currentUserId ?: "unknown",
+                        onLogoutClick = { /* TODO: Implement logout */ },
+                        profilePictureUrl = profilePictureUrl
                     )
-                }
-            }
-        },
-        bottomBar = {
-            if (isPro) {
-                val hostController = navController as? NavHostController
-                val proId = currentUserId ?: "unknown"
-                if (hostController != null) {
-                    ProfessionalBottomNavigationBar(
-                        navController = hostController,
-                        currentRoute = currentRoute,
-                        professionalId = proId
-                    )
-                }
-            }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color(0xFFFAFAFA))
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SearchField(
-                    searchQuery = searchQuery,
-                    onQueryChange = { searchQuery = it }
-                )
+                } else {
+                    // 🔹 Pro-side TopBar using Foodyz Pro design
+                    val proId = currentUserId ?: "unknown"
+                    val hostController = navController as? NavHostController
 
-                // Show search results for users/professionals when typing
-                if (searchQuery.isNotBlank() && filteredPeers.isNotEmpty()) {
-                    SearchResultsDropdown(
-                        peers = filteredPeers,
-                        onPeerSelected = { peer ->
-                            searchQuery = "" // Clear search
+                    if (hostController != null) {
+                        CustomProTopBarWithIcons(
+                            professionalId = proId,
+                            navController = hostController,
+                            profilePictureUrl = profilePictureUrl,
+                            onLogout = {
+                                // TODO: Wire this to pro logout flow if needed
+                            },
+                            onMenuClick = {
+                                hostController.navigate("professional_menu/$proId")
+                            }
+                        )
+                    }
+                }
+            },
+            bottomBar = {
+                if (isPro) {
+                    val hostController = navController as? NavHostController
+                    val proId = currentUserId ?: "unknown"
+                    if (hostController != null) {
+                        ProfessionalBottomNavigationBar(
+                            navController = hostController,
+                            currentRoute = currentRoute,
+                            professionalId = proId
+                        )
+                    }
+                }
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(Color(0xFFFAFAFA))
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    SearchField(
+                        searchQuery = searchQuery,
+                        onQueryChange = { searchQuery = it }
+                    )
+
+                    // Show search results for users/professionals when typing
+                    if (searchQuery.isNotBlank() && filteredPeers.isNotEmpty()) {
+                        SearchResultsDropdown(
+                            peers = filteredPeers,
+                            onPeerSelected = { peer ->
+                                searchQuery = "" // Clear search
+                                accessToken?.let { token ->
+                                    vm.startConversationWithPeer(
+                                        peer = peer,
+                                        authToken = token,
+                                        currentUserId = currentUserId
+                                    ) { conversation ->
+                                        if (conversation != null && !conversation.id.isNullOrBlank()) {
+                                            val title = vm.displayTitleFor(conversation, currentUserId)
+                                            val resolvedUser = currentUserId ?: "unknown"
+                                            navController.navigate("chatDetail/${conversation.id}/$title/$resolvedUser")
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                    }
+
+                    // Show conversations when not searching or when search has no peer results
+                    when {
+                        isLoading -> LoadingState()
+                        error != null -> StatusCard(
+                            text = "Error: $error",
+                            tint = Color.Red,
+                            icon = "⚠️"
+                        )
+                        filteredChats.isEmpty() && (searchQuery.isBlank() || filteredPeers.isEmpty()) -> StatusCard(
+                            text = if (searchQuery.isNotBlank() && filteredPeers.isEmpty())
+                                "No users or conversations found"
+                            else
+                                "No conversations yet.",
+                            tint = Color(0xFFF59E0B),
+                            icon = "\uD83D\uDCAC"
+                        )
+                        filteredChats.isNotEmpty() -> ConversationList(
+                            chats = filteredChats,
+                            currentUserId = currentUserId ?: "unknown",
+                            navController = navController,
+                            onDeleteConversation = { conversationId ->
+                                accessToken?.let { token ->
+                                    vm.deleteConversation(token, conversationId, currentUserId)
+                                }
+                            }
+                        )
+                    }
+                }
+
+                if (isPeerSheetVisible) {
+                    PeerBottomSheet(
+                        peers = peers,
+                        onDismiss = { isPeerSheetVisible = false },
+                        isStarting = isStarting,
+                        errorMessage = startConversationError,
+                        onPeerSelected = { peer: PeerDto ->
                             accessToken?.let { token ->
                                 vm.startConversationWithPeer(
                                     peer = peer,
@@ -304,73 +374,34 @@ private fun ChatManagementInternal(
                     )
                 }
 
-                // Show conversations when not searching or when search has no peer results
-                when {
-                    isLoading -> LoadingState()
-                    error != null -> StatusCard(
-                        text = "Error: $error",
-                        tint = Color.Red,
-                        icon = "⚠️"
-                    )
-                    filteredChats.isEmpty() && (searchQuery.isBlank() || filteredPeers.isEmpty()) -> StatusCard(
-                        text = if (searchQuery.isNotBlank() && filteredPeers.isEmpty())
-                            "No users or conversations found"
-                        else
-                            "No conversations yet.",
-                        tint = Color(0xFFF59E0B),
-                        icon = "\uD83D\uDCAC"
-                    )
-                    filteredChats.isNotEmpty() -> ConversationList(
-                        chats = filteredChats,
-                        currentUserId = currentUserId ?: "unknown",
-                        navController = navController,
-                        onDeleteConversation = { conversationId ->
-                            accessToken?.let { token ->
-                                vm.deleteConversation(token, conversationId, currentUserId)
-                            }
-                        }
-                    )
-                }
-            }
-
-            if (isPeerSheetVisible) {
-                PeerBottomSheet(
-                    peers = peers,
-                    onDismiss = { isPeerSheetVisible = false },
-                    isStarting = isStarting,
-                    errorMessage = startConversationError,
-                    onPeerSelected = { peer: PeerDto ->
-                        accessToken?.let { token ->
-                            vm.startConversationWithPeer(
-                                peer = peer,
-                                authToken = token,
-                                currentUserId = currentUserId
-                            ) { conversation ->
-                                if (conversation != null && !conversation.id.isNullOrBlank()) {
-                                    val title = vm.displayTitleFor(conversation, currentUserId)
-                                    val resolvedUser = currentUserId ?: "unknown"
-                                    navController.navigate("chatDetail/${conversation.id}/$title/$resolvedUser")
-                                }
-                            }
-                        }
+                if (isStarting) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        StatusCard(
+                            text = "Starting chat…",
+                            tint = Color(0xFFF59E0B),
+                            icon = "\u23F3"
+                        )
                     }
-                )
-            }
-
-            if (isStarting) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(Color.Black.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    StatusCard(
-                        text = "Starting chat…",
-                        tint = Color(0xFFF59E0B),
-                        icon = "\u23F3"
-                    )
                 }
             }
+        }
+
+        if (isSearchActive) {
+            DynamicSearchOverlay(
+                onDismiss = { isSearchActive = false },
+                onNavigateToProfile = { professionalId ->
+                    isSearchActive = false
+                    if (professionalId.isNotEmpty()) {
+                        navController.navigate("restaurant_profile_view/$professionalId")
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }
@@ -515,6 +546,9 @@ private fun PeerSearchResultItem(
     peer: PeerDto,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    var imageLoadFailed by remember { mutableStateOf(false) }
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -523,36 +557,53 @@ private fun PeerSearchResultItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Avatar
+        // Avatar with profile picture
         Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFFFF3E0)),
-            contentAlignment = Alignment.Center
+            modifier = Modifier.size(48.dp)
         ) {
-            Text(
-                text = peer.name.take(2).uppercase(),
-                color = Color(0xFFB87300),
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
+            val showImage = !peer.avatarUrl.isNullOrBlank() && !imageLoadFailed
+            
+            if (showImage) {
+                AsyncImage(
+                    model = coil.request.ImageRequest.Builder(context)
+                        .data(com.example.damprojectfinal.core.api.BaseUrlProvider.getFullImageUrl(peer.avatarUrl))
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Avatar for ${peer.name}",
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop,
+                    onError = { imageLoadFailed = true }
+                )
+            }
+            
+            if (!showImage || imageLoadFailed) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFFF3E0)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = peer.name.take(2).uppercase(),
+                        color = Color(0xFFB87300),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+            }
         }
 
-        // Name and email
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = peer.name,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                color = Color(0xFF1F2A37)
-            )
-            Text(
-                text = peer.email,
-                fontSize = 13.sp,
-                color = Color(0xFF6B7280)
-            )
-        }
+        // Name only (no email)
+        Text(
+            text = peer.name,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp,
+            color = Color(0xFF1F2A37),
+            modifier = Modifier.weight(1f)
+        )
 
         // Chat icon
         Icon(
@@ -666,22 +717,72 @@ private fun PeerBottomSheet(
                     modifier = Modifier.padding(vertical = 12.dp)
                 )
             } else {
+                val context = LocalContext.current
                 peers.forEach { peer ->
+                    var imageLoadFailed by remember { mutableStateOf(false) }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(peer.name, fontWeight = FontWeight.SemiBold)
-                            Text(peer.email, color = Color.Gray, fontSize = 13.sp)
+                        // Avatar with profile picture
+                        Box(
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            val showImage = !peer.avatarUrl.isNullOrBlank() && !imageLoadFailed
+                            
+                            if (showImage) {
+                                AsyncImage(
+                                    model = coil.request.ImageRequest.Builder(context)
+                                        .data(com.example.damprojectfinal.core.api.BaseUrlProvider.getFullImageUrl(peer.avatarUrl))
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Avatar for ${peer.name}",
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop,
+                                    onError = { imageLoadFailed = true }
+                                )
+                            }
+                            
+                            if (!showImage || imageLoadFailed) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFFFF3E0)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = peer.name.take(2).uppercase(),
+                                        color = Color(0xFFB87300),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp
+                                    )
+                                }
+                            }
                         }
+                        
+                        // Name only (no email)
+                        Text(
+                            text = peer.name,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        
                         Button(
                             onClick = { if (!isStarting) onPeerSelected(peer) },
-                            enabled = !isStarting
+                            enabled = !isStarting,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFF59E0B)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Chat")
+                            Text("Chat", color = Color.White)
                         }
                     }
                 }

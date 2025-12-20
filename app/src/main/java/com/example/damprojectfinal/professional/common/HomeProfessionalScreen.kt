@@ -171,8 +171,6 @@ fun HomeScreenPro(
     // Coroutine scope for async operations
     val scope = rememberCoroutineScope()
     
-    var showDeleteAllDialog by remember { mutableStateOf(false) }
-    
     // Get current route for bottom navigation
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: ""
@@ -230,9 +228,30 @@ fun HomeScreenPro(
     val isLoading by orderViewModel.loading.collectAsState()
     val errorMessage by orderViewModel.error.collectAsState()
 
+    // Filter state
+    var selectedStatusFilter by rememberSaveable { mutableStateOf<OrderStatus?>(null) }
+    var selectedTypeFilter by rememberSaveable { mutableStateOf<BackendOrderType?>(null) }
+    
     // Convert to UI models
     val allOrders = remember(ordersFromBackend) {
         ordersFromBackend?.map { it.toUiOrder() } ?: emptyList()
+    }
+    
+    // Apply filters
+    val filteredOrders = remember(allOrders, selectedStatusFilter, selectedTypeFilter, ordersFromBackend) {
+        var filtered = ordersFromBackend ?: emptyList()
+        
+        // Filter by status
+        if (selectedStatusFilter != null) {
+            filtered = filtered.filter { it.status == selectedStatusFilter }
+        }
+        
+        // Filter by order type
+        if (selectedTypeFilter != null) {
+            filtered = filtered.filter { it.orderType == selectedTypeFilter }
+        }
+        
+        filtered.map { it.toUiOrder() }
     }
 
     Scaffold(
@@ -307,46 +326,20 @@ fun HomeScreenPro(
                     }
 
                     else -> {
-                        // Header
+                        // Filter Section
                         item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "Pending Orders",
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1F2A37),
-                                        modifier = Modifier.padding(top = 8.dp)
-                                    )
-                                    Text(
-                                        text = "${allOrders.size} orders waiting for confirmation",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Color.Gray,
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-                                }
-                                
-                                // Delete All Button
-                                if (allOrders.isNotEmpty()) {
-                                    IconButton(
-                                        onClick = { showDeleteAllDialog = true }
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Delete,
-                                            contentDescription = "Delete All Orders",
-                                            tint = Color(0xFFEF4444)
-                                        )
-                                    }
-                                }
-                            }
+                            OrderFiltersSection(
+                                selectedStatusFilter = selectedStatusFilter,
+                                selectedTypeFilter = selectedTypeFilter,
+                                onStatusFilterChange = { selectedStatusFilter = it },
+                                onTypeFilterChange = { selectedTypeFilter = it },
+                                filteredOrdersCount = filteredOrders.size,
+                                totalOrdersCount = allOrders.size
+                            )
                         }
 
                         // Order List
-                        if (allOrders.isEmpty()) {
+                        if (filteredOrders.isEmpty()) {
                             item {
                                 Box(
                                     modifier = Modifier
@@ -355,14 +348,14 @@ fun HomeScreenPro(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = "No orders available.",
+                                        text = if (allOrders.isEmpty()) "No orders available." else "No orders match the selected filters.",
                                         color = Color.Gray,
                                         fontSize = 16.sp
                                     )
                                 }
                             }
                         } else {
-                            items(allOrders, key = { it.id }) { order ->
+                            items(filteredOrders, key = { it.id }) { order ->
                                 // Get original OrderResponse to access current status
                                 val originalOrder = ordersFromBackend?.find { it._id == order.id }
                                 val currentStatus = originalOrder?.status ?: OrderStatus.PENDING
@@ -401,53 +394,151 @@ fun HomeScreenPro(
 
             }
         }
-            
-        // Delete All Confirmation Dialog
-        if (showDeleteAllDialog) {
-                val completedOrdersCount = ordersFromBackend?.count { it.status == OrderStatus.COMPLETED } ?: 0
-                AlertDialog(
-                    onDismissRequest = { showDeleteAllDialog = false },
-                    title = { Text("Delete Completed Orders", fontWeight = FontWeight.Bold) },
-                    text = { Text("Are you sure you want to delete all completed orders? Only orders with status 'COMPLETED' will be deleted. This action cannot be undone.") },
-                    confirmButton = {
-                        Button(
+    }
+
+
+
+// ---------------------------------------------------
+// --- Component: Order Filters Section ---
+// ---------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OrderFiltersSection(
+    selectedStatusFilter: OrderStatus?,
+    selectedTypeFilter: BackendOrderType?,
+    onStatusFilterChange: (OrderStatus?) -> Unit,
+    onTypeFilterChange: (BackendOrderType?) -> Unit,
+    filteredOrdersCount: Int,
+    totalOrdersCount: Int
+) {
+    var statusExpanded by remember { mutableStateOf(false) }
+    var typeExpanded by remember { mutableStateOf(false) }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        // Order count
+        Text(
+            text = "Showing $filteredOrdersCount of $totalOrdersCount orders",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.Gray,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        
+        // Filter dropdowns row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Status Filter
+            Box(modifier = Modifier.weight(1f)) {
+                ExposedDropdownMenuBox(
+                    expanded = statusExpanded,
+                    onExpandedChange = { statusExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = selectedStatusFilter?.let { getStatusDisplayName(it) } ?: "All Statuses",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Status") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusExpanded)
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFFFC107),
+                            focusedLabelColor = Color(0xFFFFC107)
+                        ),
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    
+                    ExposedDropdownMenu(
+                        expanded = statusExpanded,
+                        onDismissRequest = { statusExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("All Statuses") },
                             onClick = {
-                                orderViewModel.deleteAllOrdersByProfessional(
-                                    professionalId = professionalId,
-                                    onSuccess = {
-                                        showDeleteAllDialog = false
-                                        Toast.makeText(context, "All orders deleted", Toast.LENGTH_SHORT).show()
-                                        // Reload orders after deletion
-                                        scope.launch {
-                                            orderViewModel.loadOrdersByProfessional(professionalId)
-                                        }
-                                    },
-                                    onError = { error ->
-                                        showDeleteAllDialog = false
-                                        Toast.makeText(context, "Failed to delete orders: $error", Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFEF4444),
-                                contentColor = Color.White
+                                onStatusFilterChange(null)
+                                statusExpanded = false
+                            }
+                        )
+                        OrderStatus.values().forEach { status ->
+                            DropdownMenuItem(
+                                text = { Text(getStatusDisplayName(status)) },
+                                onClick = {
+                                    onStatusFilterChange(status)
+                                    statusExpanded = false
+                                }
                             )
-                        ) {
-                            Text("Delete All")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(
-                            onClick = { showDeleteAllDialog = false }
-                        ) {
-                            Text("Cancel", color = Color.Gray)
                         }
                     }
-                )
+                }
+            }
+            
+            // Order Type Filter
+            Box(modifier = Modifier.weight(1f)) {
+                ExposedDropdownMenuBox(
+                    expanded = typeExpanded,
+                    onExpandedChange = { typeExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = selectedTypeFilter?.let { getOrderTypeDisplayName(it) } ?: "All Types",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Type") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded)
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFFFC107),
+                            focusedLabelColor = Color(0xFFFFC107)
+                        ),
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    
+                    ExposedDropdownMenu(
+                        expanded = typeExpanded,
+                        onDismissRequest = { typeExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("All Types") },
+                            onClick = {
+                                onTypeFilterChange(null)
+                                typeExpanded = false
+                            }
+                        )
+                        BackendOrderType.values().forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(getOrderTypeDisplayName(type)) },
+                                onClick = {
+                                    onTypeFilterChange(type)
+                                    typeExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+}
 
-
+// Helper function to get order type display name
+private fun getOrderTypeDisplayName(type: BackendOrderType): String {
+    return when (type) {
+        BackendOrderType.EAT_IN -> "Dine In"
+        BackendOrderType.TAKEAWAY -> "Takeaway"
+        BackendOrderType.DELIVERY -> "Delivery"
+    }
+}
 
 // ---------------------------------------------------
 // --- Component: Custom Top Bar with 5 Icons ---

@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import com.example.damprojectfinal.core.retro.RetrofitClient
+import com.example.damprojectfinal.core.`object`.KtorClient
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -45,6 +46,7 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge() // Keep your edge-to-edge setup
         RetrofitClient.appContext = applicationContext
+        KtorClient.initialize(applicationContext)
         enableEdgeToEdge()
         setContent {
             DamProjectFinalTheme {

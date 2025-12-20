@@ -36,6 +36,7 @@ import com.example.damprojectfinal.core.dto.notifications.NotificationResponse
 import com.example.damprojectfinal.core.repository.NotificationRepository
 import com.example.damprojectfinal.core.repository.UserRepository
 import com.example.damprojectfinal.user.common._component.TopAppBar
+import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
 import com.example.damprojectfinal.user.feature_notifications.viewmodel.NotificationViewModel
 import android.util.Log
 import java.text.SimpleDateFormat
@@ -52,6 +53,7 @@ fun NotificationsScreen(
     
     // State for profile picture URL
     var profilePictureUrl by remember { mutableStateOf<String?>(null) }
+    var isSearchActive by remember { mutableStateOf(false) }
     
     // Fetch user profile picture
     LaunchedEffect(currentUserId) {
@@ -144,174 +146,189 @@ fun NotificationsScreen(
         }
     }
 
-    Scaffold(
-        snackbarHost = {
-            SnackbarHost(
-                hostState = snackbarHostState,
-                snackbar = { snackbarData ->
-                    Snackbar(
-                        snackbarData = snackbarData,
-                        shape = RoundedCornerShape(12.dp),
-                        containerColor = Color(0xFFF59E0B),
-                        contentColor = Color.White,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            )
-        },
-        topBar = {
-            TopAppBar(
-                navController = navController,
-                currentRoute = UserRoutes.NOTIFICATIONS_SCREEN,
-                openDrawer = {
-                    navController.navigate("user_menu")
-                },
-                onSearchClick = { /* TODO: Implement search */ },
-                onProfileClick = { userId ->
-                    navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/$userId")
-                },
-                onReelsClick = {
-                    navController.navigate(UserRoutes.REELS_SCREEN)
-                },
-                currentUserId = currentUserId,
-                onLogoutClick = { /* TODO: Implement logout */ },
-                profilePictureUrl = profilePictureUrl
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color(0xFFFAFAFA))
-        ) {
-            // Header
-            Row(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            snackbarHost = {
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    snackbar = { snackbarData ->
+                        Snackbar(
+                            snackbarData = snackbarData,
+                            shape = RoundedCornerShape(12.dp),
+                            containerColor = Color(0xFFF59E0B),
+                            contentColor = Color.White,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                )
+            },
+            topBar = {
+                TopAppBar(
+                    navController = navController,
+                    currentRoute = UserRoutes.NOTIFICATIONS_SCREEN,
+                    openDrawer = {
+                        navController.navigate("user_menu")
+                    },
+                    onSearchClick = { isSearchActive = true },
+                    onProfileClick = { userId ->
+                        navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/$userId")
+                    },
+                    onReelsClick = {
+                        navController.navigate(UserRoutes.REELS_SCREEN)
+                    },
+                    currentUserId = currentUserId,
+                    onLogoutClick = { /* TODO: Implement logout */ },
+                    profilePictureUrl = profilePictureUrl
+                )
+            }
+        ) { paddingValues ->
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(Color(0xFFFAFAFA))
             ) {
-                Column {
-                    Text(
-                        text = "Notifications",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1F2A37)
-                    )
-                    if (unreadCount > 0) {
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
                         Text(
-                            text = "$unreadCount unread",
-                            fontSize = 14.sp,
-                            color = Color(0xFF6B7280),
-                            modifier = Modifier.padding(top = 4.dp)
+                            text = "Notifications",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1F2A37)
+                        )
+                        if (unreadCount > 0) {
+                            Text(
+                                text = "$unreadCount unread",
+                                fontSize = 14.sp,
+                                color = Color(0xFF6B7280),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
+                    TextButton(
+                        onClick = { 
+                            if (currentUserId.isNotEmpty() && currentUserId != "unknown") {
+                                viewModel.markAllAsRead(currentUserId)
+                            }
+                        },
+                        enabled = unreadCount > 0 && !isLoading
+                    ) {
+                        Text(
+                            text = "Mark all as read",
+                            color = Color(0xFFF59E0B),
+                            fontSize = 14.sp
                         )
                     }
                 }
-                TextButton(
-                    onClick = { 
-                        if (currentUserId.isNotEmpty() && currentUserId != "unknown") {
-                            viewModel.markAllAsRead(currentUserId)
-                        }
-                    },
-                    enabled = unreadCount > 0 && !isLoading
-                ) {
-                    Text(
-                        text = "Mark all as read",
-                        color = Color(0xFFF59E0B),
-                        fontSize = 14.sp
-                    )
-                }
-            }
 
-            // Content
-            when {
-                isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = Color(0xFFF59E0B))
-                    }
-                }
-                errorMessage != null -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                // Content
+                when {
+                    isLoading -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "Error loading notifications",
-                                color = Color.Red,
-                                fontSize = 16.sp
-                            )
-                            Text(
-                                text = errorMessage ?: "Unknown error",
-                                color = Color(0xFF6B7280),
-                                fontSize = 14.sp
-                            )
-                            Button(
-                                onClick = { 
-                                    if (currentUserId.isNotEmpty() && currentUserId != "unknown") {
-                                        viewModel.refreshNotifications(currentUserId)
-                                    }
-                                }
+                            CircularProgressIndicator(color = Color(0xFFF59E0B))
+                        }
+                    }
+                    errorMessage != null -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                Text("Retry")
+                                Text(
+                                    text = "Error loading notifications",
+                                    color = Color.Red,
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = errorMessage ?: "Unknown error",
+                                    color = Color(0xFF6B7280),
+                                    fontSize = 14.sp
+                                )
+                                Button(
+                                    onClick = { 
+                                        if (currentUserId.isNotEmpty() && currentUserId != "unknown") {
+                                            viewModel.refreshNotifications(currentUserId)
+                                        }
+                                    }
+                                ) {
+                                    Text("Retry")
+                                }
+                            }
+                        }
+                    }
+                    notifications.isEmpty() -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Notifications,
+                                    contentDescription = null,
+                                    tint = Color(0xFF9CA3AF),
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Text(
+                                    text = "No notifications yet",
+                                    fontSize = 18.sp,
+                                    color = Color(0xFF6B7280),
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "You'll see notifications here when you have updates",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF9CA3AF)
+                                )
+                            }
+                        }
+                    }
+                    else -> {
+                        // Notifications List
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(notifications) { notification ->
+                                NotificationCard(
+                                    notification = notification,
+                                    viewModel = viewModel,
+                                    onClick = { onNotificationClick(notification) }
+                                )
                             }
                         }
                     }
                 }
-                notifications.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Notifications,
-                                contentDescription = null,
-                                tint = Color(0xFF9CA3AF),
-                                modifier = Modifier.size(64.dp)
-                            )
-                            Text(
-                                text = "No notifications yet",
-                                fontSize = 18.sp,
-                                color = Color(0xFF6B7280),
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "You'll see notifications here when you have updates",
-                                fontSize = 14.sp,
-                                color = Color(0xFF9CA3AF)
-                            )
-                        }
-                    }
-                }
-                else -> {
-                    // Notifications List
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(notifications) { notification ->
-                            NotificationCard(
-                                notification = notification,
-                                viewModel = viewModel,
-                                onClick = { onNotificationClick(notification) }
-                            )
-                        }
-                    }
-                }
             }
+        }
+
+        if (isSearchActive) {
+            DynamicSearchOverlay(
+                onDismiss = { isSearchActive = false },
+                onNavigateToProfile = { professionalId ->
+                    isSearchActive = false
+                    if (professionalId.isNotEmpty()) {
+                        navController.navigate("restaurant_profile_view/$professionalId")
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

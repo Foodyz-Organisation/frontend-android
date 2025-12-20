@@ -1,6 +1,8 @@
 package com.example.damprojectfinal.core.`object`
 
+import android.content.Context
 import com.example.damprojectfinal.core.api.ProfessionalApiService
+import com.example.damprojectfinal.core.api.TokenManager
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -8,6 +10,12 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 
 object KtorClient {
+    
+    private var appContext: Context? = null
+
+    fun initialize(context: Context) {
+        appContext = context.applicationContext
+    }
 
     val client: HttpClient by lazy {
         HttpClient(CIO) {
@@ -21,7 +29,8 @@ object KtorClient {
     }
 
     val professionalApiService: ProfessionalApiService by lazy {
-        ProfessionalApiService(client)
+        val tokenManager = appContext?.let { TokenManager(it) }
+        ProfessionalApiService(client, tokenManager)
     }
 
 }
