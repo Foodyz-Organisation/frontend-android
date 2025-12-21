@@ -32,7 +32,8 @@ interface DealsApiService {
 
 // Singleton pour créer l'instance Retrofit
 object RetrofitInstance {
-    private const val BASE_URL = "http://10.0.2.2:3000/"
+    // Use centralized BaseUrlProvider for consistent URL management
+    private val BASE_URL = com.example.damprojectfinal.core.api.BaseUrlProvider.BASE_URL_WITH_SLASH
 
     private val retrofit by lazy {
         Retrofit.Builder()

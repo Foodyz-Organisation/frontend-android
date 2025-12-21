@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Configuration pour toutes les connexions en développement -->
+    <!-- Configuration pour toutes les connexions -->
+    <!-- HTTPS is allowed by default, HTTP (cleartext) is allowed for local development -->
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
+            <certificates src="user" />
         </trust-anchors>
     </base-config>
 
-    <!-- Configuration spécifique pour vos domaines -->
+    <!-- Configuration pour Render (Production) - HTTPS -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">onrender.com</domain>
+        <!-- Add your specific Render domain here if needed -->
+        <!-- Example: <domain includeSubdomains="true">your-app-name.onrender.com</domain> -->
+    </domain-config>
+
+    <!-- Configuration spécifique pour développement local (HTTP) -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">192.168.1.7</domain>
         <domain includeSubdomains="true">192.168.0.0</domain>

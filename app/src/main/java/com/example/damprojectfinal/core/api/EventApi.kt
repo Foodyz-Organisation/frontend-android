@@ -1,6 +1,7 @@
 package com.example.damprojectfinal.core.api
 
 import android.util.Log
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.feature_event.Event
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -38,16 +39,8 @@ interface EventApi {
 object EventRetrofitClient {
     private const val TAG = "RetrofitClient"
 
-    // Pour l’émulateur Android Studio
-    private const val BASE_URL_EMULATOR = "http://10.0.2.2:3000/"
-
-    // Pour un appareil physique (remplace par ton IP locale)
-    private const val BASE_URL_PHYSICAL = "http://10.0.2.2:3000/"
-
-    // ⚙️ Choisis ton mode ici :
-    private const val USE_EMULATOR = true
-
-    private val BASE_URL = if (USE_EMULATOR) BASE_URL_EMULATOR else BASE_URL_PHYSICAL
+    // Use centralized BaseUrlProvider for consistent URL management
+    private val BASE_URL = BaseUrlProvider.BASE_URL_WITH_SLASH
 
     // Intercepteur pour logs HTTP
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
@@ -66,9 +59,8 @@ object EventRetrofitClient {
     val api: EventApi by lazy {
         try {
             Log.d(TAG, "Configuration Retrofit :")
-            Log.d(TAG, "  Mode: ${if (USE_EMULATOR) "Émulateur" else "Appareil physique"}")
-            Log.d(TAG, "  URL de base:" +
-                    " $BASE_URL")
+            Log.d(TAG, "  URL de base: $BASE_URL")
+            Log.d(TAG, "  Source: BaseUrlProvider (Production/Local)")
         } catch (_: Exception) {}
 
         try {
