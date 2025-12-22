@@ -55,9 +55,7 @@ import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartUiState
 import com.example.damprojectfinal.user.feature_menu.viewmodel.DynamicMenuViewModel
 import com.example.damprojectfinal.user.feature_menu.viewmodel.DynamicMenuViewModelFactory
 import com.google.gson.Gson
-
-// Base URL for images
-private const val BASE_URL = "http://10.0.2.2:3000/"
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 
 // -----------------------------------------------------------------------------
 // --- DATA MODELS ---
@@ -133,7 +131,7 @@ private fun MenuItemResponseDto.toUiModel(): MenuItem {
         id = this.id,
         name = this.name,
         priceDT = this.price.toFloat(),
-        imageUrl = if (this.image.isNullOrEmpty()) null else BASE_URL + this.image,
+        imageUrl = BaseUrlProvider.getFullImageUrl(this.image),
         imagePath = this.image,
         category = this.category,
         description = this.description ?: "Delicious ${this.name.lowercase()} made with fresh ingredients",

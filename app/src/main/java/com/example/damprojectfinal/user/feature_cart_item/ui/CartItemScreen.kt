@@ -45,8 +45,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.material.icons.filled.Star
 import com.example.damprojectfinal.core.dto.menu.IntensityType
 import com.example.damprojectfinal.core.dto.cart.IngredientDto
-
-private const val BASE_URL = "http://10.0.2.2:3000/"
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 
 // ---------------- Colors ----------------
 val PrimaryRed = Color(0xFFEF4444)
@@ -490,7 +489,7 @@ fun CartItemCard(
         // Image with discount badge overlay
         Box {
             AsyncImage(
-                model = if (item.image.isNullOrEmpty()) null else BASE_URL + item.image,
+                model = BaseUrlProvider.getFullImageUrl(item.image),
                 contentDescription = item.name,
                 contentScale = ContentScale.Crop,
                 placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.placeholder),
@@ -795,7 +794,7 @@ fun ShoppingCartScreen(
                     ) {
                         // Popup Image
                         AsyncImage(
-                            model = if (selectedItem!!.image.isNullOrEmpty()) null else BASE_URL + selectedItem!!.image,
+                            model = BaseUrlProvider.getFullImageUrl(selectedItem!!.image),
                             contentDescription = selectedItem!!.name,
                             contentScale = ContentScale.Crop,
                             placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.placeholder),

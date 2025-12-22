@@ -32,19 +32,8 @@ open class PostsViewModel : ViewModel() {
     protected val postsApiService: PostsApiService = RetrofitClient.postsApiService
     // --- END NEW ---
 
-    // --- NEW: Food Type Preference State ---
-    // Track user's preferred food types (cached locally)
-    private val _userPreferences = MutableStateFlow<List<String>>(emptyList())
-    open val userPreferences: StateFlow<List<String>> = _userPreferences
-
-    // Track which posts are currently being processed for preference (loading state per post)
-    private val _preferringPosts = MutableStateFlow<Set<String>>(emptySet())
-    open val preferringPosts: StateFlow<Set<String>> = _preferringPosts
-
-    // Success message for snackbar
-    private val _snackbarMessage = MutableStateFlow<String?>(null)
-    open val snackbarMessage: StateFlow<String?> = _snackbarMessage
-    // --- END NEW ---
+    // Note: Explicit preference state removed - preferences are now learned automatically from user interactions
+    // (like, save, comment, view actions automatically update preferences on backend)
 
     init {
         // Fetch posts immediately when the ViewModel is created
@@ -235,101 +224,6 @@ open class PostsViewModel : ViewModel() {
         }
     }
 
-    // --- NEW: Food Type Preference Functions ---
-
-    /**
-     * Prefer a post's food type - adds it to user's preferred food types
-     * The x-user-id header is automatically added by AuthInterceptor
-     */
-    open fun preferFoodType(postId: String) {
-        viewModelScope.launch {
-            // Check if already processing this post
-            if (_preferringPosts.value.contains(postId)) {
-                Log.d("PostsViewModel", "Already processing preference for post: $postId")
-                return@launch
-            }
-
-            // Get the post to extract food type
-            val post = _posts.value.find { it._id == postId }
-            if (post == null || post.foodType.isNullOrBlank()) {
-                _errorMessage.value = "Post not found or has no food type"
-                return@launch
-            }
-
-            val foodType = post.foodType
-
-            // Check if already preferred
-            if (_userPreferences.value.contains(foodType)) {
-                Log.d("PostsViewModel", "Food type '$foodType' is already preferred")
-                _snackbarMessage.value = "Already in your preferences"
-                return@launch
-            }
-
-            // Mark as processing
-            _preferringPosts.update { it + postId }
-
-            try {
-                // Call API to prefer food type
-                val updatedUser = postsApiService.preferFoodType(postId)
-
-                // Update local preferences
-                _userPreferences.value = updatedUser.preferredFoodTypes
-
-                // Show success message
-                _snackbarMessage.value = "Added to preferences"
-
-                // Optionally refresh feed to get personalized results
-                // Uncomment if you want immediate feed refresh after preference
-                // fetchPosts()
-
-                Log.d("PostsViewModel", "Successfully preferred food type: $foodType")
-                Log.d("PostsViewModel", "Updated preferences: ${updatedUser.preferredFoodTypes}")
-
-            } catch (e: Exception) {
-                val errorMsg = when {
-                    e.message?.contains("404") == true -> "Post or user not found"
-                    e.message?.contains("400") == true -> "Invalid request"
-                    e.message?.contains("network", ignoreCase = true) == true -> "No internet connection"
-                    else -> "Failed to add preference: ${e.localizedMessage ?: e.message}"
-                }
-                _errorMessage.value = errorMsg
-                _snackbarMessage.value = errorMsg
-                Log.e("PostsViewModel", "Error preferring food type: ${e.message}", e)
-            } finally {
-                // Remove from processing set
-                _preferringPosts.update { it - postId }
-            }
-        }
-    }
-
-    /**
-     * Check if a food type is preferred
-     */
-    open fun isFoodTypePreferred(foodType: String?): Boolean {
-        if (foodType.isNullOrBlank()) return false
-        return _userPreferences.value.contains(foodType)
-    }
-
-    /**
-     * Check if a specific post's food type is preferred
-     */
-    open fun isPostFoodTypePreferred(postId: String): Boolean {
-        val post = _posts.value.find { it._id == postId }
-        return post?.foodType?.let { isFoodTypePreferred(it) } ?: false
-    }
-
-    /**
-     * Check if a post is currently being processed for preference
-     */
-    open fun isPreferring(postId: String): Boolean {
-        return _preferringPosts.value.contains(postId)
-    }
-
-    /**
-     * Clear snackbar message
-     */
-    open fun clearSnackbarMessage() {
-        _snackbarMessage.value = null
-    }
-    // --- END NEW FUNCTIONS ---
+    // Note: Explicit preference functions removed - preferences are now learned automatically from user interactions
+    // When user likes, saves, comments, or views a post, preferences are automatically updated on the backend
 }

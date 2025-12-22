@@ -52,13 +52,24 @@ object BaseUrlProvider {
     }
     
     /**
-     * Get full image URL from a relative path
+     * Get full image URL from a path (handles both Supabase URLs and legacy relative paths)
+     * 
+     * After Supabase migration:
+     * - New uploads return full Supabase URLs (e.g., https://xxx.supabase.co/storage/v1/object/public/...)
+     * - These URLs are returned directly without modification
+     * - Legacy relative paths (e.g., /uploads/image.jpg) are still supported for backward compatibility
+     * 
+     * @param path Image path from API response (can be full Supabase URL or relative path)
+     * @return Full URL ready to use in image loading libraries, or null if path is null/empty
      */
     fun getFullImageUrl(path: String?): String? {
         if (path == null || path.isEmpty()) return null
+        // If it's already a full URL (Supabase or any http/https URL), use it directly
         return if (path.startsWith("http://") || path.startsWith("https://")) {
             path
         } else {
+            // Legacy support: construct full URL from relative path
+            // This handles old data that might still have relative paths
             "$BASE_URL_WITH_SLASH${path.removePrefix("/")}"
         }
     }

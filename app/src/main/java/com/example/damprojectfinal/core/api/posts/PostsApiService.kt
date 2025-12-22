@@ -28,12 +28,14 @@ interface PostsApiService {
     ): PostResponse
 
     // --- NEW: Endpoint for fetching all posts (GET /posts) ---
+    // Note: x-user-id header is automatically added by AuthInterceptor for personalized feed
     @GET("posts") // The path is relative to BASE_URL configured in RetrofitClient
-    suspend fun getPosts(): List<PostResponse> // Returns a list of PostResponse objects
+    suspend fun getPosts(): List<PostResponse> // Returns a list of PostResponse objects (personalized if x-user-id header is present)
 
     // --- NEW: Endpoint for fetching a single post (GET /posts/{id}) ---
+    // Note: x-user-id header is automatically added by AuthInterceptor for view tracking
     @GET("posts/{id}")
-    suspend fun getPostById(@Path("id") postId: String): PostResponse
+    suspend fun getPostById(@Path("id") postId: String): PostResponse // View is automatically tracked if x-user-id header is present
 
     @GET("posts/by-owner/{ownerId}") // Corrected path to match backend
     suspend fun getPostsByOwnerId(@Path("ownerId") ownerId: String): List<PostResponse>
@@ -90,11 +92,7 @@ interface PostsApiService {
     @GET("posts/by-food-type/{foodType}")
     suspend fun getPostsByFoodType(@Path("foodType") foodType: String): List<PostResponse> // Returns filtered posts by food type
 
-    // --- NEW: Endpoint for preferring a post's food type (POST /posts/:postId/prefer-foodtype) ---
-    @POST("posts/{postId}/prefer-foodtype")
-    suspend fun preferFoodType(
-        @Path("postId") postId: String
-        // x-user-id header is automatically added by AuthInterceptor
-    ): com.example.damprojectfinal.core.dto.normalUser.UserProfile // Returns updated user profile with preferredFoodTypes
+    // Note: preferFoodType endpoint removed - preferences are now learned automatically from user interactions
+    // (like, save, comment, view actions automatically update preferences)
 
 }

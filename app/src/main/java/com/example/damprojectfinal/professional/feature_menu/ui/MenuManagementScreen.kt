@@ -37,6 +37,7 @@ import com.airbnb.lottie.compose.*
 import com.example.damprojectfinal.R
 import com.example.damprojectfinal.professional.common._component.CustomProTopBarWithIcons
 import com.example.damprojectfinal.professional.common._component.ProfessionalBottomNavigationBar
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 
 // Custom Brand Colors
 private val PrimaryBrandOrange = Color(0xFFFA4A0C)
@@ -45,8 +46,6 @@ private val BackgroundLight = Color(0xFFF6F6F9)
 private val CategoryBackgroundGray = Color(0xFFF0F0F0)
 private val TextPrimary = Color(0xFF000000)
 private val TextSecondary = Color(0xFF9A9A9D)
-
-private const val BASE_URL = "http://10.0.2.2:3000/"
 private const val PROMOTIONS_CATEGORY = "PROMOTIONS"
 
 // --------------------------------------------------
@@ -457,7 +456,7 @@ fun MenuItemGridCard(
         ) {
             // 1. Image (Centered and Circular)
             AsyncImage(
-                model = BASE_URL + item.image,
+                model = BaseUrlProvider.getFullImageUrl(item.image),
                 contentDescription = item.name,
                 contentScale = ContentScale.Crop,
                 placeholder = rememberAsyncImagePainter(R.drawable.restaurantmenu),

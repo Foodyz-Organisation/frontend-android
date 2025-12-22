@@ -4,9 +4,11 @@ package com.example.damprojectfinal.user.feature_posts.ui.trends
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.* // Using Material 3
@@ -53,6 +55,7 @@ fun TrendingPostItem(post: PostResponse) {
             .background(Color.Black) // Background for full-screen video
     ) {
         val mediaUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls.firstOrNull())
+        val isCarousel = (post.mediaType == "carousel" || post.mediaUrls.size > 1) && post.mediaType != "reel"
 
         // --- Media Display ---
         if (post.mediaType == "reel" && mediaUrl != null) {
@@ -82,6 +85,55 @@ fun TrendingPostItem(post: PostResponse) {
                 },
                 modifier = Modifier.fillMaxSize()
             )
+
+        } else if (isCarousel && post.mediaUrls.isNotEmpty()) {
+            // Carousel post - use HorizontalPager for horizontal scrolling
+            val carouselPagerState = rememberPagerState(
+                pageCount = { post.mediaUrls.size }
+            )
+            
+            Box(modifier = Modifier.fillMaxSize()) {
+                HorizontalPager(
+                    state = carouselPagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val imageUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls[page])
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "${post.caption} - Image ${page + 1}",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                
+                // Page indicator at the top (Instagram-style)
+                if (post.mediaUrls.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(16.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(post.mediaUrls.size) { index ->
+                            Box(
+                                modifier = Modifier
+                                    .size(if (carouselPagerState.currentPage == index) 8.dp else 6.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (carouselPagerState.currentPage == index) 
+                                            Color.White 
+                                        else 
+                                            Color.White.copy(alpha = 0.5f)
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
 
         } else if (post.mediaType == "image" && mediaUrl != null) {
             AsyncImage(

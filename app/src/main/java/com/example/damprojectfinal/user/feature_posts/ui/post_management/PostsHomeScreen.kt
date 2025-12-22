@@ -70,19 +70,12 @@ fun PostsScreen(
     val posts by postsViewModel.posts.collectAsState()
     val isLoading by postsViewModel.isLoading.collectAsState()
     val errorMessage by postsViewModel.errorMessage.collectAsState()
-    val snackbarMessage by postsViewModel.snackbarMessage.collectAsState()
-    val userPreferences by postsViewModel.userPreferences.collectAsState()
+    // Note: snackbarMessage and userPreferences removed - preferences are now learned automatically
 
     val swipeRefreshState = rememberSwipeRefreshState(isRefreshing = isLoading)
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Show snackbar when message changes
-    LaunchedEffect(snackbarMessage) {
-        snackbarMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            postsViewModel.clearSnackbarMessage()
-        }
-    }
+    // Note: Snackbar for preference messages removed - preferences are now learned automatically
 
     // Fetch posts when food type filter changes
     LaunchedEffect(selectedFoodType) {
@@ -95,21 +88,15 @@ fun PostsScreen(
         }
     }
 
-    // Optional: Show personalized feed indicator
-    val showPersonalizedIndicator = userPreferences.isNotEmpty()
+    // Note: Personalized feed banner removed - preferences are now learned automatically from interactions
+    // Feed is automatically personalized by backend based on user interactions (like, save, comment, view)
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Optional: Personalized Feed Banner
-            if (showPersonalizedIndicator) {
-                PersonalizedFeedBanner(
-                    preferredTypes = userPreferences,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            // Note: PersonalizedFeedBanner removed - feed is automatically personalized by backend
 
             SwipeRefresh(
                 state = swipeRefreshState,
@@ -267,51 +254,8 @@ fun PersonalizedFeedBanner(
     }
 
 // ------------------------------------------------------
-// ⭐ Prefer Food Type Button Component
-// ------------------------------------------------------
-@Composable
-fun PreferFoodTypeButton(
-        post: PostResponse,
-        postsViewModel: PostsViewModel,
-        modifier: Modifier = Modifier
-    ) {
-        val isPreferred by remember(post._id) {
-            derivedStateOf {
-                postsViewModel.isPostFoodTypePreferred(post._id)
-            }
-        }
-
-        val isPreferring by postsViewModel.preferringPosts.collectAsState()
-        val isLoading = isPreferring.contains(post._id)
-
-        val icon = if (isPreferred) {
-            Icons.Filled.Star
-        } else {
-            Icons.Outlined.Star
-        }
-
-        val color = if (isPreferred) {
-            Color(0xFFFFC107) // Amber/Gold color for preferred
-        } else {
-            Color(0xFF6B7280) // Gray for not preferred
-        }
-
-        Icon(
-            imageVector = icon,
-            contentDescription = if (isPreferred) "Remove from preferences" else "Add to preferences",
-            tint = color,
-            modifier = modifier
-                .clickable(
-                    enabled = !isLoading && post.foodType != null,
-                    onClick = {
-                        if (!isPreferred) {
-                            postsViewModel.preferFoodType(post._id)
-                        }
-                    }
-                )
-        )
-    }
-
+// Note: PreferFoodTypeButton removed - preferences are now learned automatically from user interactions
+// (like, save, comment, view actions automatically update preferences)
 // ------------------------------------------------------
 // 🥗 Recipe Card (MODIFIED to accept onPostClick parameter)
 // ------------------------------------------------------

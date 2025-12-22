@@ -38,12 +38,11 @@ import com.example.damprojectfinal.core.dto.menu.IntensityType
 import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
 import com.example.damprojectfinal.user.feautre_order.viewmodel.LocationTrackingViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-
-private const val BASE_URL = "http://10.0.2.2:3000/"
 
 private val PrimaryColor = Color(0xFFFFC107)
 private val BackgroundLight = Color(0xFFF9FAFB)
@@ -446,7 +445,7 @@ fun OrderItemDetailCard(item: OrderItemResponse) {
             // Item Image with discount badge
             Box {
                 AsyncImage(
-                    model = if (item.image.isNullOrEmpty()) null else BASE_URL + item.image,
+                    model = BaseUrlProvider.getFullImageUrl(item.image),
                     contentDescription = item.name,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier

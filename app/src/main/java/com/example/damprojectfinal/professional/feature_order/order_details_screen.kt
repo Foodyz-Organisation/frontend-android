@@ -41,8 +41,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-
-private const val BASE_URL = "http://10.0.2.2:3000/"
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 
 private val PrimaryColor = Color(0xFFFFC107)
 private val BackgroundLight = Color(0xFFF9FAFB)
@@ -418,7 +417,7 @@ fun ProfessionalOrderItemDetailCard(item: OrderItemResponse) {
             // Item Image with discount badge
             Box {
                 AsyncImage(
-                    model = if (item.image.isNullOrEmpty()) null else BASE_URL + item.image,
+                    model = BaseUrlProvider.getFullImageUrl(item.image),
                     contentDescription = item.name,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier

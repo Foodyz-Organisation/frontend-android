@@ -37,8 +37,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
-
-private const val BASE_URL = "http://10.0.2.2:3000/"
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 
 
 
@@ -621,7 +620,7 @@ fun CartSummaryCard(items: List<CartItemResponse>, total: Float) {
                     // Image Box
                     val firstItem = items.firstOrNull()
                     AsyncImage(
-                        model = if (firstItem?.image.isNullOrEmpty()) null else BASE_URL + firstItem?.image,
+                        model = BaseUrlProvider.getFullImageUrl(firstItem?.image),
                         contentDescription = firstItem?.name ?: "Order Item",
                         contentScale = ContentScale.Crop,
                         placeholder = painterResource(id = R.drawable.placeholder),

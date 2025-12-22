@@ -40,6 +40,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.`object`.FileUtil
 import com.example.damprojectfinal.core.`object`.FileWithMime
 import com.example.damprojectfinal.core.dto.menu.IngredientDto
@@ -58,7 +59,6 @@ private val CardBackground = Color.White // Explicitly using White for cards
 private val CategoryBackgroundGray = Color(0xFFF0F0F0) // Used for subtle dividers/backgrounds
 private val TextPrimary = Color(0xFF000000)
 private val TextSecondary = Color(0xFF9A9A9D)
-private const val BASE_URL = "http://10.0.2.2:3000/"
 
 // --- State Holder Class for Hoisting (Image path added) ---
 class EditableItemState(
@@ -440,7 +440,7 @@ fun ImageSection(
                     )
                 } else {
                     AsyncImage(
-                        model = BASE_URL + imagePath,
+                        model = BaseUrlProvider.getFullImageUrl(imagePath),
                         contentDescription = "Dish Image",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
