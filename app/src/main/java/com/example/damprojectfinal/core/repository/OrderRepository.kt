@@ -177,11 +177,94 @@ class OrderRepository(
     // CONFIRM CARD PAYMENT
     // -----------------------------------------------------
     // -----------------------------------------------------
-    // CONFIRM CARD PAYMENT WITH CARD DETAILS
-    // Backend requires paymentMethodId, but we don't have Stripe SDK
-    // Solution: Send a placeholder paymentMethodId and let backend handle it
-    // OR: Backend needs to be updated to accept card details and create PaymentMethod server-side
+    // CONFIRM CARD PAYMENT WITH PAYMENTMETHOD ID (from Stripe SDK)
+    // PaymentMethod is created client-side by Stripe Android SDK
+    // We only send the PaymentMethod ID (pm_xxx) to backend
     // -----------------------------------------------------
+    suspend fun confirmPaymentWithPaymentMethod(
+        paymentIntentId: String,
+        paymentMethodId: String
+    ): ConfirmPaymentResponse? {
+        val token = tokenManager.getAccessTokenBlocking() ?: run {
+            android.util.Log.e("OrderRepository", "❌ confirmPaymentWithPaymentMethod() - No token available")
+            return null
+        }
+
+        android.util.Log.d("OrderRepository", "💳 ========== PAYMENT CONFIRMATION WITH PAYMENTMETHOD ID ==========")
+        android.util.Log.d("OrderRepository", "📤 Sending payment confirmation to backend")
+        android.util.Log.d("OrderRepository", "  Endpoint: POST /orders/payment/confirm")
+        android.util.Log.d("OrderRepository", "  PaymentIntentId (Stripe): $paymentIntentId")
+        android.util.Log.d("OrderRepository", "  PaymentMethodId (Stripe): $paymentMethodId")
+        android.util.Log.d("OrderRepository", "")
+        android.util.Log.d("OrderRepository", "✅ PaymentMethod created by Stripe Android SDK")
+        android.util.Log.d("OrderRepository", "🔒 Card details NEVER touched our app")
+        android.util.Log.d("OrderRepository", "📤 Sending ONLY PaymentMethod ID to backend")
+        
+        // Validate IDs format
+        if (!paymentIntentId.startsWith("pi_")) {
+            android.util.Log.w("OrderRepository", "⚠️ WARNING: paymentIntentId doesn't start with 'pi_'")
+        }
+        
+        if (!paymentMethodId.startsWith("pm_")) {
+            android.util.Log.w("OrderRepository", "⚠️ WARNING: paymentMethodId doesn't start with 'pm_'")
+        }
+
+        // ✅ Create request with REAL PaymentMethod ID from Stripe
+        val request = ConfirmPaymentRequest(
+            paymentIntentId = paymentIntentId,
+            paymentMethodId = paymentMethodId
+        )
+
+        android.util.Log.d("OrderRepository", "📋 Request body:")
+        android.util.Log.d("OrderRepository", "  {")
+        android.util.Log.d("OrderRepository", "    \"paymentIntentId\": \"$paymentIntentId\",")
+        android.util.Log.d("OrderRepository", "    \"paymentMethodId\": \"$paymentMethodId\"")
+        android.util.Log.d("OrderRepository", "  }")
+        android.util.Log.d("OrderRepository", "")
+        
+        android.util.Log.d("OrderRepository", "📤 Sending HTTP request...")
+        val response = api.confirmPayment(request, "Bearer $token")
+
+        android.util.Log.d("OrderRepository", "📥 Payment confirmation response code: ${response.code()}")
+        
+        if (!response.isSuccessful) {
+            val errorBody = response.errorBody()?.string()
+            android.util.Log.e("OrderRepository", "❌ Payment confirmation failed: ${response.code()}")
+            android.util.Log.e("OrderRepository", "  Error body: $errorBody")
+            android.util.Log.e("OrderRepository", "")
+        } else {
+            android.util.Log.d("OrderRepository", "✅ Payment confirmation successful!")
+            android.util.Log.d("OrderRepository", "💰 Card charged successfully via Stripe")
+            android.util.Log.d("OrderRepository", "📦 Order status updated to CONFIRMED")
+        }
+        android.util.Log.d("OrderRepository", "================================================")
+
+        if (response.isSuccessful) {
+            val confirmResponse = response.body()
+            if (confirmResponse != null) {
+                android.util.Log.d("OrderRepository", "✅ Payment confirmed successfully")
+                android.util.Log.d("OrderRepository", "📦 Order ID: ${confirmResponse.order._id}")
+                android.util.Log.d("OrderRepository", "✅ Order Status: ${confirmResponse.order.status}")
+                return confirmResponse
+            } else {
+                android.util.Log.e("OrderRepository", "❌ Payment confirmation response body is null")
+            }
+        } else {
+            val errorBody = response.errorBody()?.string()
+            android.util.Log.e("OrderRepository", "❌ Payment confirmation failed: ${response.code()}")
+            android.util.Log.e("OrderRepository", "  Error body: $errorBody")
+        }
+        return null
+    }
+    
+    // -----------------------------------------------------
+    // CONFIRM CARD PAYMENT WITH CARD DETAILS
+    // ⚠️ DEPRECATED: This method is no longer used
+    // Use confirmPaymentWithPaymentMethod() instead
+    // Backend creates PaymentMethod server-side from card details
+    // Card details are sent to Stripe (NOT stored in your database)
+    // -----------------------------------------------------
+    @Deprecated("Use confirmPaymentWithPaymentMethod() instead")
     suspend fun confirmPaymentWithCardDetails(
         paymentIntentId: String,
         cardNumber: String,
@@ -203,211 +286,22 @@ class OrderRepository(
         android.util.Log.d("OrderRepository", "  Expiry: $expMonth/$expYear")
         android.util.Log.d("OrderRepository", "  CVV: ${cvv.length} digits")
         android.util.Log.d("OrderRepository", "  Cardholder: $cardholderName")
-        
-        // Validate paymentIntentId format
-        if (!paymentIntentId.startsWith("pi_")) {
-            android.util.Log.w("OrderRepository", "⚠️ WARNING: paymentIntentId doesn't start with 'pi_'")
-            android.util.Log.w("OrderRepository", "  This might be a MongoDB paymentId instead of Stripe paymentIntentId")
-        }
-
-        // ⚠️ CURRENT BACKEND LIMITATION:
-        // Backend validation ONLY accepts: paymentIntentId and paymentMethodId
-        // Backend REJECTS: cardNumber, cardholderName, cvv, expMonth, expYear
-        //
-        // Since Android app doesn't have Stripe SDK to create PaymentMethod client-side,
-        // we need backend to accept card details and create PaymentMethod server-side.
-        //
-        // TEMPORARY WORKAROUND: Send a placeholder paymentMethodId
-        // Backend needs to be updated (see backend code requirements below)
-        
-        // For now, we'll use a test PaymentMethod ID format
-        // Backend should recognize this and create PaymentMethod from card details
-        // OR backend should be updated to accept card details in the request
-        val placeholderPaymentMethodId = "pm_android_${System.currentTimeMillis()}"
-        
-        android.util.Log.w("OrderRepository", "⚠️ TEMPORARY: Using placeholder paymentMethodId: $placeholderPaymentMethodId")
-        android.util.Log.w("OrderRepository", "  Card details collected but NOT sent (backend rejects them)")
-        android.util.Log.w("OrderRepository", "")
-        android.util.Log.w("OrderRepository", "📋 BACKEND UPDATE REQUIRED:")
-        android.util.Log.w("OrderRepository", "  The backend DTO validation needs to accept card details:")
-        android.util.Log.w("OrderRepository", "  - cardNumber (string)")
-        android.util.Log.w("OrderRepository", "  - expMonth (number)")
-        android.util.Log.w("OrderRepository", "  - expYear (number)")
-        android.util.Log.w("OrderRepository", "  - cvv (string)")
-        android.util.Log.w("OrderRepository", "  - cardholderName (string, optional)")
-        android.util.Log.w("OrderRepository", "")
-        android.util.Log.w("OrderRepository", "  Then backend should create PaymentMethod server-side:")
-        android.util.Log.w("OrderRepository", "  const paymentMethod = await stripe.paymentMethods.create({")
-        android.util.Log.w("OrderRepository", "    type: 'card',")
-        android.util.Log.w("OrderRepository", "    card: {")
-        android.util.Log.w("OrderRepository", "      number: cardNumber,")
-        android.util.Log.w("OrderRepository", "      exp_month: expMonth,")
-        android.util.Log.w("OrderRepository", "      exp_year: expYear,")
-        android.util.Log.w("OrderRepository", "      cvc: cvv")
-        android.util.Log.w("OrderRepository", "    }")
-        android.util.Log.w("OrderRepository", "  });")
-
-        val request = ConfirmPaymentRequest(
-            paymentIntentId = paymentIntentId,
-            paymentMethodId = placeholderPaymentMethodId  // Required by current backend validation
-        )
-
-        android.util.Log.d("OrderRepository", "📋 Request body:")
-        android.util.Log.d("OrderRepository", "  {")
-        android.util.Log.d("OrderRepository", "    \"paymentIntentId\": \"$paymentIntentId\",")
-        android.util.Log.d("OrderRepository", "    \"paymentMethodId\": \"$placeholderPaymentMethodId\"")
-        android.util.Log.d("OrderRepository", "  }")
         android.util.Log.d("OrderRepository", "")
-        android.util.Log.d("OrderRepository", "📝 NOTE: Card details are NOT sent (backend rejects them)")
-        android.util.Log.d("OrderRepository", "  Backend needs to be updated to accept card details")
-        android.util.Log.d("OrderRepository", "  OR create PaymentMethod from card details server-side")
-        
-        android.util.Log.d("OrderRepository", "📤 Sending HTTP request...")
-        val response = api.confirmPayment(request, "Bearer $token")
-
-        android.util.Log.d("OrderRepository", "📥 Payment confirmation response code: ${response.code()}")
-        
-        if (!response.isSuccessful) {
-            val errorBody = response.errorBody()?.string()
-            android.util.Log.e("OrderRepository", "❌ Payment confirmation failed: ${response.code()}")
-            android.util.Log.e("OrderRepository", "  Error body: $errorBody")
-            android.util.Log.e("OrderRepository", "")
-            android.util.Log.e("OrderRepository", "🔴 BACKEND UPDATE REQUIRED:")
-            android.util.Log.e("OrderRepository", "  The backend endpoint /orders/payment/confirm needs to:")
-            android.util.Log.e("OrderRepository", "  1. Accept card details (cardNumber, expMonth, expYear, cvv, cardholderName)")
-            android.util.Log.e("OrderRepository", "  2. Create PaymentMethod from card details using Stripe API:")
-            android.util.Log.e("OrderRepository", "     const paymentMethod = await stripe.paymentMethods.create({")
-            android.util.Log.e("OrderRepository", "       type: 'card',")
-            android.util.Log.e("OrderRepository", "       card: { number, exp_month, exp_year, cvc }")
-            android.util.Log.e("OrderRepository", "     });")
-            android.util.Log.e("OrderRepository", "  3. Then confirm payment with: paymentIntent.confirm({ payment_method: paymentMethod.id })")
-        } else {
-            android.util.Log.d("OrderRepository", "✅ Payment confirmation successful!")
-        }
-        android.util.Log.d("OrderRepository", "================================================")
-
-        if (response.isSuccessful) {
-            val confirmResponse = response.body()
-            if (confirmResponse != null) {
-                android.util.Log.d("OrderRepository", "✅ Payment confirmed successfully")
-                return confirmResponse
-            } else {
-                android.util.Log.e("OrderRepository", "❌ Payment confirmation response body is null")
-            }
-        } else {
-            val errorBody = response.errorBody()?.string()
-            android.util.Log.e("OrderRepository", "❌ Payment confirmation failed: ${response.code()}")
-            android.util.Log.e("OrderRepository", "  Error body: $errorBody")
-        }
-        return null
-    }
-    
-    // -----------------------------------------------------
-    // CONFIRM CARD PAYMENT (legacy - with PaymentMethod ID)
-    // -----------------------------------------------------
-    suspend fun confirmPayment(paymentIntentId: String, paymentMethodId: String): ConfirmPaymentResponse? {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
-            android.util.Log.e("OrderRepository", "❌ confirmPayment() - No token available")
-            return null
-        }
-
-        android.util.Log.d("OrderRepository", "💳 ========== PAYMENT CONFIRMATION REQUEST ==========")
-        android.util.Log.d("OrderRepository", "📤 Sending payment confirmation to backend")
-        android.util.Log.d("OrderRepository", "  Endpoint: POST /orders/payment/confirm")
-        android.util.Log.d("OrderRepository", "  PaymentIntentId (Stripe): $paymentIntentId")
-        android.util.Log.d("OrderRepository", "  PaymentMethodId: $paymentMethodId")
-        android.util.Log.d("OrderRepository", "  ⚠️ Backend expects Stripe paymentIntentId (starts with 'pi_')")
-        android.util.Log.d("OrderRepository", "  ⚠️ NOT MongoDB paymentId (24-char hex string)")
+        android.util.Log.d("OrderRepository", "✅ Sending REAL card details to backend")
+        android.util.Log.d("OrderRepository", "🔒 Backend will create PaymentMethod server-side via Stripe API")
+        android.util.Log.d("OrderRepository", "🔒 Card details will NOT be stored in database (PCI-DSS compliant)")
         
         // Validate paymentIntentId format
         if (!paymentIntentId.startsWith("pi_")) {
             android.util.Log.w("OrderRepository", "⚠️ WARNING: paymentIntentId doesn't start with 'pi_'")
             android.util.Log.w("OrderRepository", "  This might be a MongoDB paymentId instead of Stripe paymentIntentId")
-            android.util.Log.w("OrderRepository", "  Backend will likely return 404 'Payment not found'")
-        }
-        
-        // Validate paymentMethodId format
-        if (paymentMethodId != null) {
-            if (paymentMethodId.contains("_fake") || paymentMethodId.contains("test_")) {
-                android.util.Log.w("OrderRepository", "⚠️ WARNING: PaymentMethodId appears to be fake/test: $paymentMethodId")
-                android.util.Log.w("OrderRepository", "  Backend will try to use this with Stripe, which may fail")
-                android.util.Log.w("OrderRepository", "  For fake payments, backend should create PaymentMethod from card details")
-            } else if (!paymentMethodId.startsWith("pm_")) {
-                android.util.Log.w("OrderRepository", "⚠️ WARNING: PaymentMethodId doesn't start with 'pm_': $paymentMethodId")
-            }
         }
 
-        val request = ConfirmPaymentRequest(
-            paymentIntentId = paymentIntentId,
-            paymentMethodId = paymentMethodId
-        )
-
-        android.util.Log.d("OrderRepository", "📋 Request body:")
-        android.util.Log.d("OrderRepository", "  {")
-        android.util.Log.d("OrderRepository", "    \"paymentIntentId\": \"$paymentIntentId\",")
-        android.util.Log.d("OrderRepository", "    \"paymentMethodId\": \"$paymentMethodId\"")
-        android.util.Log.d("OrderRepository", "  }")
-        
-        android.util.Log.d("OrderRepository", "📤 Sending HTTP request...")
-        val response = api.confirmPayment(request, "Bearer $token")
-
-        android.util.Log.d("OrderRepository", "📥 Payment confirmation response code: ${response.code()}")
-        
-        if (!response.isSuccessful) {
-            val errorBody = response.errorBody()?.string()
-            android.util.Log.e("OrderRepository", "❌ Payment confirmation failed: ${response.code()}")
-            android.util.Log.e("OrderRepository", "  Error body: $errorBody")
-            android.util.Log.e("OrderRepository", "  PaymentIntentId sent: $paymentIntentId")
-            android.util.Log.e("OrderRepository", "  PaymentMethodId sent: $paymentMethodId")
-            
-            // Detailed error explanation
-            if (response.code() == 500 && errorBody?.contains("No such PaymentMethod") == true) {
-                android.util.Log.e("OrderRepository", "")
-                android.util.Log.e("OrderRepository", "🔴 ERROR EXPLANATION:")
-                android.util.Log.e("OrderRepository", "  The backend tried to use a FAKE PaymentMethod ID with Stripe.")
-                android.util.Log.e("OrderRepository", "  Stripe rejected it because the PaymentMethod doesn't exist.")
-                android.util.Log.e("OrderRepository", "")
-                android.util.Log.e("OrderRepository", "  ❌ Problem:")
-                android.util.Log.e("OrderRepository", "    - We sent: '$paymentMethodId' (fake ID)")
-                android.util.Log.e("OrderRepository", "    - Backend tried to use it with Stripe")
-                android.util.Log.e("OrderRepository", "    - Stripe said: 'No such PaymentMethod'")
-                android.util.Log.e("OrderRepository", "")
-                android.util.Log.e("OrderRepository", "  ✅ Solution:")
-                android.util.Log.e("OrderRepository", "    The backend needs to CREATE a PaymentMethod from card details")
-                android.util.Log.e("OrderRepository", "    BEFORE trying to confirm the payment with Stripe.")
-                android.util.Log.e("OrderRepository", "")
-                android.util.Log.e("OrderRepository", "  📋 Backend should:")
-                android.util.Log.e("OrderRepository", "    1. Receive card details (number, expiry, CVV) OR")
-                android.util.Log.e("OrderRepository", "    2. Create PaymentMethod from card details using Stripe API")
-                android.util.Log.e("OrderRepository", "    3. Then attach it to PaymentIntent and confirm")
-                android.util.Log.e("OrderRepository", "")
-                android.util.Log.e("OrderRepository", "  ⚠️ Current flow (WRONG):")
-                android.util.Log.e("OrderRepository", "    Frontend → Fake PaymentMethod ID → Backend → Stripe ❌")
-                android.util.Log.e("OrderRepository", "")
-                android.util.Log.e("OrderRepository", "  ✅ Correct flow:")
-                android.util.Log.e("OrderRepository", "    Frontend → Card Details → Backend → Create PaymentMethod → Stripe ✅")
-            } else if (response.code() == 404) {
-                android.util.Log.e("OrderRepository", "  ⚠️ If 404 'Payment not found', check if paymentIntentId is correct")
-                android.util.Log.e("OrderRepository", "  ⚠️ Backend looks up payment by Stripe paymentIntentId, not MongoDB paymentId")
-            }
-        } else {
-            android.util.Log.d("OrderRepository", "✅ Payment confirmation successful!")
-        }
-        android.util.Log.d("OrderRepository", "================================================")
-
-        if (response.isSuccessful) {
-            val confirmResponse = response.body()
-            if (confirmResponse != null) {
-                android.util.Log.d("OrderRepository", "✅ Payment confirmed successfully")
-                return confirmResponse
-            } else {
-                android.util.Log.e("OrderRepository", "❌ Payment confirmation response body is null")
-            }
-        } else {
-            val errorBody = response.errorBody()?.string()
-            android.util.Log.e("OrderRepository", "❌ Payment confirmation failed: ${response.code()}")
-            android.util.Log.e("OrderRepository", "  Error body: $errorBody")
-        }
+        // This method is deprecated - it doesn't actually work anymore
+        // Return null to force caller to use confirmPaymentWithPaymentMethod()
+        android.util.Log.e("OrderRepository", "❌ This method no longer works!")
+        android.util.Log.e("OrderRepository", "  Backend no longer accepts card details")
+        android.util.Log.e("OrderRepository", "  Use Stripe Android SDK to create PaymentMethod client-side")
         return null
     }
 

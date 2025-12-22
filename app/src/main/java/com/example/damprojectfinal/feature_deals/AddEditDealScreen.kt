@@ -60,11 +60,19 @@ data class LocationData(
     val name: String = ""
 )
 
+data class MenuItemForDeal(
+    val id: String,
+    val name: String,
+    val category: String,
+    val price: Double
+)
+
 // ============== Écran principal ==============
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditDealScreen(
     dealId: String? = null,
+    professionalId: String, // 🎯 NEW: Required parameter
     viewModel: DealsViewModel,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -75,6 +83,16 @@ fun AddEditDealScreen(
     var description by remember { mutableStateOf("") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var category by remember { mutableStateOf("") }
+    
+    // 🎯 NEW: Discount percentage
+    var discountPercentage by remember { mutableStateOf("") }
+    
+    // 🎯 NEW: Item selection for the deal
+    var selectionMode by remember { mutableStateOf("all") } // "all", "categories", "items"
+    var selectedCategories by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedMenuItemIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var menuItems by remember { mutableStateOf<List<MenuItemForDeal>>(emptyList()) }
+    var isLoadingMenuItems by remember { mutableStateOf(false) }
 
     // 🔥 Séparation Date & Heure pour Début et Fin
     var startDate by remember { mutableStateOf("") } // YYYY-MM-DD
@@ -114,6 +132,41 @@ fun AddEditDealScreen(
         "Cuisine Internationale",
         "Desserts & Pâtisserie"
     )
+    
+    // Menu categories for item selection
+    val menuCategories = listOf("PIZZA", "BURGER", "PASTA", "SALAD", "DESSERT", "BEVERAGE")
+    
+    // Load menu items for the professional
+    LaunchedEffect(professionalId) {
+        isLoadingMenuItems = true
+        try {
+            val tokenManager = com.example.damprojectfinal.core.api.TokenManager(context)
+            val token = tokenManager.getAccessTokenAsync() ?: ""
+            
+            val response = com.example.damprojectfinal.core.retro.RetrofitClient
+                .menuItemApi
+                .getGroupedMenu(professionalId, "Bearer $token")
+            
+            if (response.isSuccessful && response.body() != null) {
+                // GroupedMenuResponse is Map<String, List<MenuItemResponseDto>>
+                val groupedMenu = response.body()!!
+                menuItems = groupedMenu.flatMap { (categoryName, items) ->
+                    items.map { item ->
+                        MenuItemForDeal(
+                            id = item.id,
+                            name = item.name,
+                            category = categoryName.uppercase(),
+                            price = item.price
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            isLoadingMenuItems = false
+        }
+    }
 
     // Charger les données si mode édition
     LaunchedEffect(dealId) {
@@ -137,6 +190,18 @@ fun AddEditDealScreen(
             restaurantName = deal.restaurantName
             description = deal.description
             category = deal.category
+            discountPercentage = deal.discountPercentage.toString() // 🎯 NEW
+            
+            // 🎯 Load applicable items/categories
+            if (deal.applicableMenuItems.isNotEmpty()) {
+                selectionMode = "items"
+                selectedMenuItemIds = deal.applicableMenuItems.toSet()
+            } else if (deal.applicableCategories.isNotEmpty()) {
+                selectionMode = "categories"
+                selectedCategories = deal.applicableCategories.toSet()
+            } else {
+                selectionMode = "all"
+            }
 
             // Parsing des dates ISO
             val (dStart, tStart) = parseIsoDate(deal.startDate)
@@ -154,10 +219,20 @@ fun AddEditDealScreen(
 
     val isValid by remember {
         derivedStateOf {
+            val hasValidSelection = when (selectionMode) {
+                "all" -> true
+                "categories" -> selectedCategories.isNotEmpty()
+                "items" -> selectedMenuItemIds.isNotEmpty()
+                else -> false
+            }
+            
             restaurantName.isNotBlank() &&
                     description.isNotBlank() &&
                     (imageUri != null || isEditMode) &&
                     category.isNotBlank() &&
+                    discountPercentage.isNotBlank() && // 🎯 NEW
+                    (discountPercentage.toIntOrNull() ?: 0) in 1..100 && // Valid percentage
+                    hasValidSelection && // 🎯 NEW: Check selection mode
                     startDate.isNotBlank() && startTime.isNotBlank() &&
                     endDate.isNotBlank() && endTime.isNotBlank() &&
                     selectedLocation != null
@@ -239,12 +314,78 @@ fun AddEditDealScreen(
                 fontSize = 12.sp
             )
 
+            // 🎯 NEW: Discount Percentage
+            FieldLabel("Pourcentage de réduction")
+            OutlinedTextField(
+                value = discountPercentage,
+                onValueChange = { 
+                    if (it.isEmpty() || it.toIntOrNull() != null) {
+                        val value = it.toIntOrNull() ?: 0
+                        if (value in 0..100) {
+                            discountPercentage = it
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(2.dp, RoundedCornerShape(16.dp)),
+                placeholder = { Text("Ex: 50", color = BrandColors.TextSecondary) },
+                leadingIcon = {
+                    Icon(Icons.Default.Percent, contentDescription = null, tint = BrandColors.TextSecondary)
+                },
+                trailingIcon = {
+                    Text("%", fontWeight = FontWeight.Bold, color = BrandColors.Yellow)
+                },
+                shape = RoundedCornerShape(16.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = BrandColors.FieldFill,
+                    unfocusedContainerColor = BrandColors.FieldFill,
+                    disabledContainerColor = BrandColors.FieldFill,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    cursorColor = BrandColors.TextPrimary
+                )
+            )
+
             // Image
             FieldLabel("Image du deal")
             ImageSection(
                 imageUri = imageUri,
                 onAddImage = { pickImage.launch("image/*") },
                 onRemoveImage = { imageUri = null }
+            )
+            
+            // 🎯 NEW: Item Selection Section
+            FieldLabel("Items applicables au deal")
+            ItemSelectionSection(
+                selectionMode = selectionMode,
+                onSelectionModeChange = { newMode ->
+                    selectionMode = newMode
+                    // Reset selections when mode changes
+                    if (newMode == "all") {
+                        selectedCategories = emptySet()
+                        selectedMenuItemIds = emptySet()
+                    }
+                },
+                menuCategories = menuCategories,
+                selectedCategories = selectedCategories,
+                onCategoryToggle = { category ->
+                    selectedCategories = if (selectedCategories.contains(category)) {
+                        selectedCategories - category
+                    } else {
+                        selectedCategories + category
+                    }
+                },
+                menuItems = menuItems,
+                selectedMenuItemIds = selectedMenuItemIds,
+                onMenuItemToggle = { itemId ->
+                    selectedMenuItemIds = if (selectedMenuItemIds.contains(itemId)) {
+                        selectedMenuItemIds - itemId
+                    } else {
+                        selectedMenuItemIds + itemId
+                    }
+                },
+                isLoadingMenuItems = isLoadingMenuItems
             )
 
             // Catégorie
@@ -426,6 +567,9 @@ fun AddEditDealScreen(
                                         description = description,
                                         image = imageUrl,
                                         category = category,
+                                        discountPercentage = discountPercentage.toIntOrNull(), // 🎯 NEW
+                                        applicableMenuItems = if (selectionMode == "items") selectedMenuItemIds.toList() else null,
+                                        applicableCategories = if (selectionMode == "categories") selectedCategories.toList() else null,
                                         startDate = formattedStart,
                                         endDate = formattedEnd,
                                         isActive = isActive
@@ -434,12 +578,17 @@ fun AddEditDealScreen(
                             } else {
                                 viewModel.createDeal(
                                     CreateDealDto(
+                                        professionalId = professionalId, // 🎯 NEW
                                         restaurantName = restaurantName,
                                         description = description,
                                         image = imageUrl,
                                         category = category,
+                                        discountPercentage = discountPercentage.toIntOrNull() ?: 0, // 🎯 NEW
+                                        applicableMenuItems = if (selectionMode == "items") selectedMenuItemIds.toList() else emptyList(),
+                                        applicableCategories = if (selectionMode == "categories") selectedCategories.toList() else emptyList(),
                                         startDate = formattedStart,
-                                        endDate = formattedEnd
+                                        endDate = formattedEnd,
+                                        isActive = true
                                     )
                                 )
                             }
@@ -964,6 +1113,260 @@ suspend fun reverseGeocode(
     }
 
     return@withContext "Lieu sélectionné"
+}
+
+// ============== Item Selection Section ==============
+
+@Composable
+fun ItemSelectionSection(
+    selectionMode: String,
+    onSelectionModeChange: (String) -> Unit,
+    menuCategories: List<String>,
+    selectedCategories: Set<String>,
+    onCategoryToggle: (String) -> Unit,
+    menuItems: List<MenuItemForDeal>,
+    selectedMenuItemIds: Set<String>,
+    onMenuItemToggle: (String) -> Unit,
+    isLoadingMenuItems: Boolean
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(2.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = BrandColors.FieldFill
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Selection Mode Tabs
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SelectionModeButton(
+                    text = "Tous",
+                    isSelected = selectionMode == "all",
+                    onClick = { onSelectionModeChange("all") },
+                    modifier = Modifier.weight(1f)
+                )
+                SelectionModeButton(
+                    text = "Catégories",
+                    isSelected = selectionMode == "categories",
+                    onClick = { onSelectionModeChange("categories") },
+                    modifier = Modifier.weight(1f)
+                )
+                SelectionModeButton(
+                    text = "Items",
+                    isSelected = selectionMode == "items",
+                    onClick = { onSelectionModeChange("items") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Content based on selection mode
+            when (selectionMode) {
+                "all" -> {
+                    Text(
+                        text = "✅ Le deal s'applique à tous les items du menu",
+                        color = BrandColors.TextSecondary,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+                "categories" -> {
+                    Text(
+                        text = "Sélectionnez les catégories:",
+                        fontWeight = FontWeight.SemiBold,
+                        color = BrandColors.TextPrimary,
+                        fontSize = 14.sp
+                    )
+                    menuCategories.forEach { category ->
+                        CategoryCheckboxItem(
+                            category = category,
+                            isSelected = selectedCategories.contains(category),
+                            onToggle = { onCategoryToggle(category) }
+                        )
+                    }
+                    if (selectedCategories.isEmpty()) {
+                        Text(
+                            text = "⚠️ Sélectionnez au moins une catégorie",
+                            color = Color.Red,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+                "items" -> {
+                    if (isLoadingMenuItems) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(color = BrandColors.Yellow)
+                        }
+                    } else if (menuItems.isEmpty()) {
+                        Text(
+                            text = "Aucun item de menu disponible",
+                            color = BrandColors.TextSecondary,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    } else {
+                        Text(
+                            text = "Sélectionnez les items:",
+                            fontWeight = FontWeight.SemiBold,
+                            color = BrandColors.TextPrimary,
+                            fontSize = 14.sp
+                        )
+                        menuItems.forEach { item ->
+                            MenuItemCheckboxCard(
+                                item = item,
+                                isSelected = selectedMenuItemIds.contains(item.id),
+                                onToggle = { onMenuItemToggle(item.id) }
+                            )
+                        }
+                        if (selectedMenuItemIds.isEmpty()) {
+                            Text(
+                                text = "⚠️ Sélectionnez au moins un item",
+                                color = Color.Red,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SelectionModeButton(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(40.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isSelected) BrandColors.Yellow else Color.White,
+            contentColor = if (isSelected) BrandColors.TextPrimary else BrandColors.TextSecondary
+        ),
+        shape = RoundedCornerShape(12.dp),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = if (isSelected) 4.dp else 0.dp
+        )
+    ) {
+        Text(
+            text = text,
+            fontSize = 13.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+fun CategoryCheckboxItem(
+    category: String,
+    isSelected: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onToggle() }
+            .background(if (isSelected) Color.White else Color.Transparent)
+            .border(
+                width = 1.dp,
+                color = if (isSelected) BrandColors.Yellow else Color.Transparent,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = isSelected,
+            onCheckedChange = { onToggle() },
+            colors = CheckboxDefaults.colors(
+                checkedColor = BrandColors.Yellow,
+                checkmarkColor = BrandColors.TextPrimary
+            )
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = category,
+            color = BrandColors.TextPrimary,
+            fontSize = 14.sp,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+fun MenuItemCheckboxCard(
+    item: MenuItemForDeal,
+    isSelected: Boolean,
+    onToggle: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) Color.White else Color(0xFFFAFAFA)
+        ),
+        border = if (isSelected) {
+            androidx.compose.foundation.BorderStroke(2.dp, BrandColors.Yellow)
+        } else null
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = isSelected,
+                onCheckedChange = { onToggle() },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = BrandColors.Yellow,
+                    checkmarkColor = BrandColors.TextPrimary
+                )
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.name,
+                    fontWeight = FontWeight.SemiBold,
+                    color = BrandColors.TextPrimary,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = item.category,
+                    color = BrandColors.TextSecondary,
+                    fontSize = 12.sp
+                )
+            }
+            Text(
+                text = "${item.price}€",
+                fontWeight = FontWeight.Bold,
+                color = BrandColors.Yellow,
+                fontSize = 14.sp
+            )
+        }
+    }
 }
 
 // ============== Dialogs Material3 pour Date & Heure ==============

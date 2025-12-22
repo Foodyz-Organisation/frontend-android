@@ -19,5 +19,10 @@ data class CartItemResponse(
     @SerializedName("image") val image: String?,  // Add image field
     @SerializedName("chosenIngredients") val chosenIngredients: List<IngredientDto>, // Uses IngredientDto from CartRequest.kt
     @SerializedName("chosenOptions") val chosenOptions: List<OptionDto>, // Uses OptionDto from CartRequest.kt
-    @SerializedName("calculatedPrice") val calculatedPrice: Double
+    @SerializedName("calculatedPrice") val calculatedPrice: Double, // Price paid (with discount if applicable)
+    
+    // 🎯 NEW: Deal-related fields
+    @SerializedName("originalPrice") val originalPrice: Double? = null, // Original price before discount
+    @SerializedName("discountPercentage") val discountPercentage: Int? = null, // Discount percentage applied (0-100)
+    @SerializedName("dealId") val dealId: String? = null // Reference to the deal applied
 )

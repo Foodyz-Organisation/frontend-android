@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.*
+import androidx.compose.material.icons.filled.Star
 import com.example.damprojectfinal.core.dto.menu.IntensityType
 import com.example.damprojectfinal.core.dto.cart.IngredientDto
 
@@ -468,6 +469,11 @@ fun CartItemCard(
     var isExpanded by remember { mutableStateOf(false) }
     val itemQuantity = item.quantity
     val totalPrice = item.calculatedPrice.toFloat() * itemQuantity
+    
+    // Calculate savings if deal is applied
+    val hasDeal = item.discountPercentage != null && item.discountPercentage > 0 && item.originalPrice != null
+    val originalTotalPrice = if (hasDeal) (item.originalPrice!!.toFloat() * itemQuantity) else null
+    val savings = if (hasDeal && originalTotalPrice != null) (originalTotalPrice - totalPrice) else null
 
     Row(
         modifier = Modifier
@@ -481,23 +487,86 @@ fun CartItemCard(
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = if (item.image.isNullOrEmpty()) null else BASE_URL + item.image,
-            contentDescription = item.name,
-            contentScale = ContentScale.Crop,
-            placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.placeholder),
-            error = androidx.compose.ui.res.painterResource(id = R.drawable.placeholder),
-            modifier = Modifier
-                .size(70.dp)
-                .clip(RoundedCornerShape(8.dp))
-        )
+        // Image with discount badge overlay
+        Box {
+            AsyncImage(
+                model = if (item.image.isNullOrEmpty()) null else BASE_URL + item.image,
+                contentDescription = item.name,
+                contentScale = ContentScale.Crop,
+                placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.placeholder),
+                error = androidx.compose.ui.res.painterResource(id = R.drawable.placeholder),
+                modifier = Modifier
+                    .size(70.dp)
+                    .clip(RoundedCornerShape(8.dp))
+            )
+            
+            // Discount badge overlay
+            if (hasDeal) {
+                androidx.compose.material3.Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFFFF5722),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                ) {
+                    Text(
+                        text = "-${item.discountPercentage}%",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(item.name ?: "Item", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DarkText)
             Spacer(modifier = Modifier.height(4.dp))
-            Text("${"%.3f".format(totalPrice)} TND", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = PrimaryYellow)
+            
+            // Show price with deal info
+            if (hasDeal && originalTotalPrice != null) {
+                // Original price (strikethrough)
+                Text(
+                    "${"%.3f".format(originalTotalPrice)} TND",
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    color = Color.Gray,
+                    style = androidx.compose.ui.text.TextStyle(
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough
+                    )
+                )
+                
+                // Current price (discounted)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${"%.3f".format(totalPrice)} TND",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp,
+                        color = PrimaryYellow
+                    )
+                    
+                    if (savings != null && savings > 0) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "(-${"%.3f".format(savings)} TND)",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                            color = Color(0xFF4CAF50) // Green for savings
+                        )
+                    }
+                }
+            } else {
+                // Normal price (no deal)
+                Text(
+                    "${"%.3f".format(totalPrice)} TND",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp,
+                    color = PrimaryYellow
+                )
+            }
         }
 
         Column(
@@ -583,6 +652,18 @@ fun ShoppingCartScreen(
     val cartState by cartVM.uiState.collectAsState()
     val cartItems = (cartState as? CartUiState.Success)?.cart?.items ?: emptyList()
     val subtotal = cartItems.sumOf { it.calculatedPrice.toDouble() * it.quantity }.toFloat()
+    
+    // Calculate total savings from deals
+    val totalSavings = cartItems.sumOf { item ->
+        val hasDeal = item.discountPercentage != null && item.discountPercentage > 0 && item.originalPrice != null
+        if (hasDeal) {
+            val originalTotal = item.originalPrice!!.toDouble() * item.quantity
+            val discountedTotal = item.calculatedPrice.toDouble() * item.quantity
+            originalTotal - discountedTotal
+        } else {
+            0.0
+        }
+    }.toFloat()
 
     LaunchedEffect(Unit) { cartVM.loadCart() }
 
@@ -617,6 +698,39 @@ fun ShoppingCartScreen(
                             Text("Subtotal:", color = Color.Gray, fontSize = 16.sp)
                             Text("${"%.3f".format(subtotal)} TND", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
+                        
+                        // Show savings if any deals are applied
+                        if (totalSavings > 0) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = "Savings",
+                                        tint = Color(0xFF4CAF50),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "You saved:",
+                                        color = Color(0xFF4CAF50),
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                Text(
+                                    "-${"%.3f".format(totalSavings)} TND",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.sp,
+                                    color = Color(0xFF4CAF50)
+                                )
+                            }
+                        }
+                        
                         Button(
                             onClick = {
                                 // Use the passed professionalId

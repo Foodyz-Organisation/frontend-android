@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -17,6 +19,19 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // ⭐ Read Stripe key from local.properties
+        val properties = project.rootProject.file("local.properties")
+        val stripeKey = if (properties.exists()) {
+            val prop = Properties()
+            properties.inputStream().use { prop.load(it) }
+            prop.getProperty("STRIPE_PUBLISHABLE_KEY", "")
+        } else {
+            ""
+        }
+        
+        // Add Stripe key as BuildConfig field
+        buildConfigField("String", "STRIPE_PUBLISHABLE_KEY", "\"$stripeKey\"")
     }
 
     buildTypes {
@@ -40,6 +55,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true  // ⭐ Enable BuildConfig
     }
 }
 
@@ -204,5 +220,9 @@ dependencies {
 
         // Coil pour les images
         implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // ===== Stripe Android SDK =====
+    // Stripe Android SDK for secure card payment handling
+    implementation("com.stripe:stripe-android:20.37.5")
 
 }

@@ -428,6 +428,12 @@ fun OrderHeaderCard(order: OrderResponse) {
 
 @Composable
 fun OrderItemDetailCard(item: OrderItemResponse) {
+    // Check if deal is applied
+    val hasDeal = item.discountPercentage != null && item.discountPercentage > 0 && item.originalPrice != null
+    val originalTotalPrice = if (hasDeal) (item.originalPrice!! * item.quantity) else null
+    val discountedTotalPrice = item.calculatedPrice * item.quantity
+    val savings = if (hasDeal && originalTotalPrice != null) (originalTotalPrice - discountedTotalPrice) else null
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -437,15 +443,36 @@ fun OrderItemDetailCard(item: OrderItemResponse) {
             modifier = Modifier.padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Item Image
-            AsyncImage(
-                model = if (item.image.isNullOrEmpty()) null else BASE_URL + item.image,
-                contentDescription = item.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(70.dp)
-                    .clip(RoundedCornerShape(8.dp))
-            )
+            // Item Image with discount badge
+            Box {
+                AsyncImage(
+                    model = if (item.image.isNullOrEmpty()) null else BASE_URL + item.image,
+                    contentDescription = item.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(70.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+                
+                // Discount badge overlay
+                if (hasDeal) {
+                    androidx.compose.material3.Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFFF5722),
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                    ) {
+                        Text(
+                            text = "-${item.discountPercentage}%",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.sp,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
 
             // Item Details
             Column(modifier = Modifier.weight(1f)) {
@@ -495,13 +522,47 @@ fun OrderItemDetailCard(item: OrderItemResponse) {
 
                 Spacer(Modifier.height(8.dp))
 
-                // Item Price
-                Text(
-                    "${"%.2f".format(item.calculatedPrice * item.quantity)} TND",
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 16.sp,
-                    color = PrimaryColor
-                )
+                // Item Price with deal info
+                if (hasDeal && originalTotalPrice != null) {
+                    // Original price (strikethrough)
+                    Text(
+                        "${"%.2f".format(originalTotalPrice)} TND",
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        color = Color.Gray,
+                        style = androidx.compose.ui.text.TextStyle(
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough
+                        )
+                    )
+                    
+                    // Discounted price with savings
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${"%.2f".format(discountedTotalPrice)} TND",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 16.sp,
+                            color = PrimaryColor
+                        )
+                        
+                        if (savings != null && savings > 0) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "(-${"%.2f".format(savings)} TND)",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                color = Color(0xFF4CAF50)
+                            )
+                        }
+                    }
+                } else {
+                    // Normal price (no deal)
+                    Text(
+                        "${"%.2f".format(discountedTotalPrice)} TND",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp,
+                        color = PrimaryColor
+                    )
+                }
             }
         }
     }

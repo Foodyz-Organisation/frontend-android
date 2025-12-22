@@ -10,7 +10,12 @@ data class AddToCartRequest(
     @SerializedName("quantity") val quantity: Int,
     @SerializedName("chosenIngredients") val chosenIngredients: List<IngredientDto>,
     @SerializedName("chosenOptions") val chosenOptions: List<OptionDto>,
-    @SerializedName("calculatedPrice") val calculatedPrice: Double // Price per unit (base + options)
+    @SerializedName("calculatedPrice") val calculatedPrice: Double, // Price per unit (discounted if deal is active)
+    
+    // 🎯 NEW: Deal-related fields
+    @SerializedName("originalPrice") val originalPrice: Double? = null, // Original price before discount
+    @SerializedName("discountPercentage") val discountPercentage: Int? = null, // Discount percentage (0-100)
+    @SerializedName("dealId") val dealId: String? = null // Deal ID if applicable
 )
 
 // 2. UpdateQuantityRequest: No change, remains the same.

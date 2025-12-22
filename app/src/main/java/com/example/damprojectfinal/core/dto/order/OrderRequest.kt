@@ -27,7 +27,12 @@ data class OrderItemRequest(
     @SerializedName("quantity") val quantity: Int,
     @SerializedName("chosenIngredients") val chosenIngredients: List<ChosenIngredientRequest>? = null,
     @SerializedName("chosenOptions") val chosenOptions: List<ChosenOptionRequest>? = null,
-    @SerializedName("calculatedPrice") val calculatedPrice: Double
+    @SerializedName("calculatedPrice") val calculatedPrice: Double,
+    
+    // 🎯 NEW: Deal-related fields
+    @SerializedName("originalPrice") val originalPrice: Double? = null, // Original price before discount
+    @SerializedName("discountPercentage") val discountPercentage: Int? = null, // Discount percentage (0-100)
+    @SerializedName("dealId") val dealId: String? = null // Deal ID if applicable
 )
 
 data class ChosenIngredientRequest(
@@ -125,7 +130,12 @@ data class OrderItemResponse(
     @SerializedName("quantity") val quantity: Int,
     @SerializedName("chosenIngredients") val chosenIngredients: List<ChosenIngredientResponse>?,
     @SerializedName("chosenOptions") val chosenOptions: List<ChosenOptionResponse>?,
-    @SerializedName("calculatedPrice") val calculatedPrice: Double
+    @SerializedName("calculatedPrice") val calculatedPrice: Double,
+    
+    // 🎯 NEW: Deal-related fields
+    @SerializedName("originalPrice") val originalPrice: Double? = null, // Original price before discount
+    @SerializedName("discountPercentage") val discountPercentage: Int? = null, // Discount percentage (0-100)
+    @SerializedName("dealId") val dealId: String? = null // Deal ID if applicable
 )
 
 data class ChosenIngredientResponse(
@@ -153,17 +163,12 @@ data class CreateOrderWithPaymentResponse(
 // ---------------------------------------------------------
 // PAYMENT CONFIRMATION REQUEST
 // ---------------------------------------------------------
-// Current backend validation only accepts:
-// - paymentIntentId (required, string)
-// - paymentMethodId (required, string, non-empty)
-//
-// Backend rejects: cardNumber, cardholderName, cvv, expMonth, expYear
-//
-// SOLUTION: Backend needs to be updated to accept card details
-// and create PaymentMethod server-side (see backend code below)
+// ⭐ UPDATED: Now using Stripe Android SDK to create PaymentMethod client-side
+// Android Stripe SDK creates PaymentMethod (pm_xxx), we send ONLY the ID to backend
+// Card details NEVER touch our server (PCI-DSS compliant)
 data class ConfirmPaymentRequest(
     @SerializedName("paymentIntentId") val paymentIntentId: String,
-    @SerializedName("paymentMethodId") val paymentMethodId: String  // Required by backend validation
+    @SerializedName("paymentMethodId") val paymentMethodId: String  // Real Stripe PaymentMethod ID (pm_xxx)
 )
 
 // ---------------------------------------------------------

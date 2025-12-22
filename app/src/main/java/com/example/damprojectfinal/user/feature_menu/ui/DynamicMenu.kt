@@ -79,7 +79,12 @@ data class MenuItem(
     val defaultIngredients: List<IngredientDto> = emptyList(), // Changed to preserve full IngredientDto
     val extraOptions: List<Option> = emptyList(),
     val createdAt: String? = null, // Date when item was created
-    val updatedAt: String? = null // Date when item was last updated
+    val updatedAt: String? = null, // Date when item was last updated
+    
+    // 🎯 Deal-related fields
+    val discountedPrice: Float? = null, // Discounted price (if deal is active)
+    val activeDealId: String? = null, // Active deal ID
+    val discountPercentage: Int? = null // Discount percentage (0-100)
 )
 
 // Category UI Model
@@ -136,7 +141,12 @@ private fun MenuItemResponseDto.toUiModel(): MenuItem {
         defaultIngredients = this.ingredients, // Keep full IngredientDto objects
         extraOptions = this.options.toOptionModels(),
         createdAt = this.createdAt,
-        updatedAt = this.updatedAt
+        updatedAt = this.updatedAt,
+        
+        // 🎯 Deal-related fields
+        discountedPrice = this.discountedPrice?.toFloat(),
+        activeDealId = this.activeDealId,
+        discountPercentage = this.discountPercentage
     )
 }
 
@@ -443,12 +453,25 @@ fun RestaurantMenuScreen(
                 val menuItem = confirmedItem
 
                 // --- 1. Unit Price Calculation ---
-                val basePrice = menuItem.priceDT.toDouble()
+                // Use discounted price if available, otherwise use regular price
+                val basePrice = if (menuItem.discountedPrice != null && menuItem.discountedPrice > 0) {
+                    menuItem.discountedPrice.toDouble()
+                } else {
+                    menuItem.priceDT.toDouble()
+                }
+                val originalPrice = menuItem.priceDT.toDouble() // Always keep original price
                 val optionsPrice = selectedOptions.sumOf { it.price.toDouble() }
 
                 // The price per unit (item) AFTER options are added
                 val unitPrice = basePrice + optionsPrice
-                android.util.Log.d("DynamicMenu", "💰 Price calculation: base=$basePrice, options=$optionsPrice, total=$unitPrice")
+                android.util.Log.d("DynamicMenu", "💰 Price calculation:")
+                android.util.Log.d("DynamicMenu", "  - original=$originalPrice")
+                android.util.Log.d("DynamicMenu", "  - base (discounted)=$basePrice")
+                android.util.Log.d("DynamicMenu", "  - options=$optionsPrice")
+                android.util.Log.d("DynamicMenu", "  - total=$unitPrice")
+                if (menuItem.discountPercentage != null && menuItem.discountPercentage > 0) {
+                    android.util.Log.d("DynamicMenu", "  - 🎯 Deal applied: ${menuItem.discountPercentage}% OFF (dealId=${menuItem.activeDealId})")
+                }
 
                 // --- 2. Data Mapping (UI Models to DTOs) ---
 
@@ -495,7 +518,12 @@ fun RestaurantMenuScreen(
                     name = menuItem.name,
                     chosenIngredients = finalIngredientsDto,
                     chosenOptions = finalSelectedOptions,
-                    calculatedPrice = unitPrice,
+                    calculatedPrice = unitPrice, // Discounted price if applicable
+                    
+                    // 🎯 Deal information
+                    originalPrice = originalPrice + optionsPrice, // Original total price (with options)
+                    discountPercentage = menuItem.discountPercentage,
+                    dealId = menuItem.activeDealId
                 )
 
                 android.util.Log.d("DynamicMenu", "📝 Request DTO:")
@@ -503,6 +531,9 @@ fun RestaurantMenuScreen(
                 android.util.Log.d("DynamicMenu", "  - name: ${request.name}")
                 android.util.Log.d("DynamicMenu", "  - quantity: ${request.quantity}")
                 android.util.Log.d("DynamicMenu", "  - calculatedPrice: ${request.calculatedPrice}")
+                android.util.Log.d("DynamicMenu", "  - originalPrice: ${request.originalPrice}")
+                android.util.Log.d("DynamicMenu", "  - discountPercentage: ${request.discountPercentage}%")
+                android.util.Log.d("DynamicMenu", "  - dealId: ${request.dealId}")
                 android.util.Log.d("DynamicMenu", "  - ingredients count: ${request.chosenIngredients.size}")
                 android.util.Log.d("DynamicMenu", "  - options count: ${request.chosenOptions.size}")
 
@@ -742,7 +773,54 @@ fun CustomizationHeader(item: MenuItem, onDismiss: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(item.name, color = AppDarkText, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-            Text("${item.priceDT} TND", color = AppCartButtonYellow, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            
+            // Show discounted price if applicable
+            if (item.discountedPrice != null && item.discountPercentage != null && item.discountPercentage > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Discount badge
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFFF5722),
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Text(
+                            text = "-${item.discountPercentage}%",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
+                    
+                    // Old price (strikethrough)
+                    Text(
+                        "${item.priceDT} TND",
+                        color = Color.Gray,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        style = androidx.compose.ui.text.TextStyle(
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough
+                        ),
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    
+                    // New price
+                    Text(
+                        "${item.discountedPrice} TND",
+                        color = AppCartButtonYellow,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            } else {
+                // Normal price
+                Text(
+                    "${item.priceDT} TND",
+                    color = AppCartButtonYellow,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
         IconButton(
             onClick = onDismiss,
@@ -1591,19 +1669,72 @@ fun MenuItemCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Price Badge
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = AppCartButtonYellow,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                ) {
+                // Price Section with Deal Support
+                if (item.discountedPrice != null && item.discountPercentage != null && item.discountPercentage > 0) {
+                    // Show discount badge
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Discount Badge
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFF5722), // Red/Orange for discount
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Text(
+                                text = "-${item.discountPercentage}%",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(4.dp))
+                    
+                    // Old price (strikethrough)
                     Text(
                         text = "${String.format("%.2f", item.priceDT)} TND",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        color = Color.Gray,
+                        style = androidx.compose.ui.text.TextStyle(
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough
+                        )
                     )
+                    
+                    // New discounted price
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = AppCartButtonYellow,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    ) {
+                        Text(
+                            text = "${String.format("%.2f", item.discountedPrice)} TND",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                    }
+                } else {
+                    // Normal price (no discount)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = AppCartButtonYellow,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    ) {
+                        Text(
+                            text = "${String.format("%.2f", item.priceDT)} TND",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                    }
                 }
             }
         }

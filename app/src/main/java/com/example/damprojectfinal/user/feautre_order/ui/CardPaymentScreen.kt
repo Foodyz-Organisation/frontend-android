@@ -19,14 +19,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.damprojectfinal.ui.theme.*
+import com.stripe.android.PaymentConfiguration
+import com.stripe.android.Stripe
+import com.stripe.android.model.CardParams
+import com.stripe.android.model.PaymentMethodCreateParams
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 // Test card data
 data class TestCard(
@@ -38,23 +44,17 @@ data class TestCard(
     val cvv: String = "123"
 )
 
-// Data class to hold card details for payment confirmation
-data class CardDetails(
-    val cardNumber: String,
-    val expMonth: Int,
-    val expYear: Int,
-    val cvv: String,
-    val cardholderName: String
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardPaymentScreen(
     totalPrice: Float,
     paymentIntentId: String,
     onBackClick: () -> Unit,
-    onPaymentConfirmed: (CardDetails) -> Unit // Card details instead of fake PaymentMethod ID
+    onPaymentConfirmed: (String) -> Unit // Now receives PaymentMethod ID (pm_xxx) from Stripe
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
     var cardNumber by remember { mutableStateOf("") }
     var selectedMonth by remember { mutableStateOf("") }
     var selectedYear by remember { mutableStateOf("") }
@@ -147,27 +147,73 @@ fun CardPaymentScreen(
                         return@CardPaymentBottomBar
                     }
                     
-                    val cardDetails = CardDetails(
-                        cardNumber = cleanCardNumber,
-                        expMonth = expMonthInt,
-                        expYear = expYearInt,
-                        cvv = cvv,
-                        cardholderName = cardholderName
-                    )
-                    
-                    android.util.Log.d("CardPaymentScreen", "💳 Preparing card details for backend")
+                    android.util.Log.d("CardPaymentScreen", "💳 ========== CREATING PAYMENT METHOD WITH STRIPE SDK ==========")
                     android.util.Log.d("CardPaymentScreen", "  Card Number: ${cleanCardNumber.take(4)}****${cleanCardNumber.takeLast(4)}")
                     android.util.Log.d("CardPaymentScreen", "  Expiry: $expMonthInt/$expYearInt")
                     android.util.Log.d("CardPaymentScreen", "  CVV: ${cvv.length} digits")
                     android.util.Log.d("CardPaymentScreen", "  Cardholder: $cardholderName")
-                    android.util.Log.d("CardPaymentScreen", "  ✅ Backend will create PaymentMethod from these details")
+                    android.util.Log.d("CardPaymentScreen", "  ✅ Using Stripe Android SDK to create PaymentMethod")
 
-                    // Simulate API call delay
+                    // ⭐ Create PaymentMethod using Stripe Android SDK
                     CoroutineScope(Dispatchers.Main).launch {
-                        kotlinx.coroutines.delay(1500) // Simulate network delay
-                        isLoading = false
-                        android.util.Log.d("CardPaymentScreen", "✅ Payment confirmed, sending card details to backend")
-                        onPaymentConfirmed(cardDetails)
+                        try {
+                            android.util.Log.d("CardPaymentScreen", "🚀 Creating Stripe PaymentMethod...")
+                            
+                            // Create CardParams
+                            val cardParams = CardParams(
+                                number = cleanCardNumber,
+                                expMonth = expMonthInt,
+                                expYear = expYearInt,
+                                cvc = cvv
+                            )
+                            
+                            // Create PaymentMethodCreateParams with CardParams
+                            val paymentMethodParams = PaymentMethodCreateParams.createCard(cardParams)
+                            
+                            android.util.Log.d("CardPaymentScreen", "📤 Sending PaymentMethod creation request to Stripe...")
+                            
+                            // Create Stripe instance
+                            val stripe = Stripe(
+                                context = context,
+                                publishableKey = PaymentConfiguration.getInstance(context).publishableKey
+                            )
+                            
+                            // Create PaymentMethod (API call to Stripe)
+                            val paymentMethod = withContext(Dispatchers.IO) {
+                                stripe.createPaymentMethodSynchronous(paymentMethodParams)
+                            }
+                            
+                            if (paymentMethod != null) {
+                                val paymentMethodId = paymentMethod.id ?: run {
+                                    android.util.Log.e("CardPaymentScreen", "❌ PaymentMethod created but ID is null")
+                                    errorMessage = "Payment method creation failed"
+                                    isLoading = false
+                                    return@launch
+                                }
+                                
+                                android.util.Log.d("CardPaymentScreen", "✅ PaymentMethod created successfully!")
+                                android.util.Log.d("CardPaymentScreen", "  PaymentMethod ID: $paymentMethodId")
+                                android.util.Log.d("CardPaymentScreen", "  Card brand: ${paymentMethod.card?.brand}")
+                                android.util.Log.d("CardPaymentScreen", "  Last 4 digits: ${paymentMethod.card?.last4}")
+                                android.util.Log.d("CardPaymentScreen", "")
+                                android.util.Log.d("CardPaymentScreen", "🔒 Card details are now securely stored by Stripe")
+                                android.util.Log.d("CardPaymentScreen", "📤 Sending ONLY PaymentMethod ID to backend")
+                                
+                                isLoading = false
+                                onPaymentConfirmed(paymentMethodId)
+                            } else {
+                                android.util.Log.e("CardPaymentScreen", "❌ PaymentMethod creation failed - response is null")
+                                errorMessage = "Payment method creation failed"
+                                isLoading = false
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("CardPaymentScreen", "❌ Stripe PaymentMethod creation error: ${e.message}")
+                            android.util.Log.e("CardPaymentScreen", "  Error type: ${e.javaClass.simpleName}")
+                            e.printStackTrace()
+                            
+                            errorMessage = e.message ?: "Payment method creation failed"
+                            isLoading = false
+                        }
                     }
                 },
                 isConfirmEnabled = cardNumber.isNotBlank() &&

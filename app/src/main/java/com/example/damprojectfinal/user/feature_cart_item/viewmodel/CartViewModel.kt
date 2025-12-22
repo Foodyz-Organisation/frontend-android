@@ -335,64 +335,23 @@ class CartViewModel(
     }
     
     // -----------------------------
-    // Confirm Card Payment (with PaymentMethod ID - legacy)
+    // Confirm Card Payment with PaymentMethod ID (from Stripe SDK)
     // -----------------------------
-    fun confirmPayment(
+    fun confirmPaymentWithPaymentMethod(
         paymentIntentId: String,
         paymentMethodId: String,
         onSuccess: (com.example.damprojectfinal.core.dto.order.OrderResponse) -> Unit,
         onError: (String) -> Unit
     ) {
         viewModelScope.launch {
-            android.util.Log.d("CartViewModel", "💳 Confirming payment (legacy method with PaymentMethod ID)...")
+            android.util.Log.d("CartViewModel", "💳 Confirming payment with PaymentMethod ID...")
             android.util.Log.d("CartViewModel", "  PaymentIntentId: $paymentIntentId")
             android.util.Log.d("CartViewModel", "  PaymentMethodId: $paymentMethodId")
+            android.util.Log.d("CartViewModel", "  ✅ PaymentMethod already created by Stripe Android SDK")
             
-            val confirmResponse = orderRepository.confirmPayment(paymentIntentId, paymentMethodId)
-            
-            if (confirmResponse != null && confirmResponse.success) {
-                android.util.Log.d("CartViewModel", "✅ Payment confirmed successfully")
-                android.util.Log.d("CartViewModel", "  Order ID: ${confirmResponse.order._id}")
-                // Clear cart only after payment is confirmed
-                clearCart()
-                onSuccess(confirmResponse.order)
-            } else {
-                android.util.Log.e("CartViewModel", "❌ Payment confirmation failed")
-                onError("Payment confirmation failed. Please try again.")
-            }
-        }
-    }
-    
-    // -----------------------------
-    // Confirm Card Payment with Card Details
-    // Backend will create PaymentMethod from card details
-    // -----------------------------
-    fun confirmPaymentWithCardDetails(
-        paymentIntentId: String,
-        cardNumber: String,
-        expMonth: Int,
-        expYear: Int,
-        cvv: String,
-        cardholderName: String,
-        onSuccess: (com.example.damprojectfinal.core.dto.order.OrderResponse) -> Unit,
-        onError: (String) -> Unit
-    ) {
-        viewModelScope.launch {
-            android.util.Log.d("CartViewModel", "💳 Confirming payment with card details...")
-            android.util.Log.d("CartViewModel", "  PaymentIntentId: $paymentIntentId")
-            android.util.Log.d("CartViewModel", "  Card Number: ${cardNumber.take(4)}****${cardNumber.takeLast(4)}")
-            android.util.Log.d("CartViewModel", "  Expiry: $expMonth/$expYear")
-            android.util.Log.d("CartViewModel", "  CVV: ${cvv.length} digits")
-            android.util.Log.d("CartViewModel", "  Cardholder: $cardholderName")
-            android.util.Log.d("CartViewModel", "  ✅ Backend will create PaymentMethod from these details")
-            
-            val confirmResponse = orderRepository.confirmPaymentWithCardDetails(
+            val confirmResponse = orderRepository.confirmPaymentWithPaymentMethod(
                 paymentIntentId = paymentIntentId,
-                cardNumber = cardNumber,
-                expMonth = expMonth,
-                expYear = expYear,
-                cvv = cvv,
-                cardholderName = cardholderName
+                paymentMethodId = paymentMethodId
             )
             
             if (confirmResponse != null && confirmResponse.success) {

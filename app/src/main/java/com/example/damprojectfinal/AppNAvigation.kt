@@ -33,7 +33,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -107,7 +106,6 @@ import com.example.damprojectfinal.professional.feature_event.EventDetailScreen
 import com.example.damprojectfinal.user.feature_deals.DealDetailScreen
 import com.example.damprojectfinal.user.feature_deals.DealsListScreen
 import com.example.damprojectfinal.user.feature_chat.ui.ChatManagementScreen
-import com.example.damprojectfinal.user.feature_pro_profile.ui.RestaurantProfileView
 import com.example.damprojectfinal.user.feature_pro_profile.ui.RestaurantProfileViewScreen
 import com.example.damprojectfinal.user.feature_profile.ui.UserViewModel
 import com.example.damprojectfinal.core.`object`.KtorClient
@@ -133,8 +131,6 @@ import com.example.damprojectfinal.professional.feature_relamation.ReclamationLi
 import com.example.damprojectfinal.user.feature_relamation.ReclamationListUserScreen
 import com.example.damprojectfinal.feature_relamation.LoyaltyPointsScreen
 import com.example.damprojectfinal.feature_relamation.LoyaltyData
-import com.example.damprojectfinal.feature_relamation.Reward
-import com.example.damprojectfinal.feature_relamation.PointsTransaction
 import com.example.damprojectfinal.core.api.ReclamationRetrofitClient
 import com.example.damprojectfinal.feature_event.Event
 import com.example.damprojectfinal.user.feature_chat.ui.ProChatManagementScreen
@@ -1711,9 +1707,14 @@ fun AppNavigation(
 
         composable("deal_add") {
             Log.d("AppNavigation", "➕ Écran d'ajout de deal")
+            
+            val context = LocalContext.current
+            val tokenManager = remember { TokenManager(context) }
+            val professionalId = remember { tokenManager.getUserIdBlocking() ?: "" }
 
             AddEditDealScreen(
                 dealId = null,
+                professionalId = professionalId,
                 viewModel = dealsViewModel,
                 onBackClick = {
                     Log.d("AppNavigation", "⬅️ Retour depuis deal_add")
@@ -1980,9 +1981,14 @@ fun AppNavigation(
             val dealId = backStackEntry.arguments?.getString("dealId")
 
             Log.d("AppNavigation", "✏️ Écran d'édition de deal: $dealId")
+            
+            val context = LocalContext.current
+            val tokenManager = remember { TokenManager(context) }
+            val professionalId = remember { tokenManager.getUserIdBlocking() ?: "" }
 
             AddEditDealScreen(
                 dealId = dealId,
+                professionalId = professionalId,
                 viewModel = dealsViewModel,
                 onBackClick = {
                     Log.d("AppNavigation", "⬅️ Retour depuis deal_edit")

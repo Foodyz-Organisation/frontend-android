@@ -1,0 +1,10 @@
+## This file is an EXAMPLE - Copy it to local.properties and fill in your own values
+# DO NOT commit local.properties to Git!
+
+# Android SDK location
+sdk.dir=/path/to/your/Android/sdk
+
+# ⭐ Stripe API Keys
+# Get your keys from: https://dashboard.stripe.com/test/apikeys
+STRIPE_PUBLISHABLE_KEY=pk_test_your_publishable_key_here
+

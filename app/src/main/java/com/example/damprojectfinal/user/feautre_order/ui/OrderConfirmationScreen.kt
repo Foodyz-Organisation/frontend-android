@@ -415,13 +415,9 @@ fun OrderConfirmationScreen(
                             android.util.Log.d("OrderConfirmation", "⬅️ Back from CardPaymentScreen")
                             paymentFlowState = PaymentFlowState.PaymentMethodSelection
                         },
-                        onPaymentConfirmed = { cardDetails ->
-                            android.util.Log.d("OrderConfirmation", "✅ Payment confirmed in CardPaymentScreen")
-                            android.util.Log.d("OrderConfirmation", "💳 Card details received:")
-                            android.util.Log.d("OrderConfirmation", "  Card Number: ${cardDetails.cardNumber.take(4)}****${cardDetails.cardNumber.takeLast(4)}")
-                            android.util.Log.d("OrderConfirmation", "  Expiry: ${cardDetails.expMonth}/${cardDetails.expYear}")
-                            android.util.Log.d("OrderConfirmation", "  CVV: ${cardDetails.cvv.length} digits")
-                            android.util.Log.d("OrderConfirmation", "  Cardholder: ${cardDetails.cardholderName}")
+                        onPaymentConfirmed = { paymentMethodId ->
+                            android.util.Log.d("OrderConfirmation", "✅ PaymentMethod created in CardPaymentScreen")
+                            android.util.Log.d("OrderConfirmation", "💳 PaymentMethod ID received: $paymentMethodId")
                             android.util.Log.d("OrderConfirmation", "💳 PaymentIntentId from state: $currentPaymentIntentId")
                             android.util.Log.d("OrderConfirmation", "📋 Created order: ${createdOrder?._id}")
                             android.util.Log.d("OrderConfirmation", "💾 Stored stripePaymentIntentId (Stripe): $stripePaymentIntentId")
@@ -453,20 +449,15 @@ fun OrderConfirmationScreen(
                             android.util.Log.d("OrderConfirmation", "  Endpoint: POST /orders/payment/confirm")
                             android.util.Log.d("OrderConfirmation", "  Request body:")
                             android.util.Log.d("OrderConfirmation", "    - paymentIntentId: $paymentIntentIdToUse")
-                            android.util.Log.d("OrderConfirmation", "    - cardNumber: ${cardDetails.cardNumber.take(4)}****")
-                            android.util.Log.d("OrderConfirmation", "    - expMonth: ${cardDetails.expMonth}")
-                            android.util.Log.d("OrderConfirmation", "    - expYear: ${cardDetails.expYear}")
-                            android.util.Log.d("OrderConfirmation", "    - cvv: ***")
+                            android.util.Log.d("OrderConfirmation", "    - paymentMethodId: $paymentMethodId")
+                            android.util.Log.d("OrderConfirmation", "  ✅ PaymentMethod already created by Stripe Android SDK")
                             
                             // Confirm payment with backend (ONLY for CARD payments)
-                            // Backend will create PaymentMethod from card details, then confirm payment
-                            cartViewModel.confirmPaymentWithCardDetails(
+                            // PaymentMethod was already created by Stripe SDK in CardPaymentScreen
+                            // We just confirm the payment using the PaymentMethod ID
+                            cartViewModel.confirmPaymentWithPaymentMethod(
                                 paymentIntentId = paymentIntentIdToUse, // Stripe PaymentIntent ID
-                                cardNumber = cardDetails.cardNumber,
-                                expMonth = cardDetails.expMonth,
-                                expYear = cardDetails.expYear,
-                                cvv = cardDetails.cvv,
-                                cardholderName = cardDetails.cardholderName,
+                                paymentMethodId = paymentMethodId, // Stripe PaymentMethod ID (pm_xxx)
                                 onSuccess = { confirmedOrder ->
                                     android.util.Log.d("OrderConfirmation", "✅ Payment confirmation successful")
                                     android.util.Log.d("OrderConfirmation", "📋 Confirmed order ID: ${confirmedOrder._id}")

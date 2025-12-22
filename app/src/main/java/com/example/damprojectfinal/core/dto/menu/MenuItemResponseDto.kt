@@ -16,6 +16,16 @@ data class MenuItemResponseDto(
 
     @SerializedName("price")
     val price: Double,
+    
+    // 🎯 NEW: Deal-related fields
+    @SerializedName("discountedPrice")
+    val discountedPrice: Double? = null, // Price after discount (if deal is active)
+    
+    @SerializedName("activeDealId")
+    val activeDealId: String? = null, // Reference to the active deal
+    
+    @SerializedName("discountPercentage")
+    val discountPercentage: Int? = null, // Current discount percentage (0-100)
 
     @SerializedName("category")
     val category: Category,
