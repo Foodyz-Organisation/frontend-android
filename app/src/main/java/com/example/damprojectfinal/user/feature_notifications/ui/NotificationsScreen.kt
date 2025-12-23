@@ -36,6 +36,7 @@ import com.example.damprojectfinal.core.dto.notifications.NotificationResponse
 import com.example.damprojectfinal.core.repository.NotificationRepository
 import com.example.damprojectfinal.core.repository.UserRepository
 import com.example.damprojectfinal.user.common._component.TopAppBar
+import com.example.damprojectfinal.user.common._component.SecondaryNavBar
 import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
 import com.example.damprojectfinal.user.feature_notifications.viewmodel.NotificationViewModel
 import android.util.Log
@@ -178,8 +179,38 @@ fun NotificationsScreen(
                     },
                     currentUserId = currentUserId,
                     onLogoutClick = { /* TODO: Implement logout */ },
-                    profilePictureUrl = profilePictureUrl
+                    profilePictureUrl = profilePictureUrl,
+                    showNavBar = false
                 )
+            },
+            bottomBar = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.Transparent)
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                        shape = RoundedCornerShape(28.dp)
+                    ) {
+                        SecondaryNavBar(
+                            navController = navController,
+                            currentRoute = UserRoutes.NOTIFICATIONS_SCREEN,
+                            onReelsClick = {
+                                navController.navigate(UserRoutes.REELS_SCREEN)
+                            },
+                            hasUnreadNotifications = unreadCount > 0,
+                            hasUnreadMessages = false,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        )
+                    }
+                }
             }
         ) { paddingValues ->
             Column(

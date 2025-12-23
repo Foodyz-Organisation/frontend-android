@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import android.util.Log
+import com.example.damprojectfinal.core.dto.posts.CommentResponse
 import retrofit2.HttpException
 
 open class PostsViewModel : ViewModel() {
@@ -166,11 +167,42 @@ open class PostsViewModel : ViewModel() {
         }
     }
 
+    // --- NEW: Comments Sheet State ---
+    private val _activeComments = MutableStateFlow<List<CommentResponse>>(emptyList())
+    val activeComments: StateFlow<List<CommentResponse>> = _activeComments
+
+    private val _areCommentsLoading = MutableStateFlow(false)
+    val areCommentsLoading: StateFlow<Boolean> = _areCommentsLoading
+
+    fun loadComments(postId: String) {
+        viewModelScope.launch {
+            _areCommentsLoading.value = true
+            try {
+                _activeComments.value = postsApiService.getComments(postId)
+            } catch (e: Exception) {
+                Log.e("PostsViewModel", "Failed to load comments", e)
+                _activeComments.value = emptyList()
+            } finally {
+                _areCommentsLoading.value = false
+            }
+        }
+    }
+
+    fun clearActiveComments() {
+        _activeComments.value = emptyList()
+    }
+
     // Function to create a comment
     open fun createComment(postId: String, commentText: String) {
         viewModelScope.launch {
             try {
-                createCommentImmediate(postId, commentText)
+                // Create comment and get the response
+                val newComment = createCommentImmediate(postId, commentText)
+                
+                // Add to active comments list (immediate UI update for BottomSheet)
+                _activeComments.update { it + newComment }
+
+                // Refresh the post to update comment count in the feed
                 val updatedPost = postsApiService.getPostById(postId)
                 _posts.update { currentPosts ->
                     currentPosts.map { post ->

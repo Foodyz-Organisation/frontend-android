@@ -98,7 +98,8 @@ fun TopAppBar(
     onLogoutClick: () -> Unit,
     profilePictureUrl: String? = null,
     hasUnreadNotifications: Boolean = false,
-    hasUnreadMessages: Boolean = false
+    hasUnreadMessages: Boolean = false,
+    showNavBar: Boolean = true
 ) {
     var showAddOptions by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
@@ -116,18 +117,19 @@ fun TopAppBar(
             // 🌟 FIX 1: Use windowInsetsPadding for status bars to replace hardcoded 48.dp
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                // Removed top padding here, as it's handled by windowInsetsPadding above
                 .padding(
-                    vertical = if (isSmallScreen) 8.dp else 14.dp,
+                    vertical = if (isSmallScreen) 8.dp else 12.dp,
                     horizontal = if (isSmallScreen) 8.dp else 14.dp
                 )
         ) {
-            // '+' button moved to left side (replaces profile icon)
-            IconButton(onClick = { navController.navigate(UserRoutes.CREATE_POST) }) {
+            // '+' button moved to left side
+            IconButton(
+                onClick = { navController.navigate(UserRoutes.CREATE_POST) },
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
                 Icon(
                     Icons.Filled.Add,
                     contentDescription = "Add Content",
@@ -136,46 +138,55 @@ fun TopAppBar(
                 )
             }
 
-            // App title (Responsive)
+            // App title (Center)
             Text(
-                text = "Foodies",
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = if (isSmallScreen) 22.sp else if (isTablet) 32.sp else 28.sp,
-                color = PrimaryDark,
-                modifier = Modifier
-                    .padding(start = if (isSmallScreen) 4.dp else 8.dp)
-                    .weight(1f)
+                text = "foodyz",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 38.sp,
+                    color = Color(0xFFFBBF24)
+                ),
+                modifier = Modifier.align(Alignment.Center)
             )
 
-            // Search Button (Always visible)
-            IconButton(onClick = onSearchClick) {
-                Icon(
-                    Icons.Filled.Search,
-                    contentDescription = "Search",
-                    tint = PrimaryDark,
-                    modifier = Modifier.size(if (isTablet) 28.dp else 24.dp)
-                )
-            }
+            // Right side icons
+            Row(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Search Button
+                IconButton(onClick = onSearchClick) {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = "Search",
+                        tint = PrimaryDark,
+                        modifier = Modifier.size(if (isTablet) 28.dp else 24.dp)
+                    )
+                }
 
-            // Drawer Button (Always visible)
-            IconButton(onClick = openDrawer) {
-                Icon(
-                    Icons.Filled.Menu,
-                    contentDescription = "Drawer",
-                    tint = PrimaryDark,
-                    modifier = Modifier.size(if (isTablet) 28.dp else 24.dp)
-                )
+                // Drawer Button
+                IconButton(onClick = openDrawer) {
+                    Icon(
+                        Icons.Filled.Menu,
+                        contentDescription = "Drawer",
+                        tint = PrimaryDark,
+                        modifier = Modifier.size(if (isTablet) 28.dp else 24.dp)
+                    )
+                }
             }
         }
 
         // Secondary Nav Bar - Back at the top
-        SecondaryNavBar(
-            navController = navController,
-            currentRoute = currentRoute,
-            onReelsClick = onReelsClick,
-            hasUnreadMessages = hasUnreadMessages,
-            hasUnreadNotifications = hasUnreadNotifications
-        )
+        if (showNavBar) {
+            SecondaryNavBar(
+                navController = navController,
+                currentRoute = currentRoute,
+                onReelsClick = onReelsClick,
+                hasUnreadMessages = hasUnreadMessages,
+                hasUnreadNotifications = hasUnreadNotifications
+            )
+        }
 
         // Add Options Popup (Unchanged)
         if (showAddOptions) {
@@ -254,64 +265,32 @@ fun SecondaryNavBar(
     // Get screen configuration for responsive design
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
     val isSmallScreen = screenWidth < 360
-    val isMediumScreen = screenWidth >= 360 && screenWidth < 600
     val isTablet = screenWidth >= 600
     val isLargeTablet = screenWidth >= 840
     
-    // Responsive icon sizes - scale based on screen width
-    val iconSize = when {
-        isSmallScreen -> 20.dp
-        isMediumScreen -> 22.dp
-        isTablet && !isLargeTablet -> 26.dp
-        isLargeTablet -> 28.dp
-        else -> 24.dp
-    }
+    // Responsive sizing
+    val iconSize = if (isTablet) 28.dp else 24.dp
+    // Adjust padding to ensure items aren't too spread out or cramped
+    val horizontalPadding = if (isTablet) 32.dp else 16.dp
+    val verticalPadding = if (isTablet) 16.dp else 8.dp
     
-    // Responsive padding - adapts to screen size
-    val horizontalPadding = when {
-        isSmallScreen -> 4.dp
-        isMediumScreen -> 8.dp
-        isTablet && !isLargeTablet -> 16.dp
-        isLargeTablet -> 24.dp
-        else -> 12.dp
-    }
-    
-    val verticalPadding = when {
-        isSmallScreen -> 8.dp
-        isMediumScreen -> 10.dp
-        isTablet && !isLargeTablet -> 12.dp
-        isLargeTablet -> 16.dp
-        else -> 12.dp
-    }
-    
-    // Icon padding - smaller for small screens to fit all icons
-    val iconPadding = when {
-        isSmallScreen -> 8.dp
-        isMediumScreen -> 10.dp
-        isTablet && !isLargeTablet -> 14.dp
-        isLargeTablet -> 18.dp
-        else -> 12.dp
-    }
-    
-    // Secondary navigation bar styling - at the top
+    // Bottom Navigation with "Pro" aesthetic
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = verticalPadding, horizontal = horizontalPadding),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         NavIcon(
             icon = Icons.Filled.Home,
             selected = currentRoute == UserRoutes.HOME_SCREEN,
             iconSize = iconSize,
-            paddingSize = iconPadding
+            description = "Home"
         ) {
             navController.navigate(UserRoutes.HOME_SCREEN) {
-                popUpTo(UserRoutes.HOME_SCREEN) {
-                    inclusive = true
-                }
+                popUpTo(UserRoutes.HOME_SCREEN) { inclusive = true }
                 launchSingleTop = true
             }
         }
@@ -320,7 +299,7 @@ fun SecondaryNavBar(
             icon = Icons.Filled.PlayArrow,
             selected = currentRoute == UserRoutes.REELS_SCREEN,
             iconSize = iconSize,
-            paddingSize = iconPadding
+            description = "Reels"
         ) {
             onReelsClick()
         }
@@ -329,7 +308,7 @@ fun SecondaryNavBar(
             icon = Icons.Filled.TrendingUp,
             selected = currentRoute == UserRoutes.TRENDS_SCREEN,
             iconSize = iconSize,
-            paddingSize = iconPadding
+            description = "Trends"
         ) {
             navController.navigate(UserRoutes.TRENDS_SCREEN)
         }
@@ -339,7 +318,7 @@ fun SecondaryNavBar(
             selected = currentRoute == "chatList",
             showBadge = hasUnreadMessages,
             iconSize = iconSize,
-            paddingSize = iconPadding
+            description = "Messages"
         ) {
             navController.navigate("chatList")
         }
@@ -349,7 +328,7 @@ fun SecondaryNavBar(
             selected = currentRoute == UserRoutes.NOTIFICATIONS_SCREEN,
             showBadge = hasUnreadNotifications,
             iconSize = iconSize,
-            paddingSize = iconPadding
+            description = "Notifications"
         ) {
             navController.navigate(UserRoutes.NOTIFICATIONS_SCREEN) {
                 launchSingleTop = true
@@ -365,53 +344,45 @@ fun NavIcon(
     selected: Boolean,
     showBadge: Boolean = false,
     iconSize: androidx.compose.ui.unit.Dp = 24.dp,
-    paddingSize: androidx.compose.ui.unit.Dp = 16.dp,
+    description: String? = null,
     onClick: () -> Unit
 ) {
-    // Get screen configuration for responsive vertical padding
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val isSmallScreen = screenWidth < 360
-    val isTablet = screenWidth >= 600
-    
-    // Responsive vertical padding
-    val verticalPadding = when {
-        isSmallScreen -> 6.dp
-        isTablet -> 12.dp
-        else -> 8.dp
-    }
-    
-    // New, modern color scheme for selection
-    val backgroundColor =
-        if (selected) Color(0xFFFFF9C4) else Color.Transparent // light yellow background
-    val iconColor =
-        if (selected) Color(0xFFFFD700) else Color.Gray // golden yellow icon when selected
+    // Animation for smooth color transitions
+    val backgroundColor by animateColorAsState(
+        targetValue = if (selected) Color(0xFFFFC107) else Color.Transparent, // Solid Yellow vs Transparent
+        animationSpec = tween(durationMillis = 300)
+    )
+    val iconColor by animateColorAsState(
+        targetValue = if (selected) Color(0xFF1F2937) else Color(0xFF9CA3AF), // Dark Gray on Yellow vs Gray on White
+        animationSpec = tween(durationMillis = 300)
+    )
 
-    // Using Box to ensure the background color covers a larger, clickable area
+    // Using Box for the touch target and visual container
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(backgroundColor) // <-- This applies the light yellow background
+            .clip(CircleShape) // Fully rounded for a premium feel
+            .background(backgroundColor)
             .clickable(onClick = onClick)
-            .padding(horizontal = paddingSize, vertical = verticalPadding),
+            .padding(12.dp), // Comfortable touch area
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            icon,
-            contentDescription = null,
+            imageVector = icon,
+            contentDescription = description,
             tint = iconColor,
             modifier = Modifier.size(iconSize)
-        ) // <-- Responsive icon size
+        )
 
-        // Small red badge dot for unread items
+        // Notification Badge (Red Dot)
         if (showBadge) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 6.dp, y = (-6).dp)
+                    .offset(x = 4.dp, y = (-4).dp)
                     .size(8.dp)
                     .clip(CircleShape)
                     .background(Color(0xFFFF3B30))
+                    .border(1.dp, Color.White, CircleShape) // Add white border for separation
             )
         }
     }

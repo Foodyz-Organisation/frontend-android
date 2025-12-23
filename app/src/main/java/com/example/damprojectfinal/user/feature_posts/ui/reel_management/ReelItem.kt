@@ -42,58 +42,11 @@ import coil.compose.AsyncImage // <-- Ensure this import is present
 import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel
 import com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsViewModel
-import com.example.damprojectfinal.user.feature_posts.ui.reel_management.CommentBottomSheetContent
+
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
-
-@Composable
-private fun CommentBottomSheetWrapper(
-    onDismiss: () -> Unit,
-    postId: String,
-    postsViewModel: PostsViewModel
-) {
-    // Custom bottom sheet implementation without experimental API
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Overlay background
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .clickable(onClick = onDismiss)
-        )
-        
-        // Bottom sheet content that slides up
-        AnimatedVisibility(
-            visible = true,
-            enter = slideInVertically(
-                animationSpec = tween(300),
-                initialOffsetY = { fullHeight -> fullHeight }
-            ) + fadeIn(animationSpec = tween(300)),
-            exit = slideOutVertically(
-                animationSpec = tween(300),
-                targetOffsetY = { fullHeight -> fullHeight }
-            ) + fadeOut(animationSpec = tween(300))
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.9f)
-                    .align(Alignment.BottomCenter),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-                shadowElevation = 8.dp,
-                color = MaterialTheme.colorScheme.surface
-            ) {
-                CommentBottomSheetContent(
-                    postId = postId,
-                    onDismiss = onDismiss,
-                    postsViewModel = postsViewModel
-                )
-            }
-        }
-    }
-}
 
 // THIS IS THE CRUCIAL LINE for the "UnstableApi" warnings within ReelItem
 @OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
@@ -102,6 +55,7 @@ fun ReelItem(
     reelPost: PostResponse,
     isCurrentItem: Boolean, // Indicates if this reel is currently in full view
     onReelClick: (String) -> Unit, // Callback for clicks on the reel (e.g., pause/play)
+    onCommentClick: (String) -> Unit, // NEW: Callback for comment clicks
     navController: NavController,
     postsViewModel: PostsViewModel,
     reelsViewModel: ReelsViewModel
@@ -113,7 +67,7 @@ fun ReelItem(
     var isSaved by remember(reelPost._id) { mutableStateOf(reelPost.saveCount > 0) }
     var likeCount by remember(reelPost._id) { mutableStateOf(reelPost.likeCount) }
     var saveCount by remember(reelPost._id) { mutableStateOf(reelPost.saveCount) }
-    var showCommentSheet by remember(reelPost._id) { mutableStateOf(false) }
+    
     val scope = rememberCoroutineScope()
     
     // Update counts when post changes (from API updates)
@@ -331,7 +285,7 @@ fun ReelItem(
                     modifier = Modifier
                         .size(36.dp)
                         .clickable {
-                            showCommentSheet = true
+                            onCommentClick(reelPost._id)
                         }
                 )
                 Text(
@@ -401,15 +355,6 @@ fun ReelItem(
                 modifier = Modifier
                     .size(36.dp)
                     .clickable { /* Handle more options click */ }
-            )
-        }
-
-        // Comment Bottom Sheet
-        if (showCommentSheet) {
-            CommentBottomSheetWrapper(
-                onDismiss = { showCommentSheet = false },
-                postId = reelPost._id,
-                postsViewModel = postsViewModel
             )
         }
     }

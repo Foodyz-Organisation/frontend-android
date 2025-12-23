@@ -5,6 +5,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization") version "1.9.23"
+    // Temporarily disabled - uncomment when Firebase is ready
+    // id("com.google.gms.google-services") // Firebase plugin
 }
 
 android {
@@ -220,6 +222,11 @@ dependencies {
 
         // Coil pour les images
         implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // ===== Firebase (Temporarily Disabled) =====
+    // Uncomment these when Firebase setup is complete and network allows downloading
+    // implementation(platform("com.google.firebase:firebase-bom:34.7.0"))
+    // implementation("com.google.firebase:firebase-messaging-ktx")
 
     // ===== Stripe Android SDK =====
     // Stripe Android SDK for secure card payment handling

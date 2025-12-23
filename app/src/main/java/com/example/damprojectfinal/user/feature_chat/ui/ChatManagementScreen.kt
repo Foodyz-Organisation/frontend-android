@@ -79,6 +79,7 @@ import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.repository.UserRepository
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import coil.compose.AsyncImage
+import com.example.damprojectfinal.user.common._component.SecondaryNavBar
 
 private const val TAG = "ChatManagementScreen"
 
@@ -250,7 +251,8 @@ private fun ChatManagementInternal(
                         },
                         currentUserId = currentUserId ?: "unknown",
                         onLogoutClick = { /* TODO: Implement logout */ },
-                        profilePictureUrl = profilePictureUrl
+                        profilePictureUrl = profilePictureUrl,
+                        showNavBar = false
                     )
                 } else {
                     // 🔹 Pro-side TopBar using Foodyz Pro design
@@ -282,6 +284,33 @@ private fun ChatManagementInternal(
                             currentRoute = currentRoute,
                             professionalId = proId
                         )
+                    }
+                } else {
+                    // 🔹 User-side Bottom Navigation
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.Transparent)
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                            shape = RoundedCornerShape(28.dp)
+                        ) {
+                            SecondaryNavBar(
+                                navController = navController,
+                                currentRoute = "chatList",
+                                onReelsClick = { navController.navigate(UserRoutes.REELS_SCREEN) },
+                                hasUnreadMessages = false,
+                                hasUnreadNotifications = false,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }

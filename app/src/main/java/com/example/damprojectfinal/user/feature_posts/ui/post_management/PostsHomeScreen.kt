@@ -1,10 +1,7 @@
 package com.example.damprojectfinal.user.feature_posts.ui.post_management
 
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,20 +11,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -40,13 +32,21 @@ import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.core.api.BaseUrlProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 import com.example.damprojectfinal.UserRoutes // <--- Ensure this import is correct
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
+//
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.filled.Send
+import com.example.damprojectfinal.core.dto.posts.CommentResponse
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.material.icons.filled.Close
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -70,7 +70,12 @@ fun PostsScreen(
     val posts by postsViewModel.posts.collectAsState()
     val isLoading by postsViewModel.isLoading.collectAsState()
     val errorMessage by postsViewModel.errorMessage.collectAsState()
-    // Note: snackbarMessage and userPreferences removed - preferences are now learned automatically
+    
+    // --- NEW: Comments Sheet State ---
+    var showCommentsSheet by remember { mutableStateOf(false) }
+    var selectedPostIdForComments by remember { mutableStateOf<String?>(null) }
+    val activeComments by postsViewModel.activeComments.collectAsState()
+    val isCommentsLoading by postsViewModel.areCommentsLoading.collectAsState()
 
     val swipeRefreshState = rememberSwipeRefreshState(isRefreshing = isLoading)
     val snackbarHostState = remember { SnackbarHostState() }
@@ -167,7 +172,10 @@ fun PostsScreen(
                                     // Handled internally in RecipeCard now
                                 },
                                 onCommentClick = { postId ->
-                                    navController.navigate("${UserRoutes.POST_DETAILS_SCREEN}/$postId")
+                                    // Open Bottom Sheet
+                                    selectedPostIdForComments = postId
+                                    postsViewModel.loadComments(postId)
+                                    showCommentsSheet = true
                                 },
                                 onShareClick = { /* TODO: Implement share functionality */ },
                                 onBookmarkClick = { postId ->
@@ -196,11 +204,31 @@ fun PostsScreen(
             }
         }
         
-        // Snackbar Host - placed in Box to use align
+        // Snackbar Host
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+        
+        // --- NEW: Comments Sheet ---
+        if (showCommentsSheet && selectedPostIdForComments != null) {
+            val selectedPost = posts.find { it._id == selectedPostIdForComments }
+            CommentsSheet(
+                post = selectedPost,
+                comments = activeComments,
+                isLoading = isCommentsLoading,
+                onAddComment = { text ->
+                    selectedPostIdForComments?.let { postId ->
+                        postsViewModel.createComment(postId, text)
+                    }
+                },
+                onDismiss = {
+                    showCommentsSheet = false
+                    selectedPostIdForComments = null
+                    postsViewModel.clearActiveComments()
+                }
+            )
+        }
     }
 }
 
@@ -261,260 +289,244 @@ fun PersonalizedFeedBanner(
 // ------------------------------------------------------
 @Composable
 fun RecipeCard(
-        post: PostResponse, // Accepts a PostResponse object
-        onPostClick: (postId: String) -> Unit, // <--- CRITICAL FIX: onPostClick parameter added here
-        onFavoriteClick: (postId: String) -> Unit,
-        onCommentClick: (postId: String) -> Unit,
-        onShareClick: () -> Unit,
-        onBookmarkClick: (postId: String) -> Unit,
-        onEditClicked: (postId: String) -> Unit,
-        onDeleteClicked: (postId: String) -> Unit,
-        postsViewModel: PostsViewModel = viewModel()
+    post: PostResponse,
+    onPostClick: (postId: String) -> Unit,
+    onFavoriteClick: (postId: String) -> Unit,
+    onCommentClick: (postId: String) -> Unit,
+    onShareClick: () -> Unit,
+    onBookmarkClick: (postId: String) -> Unit,
+    onEditClicked: (postId: String) -> Unit,
+    onDeleteClicked: (postId: String) -> Unit,
+    postsViewModel: PostsViewModel = viewModel()
+) {
+    // Track state
+    var isLiked by remember(post._id) { mutableStateOf(post.likeCount > 0) }
+    var isSaved by remember(post._id) { mutableStateOf(post.saveCount > 0) }
+    var likeCount by remember(post._id) { mutableStateOf(post.likeCount) }
+    var saveCount by remember(post._id) { mutableStateOf(post.saveCount) }
+
+    LaunchedEffect(post.likeCount, post.saveCount) {
+        likeCount = post.likeCount
+        saveCount = post.saveCount
+        isLiked = post.likeCount > 0
+        isSaved = post.saveCount > 0
+    }
+
+
+
+    // Responsive Height Calculation
+    val configuration = LocalConfiguration.current
+    val screenHeight = configuration.screenHeightDp.dp
+    val imageHeight = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+        screenHeight * 0.7f
+    } else {
+        screenHeight * 0.5f // 50% of screen height for immersive feel on phones
+    }
+
+    // Magazine Design v2 - "Clean Stack" (No Obstruction)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp, horizontal = 16.dp), // Standard margin
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        // Track like and save state - same logic as ReelItem
-        var isLiked by remember(post._id) { mutableStateOf(post.likeCount > 0) }
-        var isSaved by remember(post._id) { mutableStateOf(post.saveCount > 0) }
-        var likeCount by remember(post._id) { mutableStateOf(post.likeCount) }
-        var saveCount by remember(post._id) { mutableStateOf(post.saveCount) }
-        val scope = rememberCoroutineScope()
-
-        // Update counts when post changes (from API updates)
-        LaunchedEffect(post.likeCount, post.saveCount) {
-            likeCount = post.likeCount
-            saveCount = post.saveCount
-            // Update like/save state based on counts
-            isLiked = post.likeCount > 0
-            isSaved = post.saveCount > 0
-        }
-
-        var showOptionsMenu by remember { mutableStateOf(false) }
-
-        // Professional color scheme with enhanced palette
-        val AccentYellow = Color(0xFFFFC107)
-        val AccentYellowLight = Color(0xFFFFF8E1)
-        val DarkText = Color(0xFF1F2937)
-        val MediumGray = Color(0xFF6B7280)
-        val LightGray = Color(0xFFF3F4F6)
-        val CardBackground = Color(0xFFFFFFFF)
-        val SurfaceElevated = Color(0xFFFAFAFA)
-        val ShadowColor = Color(0x1A000000)
-        
-        val interactionSource = remember { MutableInteractionSource() }
-        val isPressed by interactionSource.collectIsPressedAsState()
-        val scale by animateFloatAsState(
-            targetValue = if (isPressed) 0.97f else 1f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMedium
-            ),
-            label = "scale"
-        )
-        
-        val elevation by animateDpAsState(
-            targetValue = if (isPressed) 2.dp else 8.dp,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMedium
-            ),
-            label = "elevation"
-        )
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    shadowElevation = elevation.toPx()
-                }
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null
-                ) {
-                    onPostClick(post._id)
-                },
-            shape = RoundedCornerShape(20.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = elevation),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F1E8)) // Beige background like in image
-        ) {
-            // Main Image Container
+        Column {
+            // 1. Image Header Section (Image + Floating User Info)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(400.dp) // Large image height
-                    .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                    .height(imageHeight)
             ) {
-                val rawUrl = if (post.mediaType == "reel" && post.thumbnailUrl != null) {
+                // Hero Image
+                val imageUrl = if (post.mediaType == "reel" && post.thumbnailUrl != null) {
                     post.thumbnailUrl
                 } else {
                     post.mediaUrls.firstOrNull()
                 }
-                val imageUrlToLoad = BaseUrlProvider.getFullImageUrl(rawUrl)
 
-                // Main Image
                 AsyncImage(
-                    model = imageUrlToLoad,
+                    model = BaseUrlProvider.getFullImageUrl(imageUrl),
                     contentDescription = post.caption,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { onPostClick(post._id) },
+                    placeholder = rememberVectorPainter(Icons.Outlined.Image),
+                    error = rememberVectorPainter(Icons.Outlined.BrokenImage)
                 )
 
-                // Gradient overlay at bottom for text readability
-                Box(
+                // Floating Top Controls
+                Row(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.6f)
-                                ),
-                                startY = 200f,
-                                endY = Float.POSITIVE_INFINITY
-                            )
-                        )
-                )
-                
-                // Bottom overlay content: Profile info (left), Caption (center), Engagement metrics (right)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
                         .padding(16.dp)
+                        .align(Alignment.TopCenter),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomStart),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
+                    // User Pill
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = Color.White.copy(alpha = 0.9f),
+                        shadowElevation = 2.dp,
+                        modifier = Modifier.clickable { }
                     ) {
-                            // Left: Profile picture, name, and handle
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Start
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.LightGray)
                             ) {
-                                // Profile picture with orange border
-                                Box(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFFF9800), CircleShape) // Orange border
-                                        .padding(2.dp)
-                                ) {
-                                    AsyncImage(
-                                        model = BaseUrlProvider.getFullImageUrl(post.ownerId?.profilePictureUrl),
-                                        contentDescription = "Profile",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clip(CircleShape),
-                                        placeholder = rememberVectorPainter(Icons.Filled.Person),
-                                        error = rememberVectorPainter(Icons.Filled.Person)
-                                    )
-                                }
-                                
-                                Spacer(modifier = Modifier.width(12.dp))
-                                
-                                // Name and handle
-                                Column {
-                                    Text(
-                                        text = post.ownerId?.fullName ?: post.ownerId?.username ?: "Unknown",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp
-                                    )
-                                    Text(
-                                        text = "@${post.ownerId?.username ?: "user"}",
-                                        color = Color.White.copy(alpha = 0.8f),
-                                        fontSize = 13.sp
-                                    )
-                                }
+                                AsyncImage(
+                                    model = BaseUrlProvider.getFullImageUrl(post.ownerId?.profilePictureUrl),
+                                    contentDescription = "Profile",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
                             }
-                            
-                            // Right: Engagement metrics (vertical)
-                            Column(
-                                modifier = Modifier.padding(start = 16.dp),
-                                horizontalAlignment = Alignment.End,
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                // Likes
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                        contentDescription = "Likes",
-                                        tint = if (isLiked) Color(0xFFE91E63) else Color.White,
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .clickable {
-                                                isLiked = !isLiked
-                                                if (isLiked) {
-                                                    likeCount++
-                                                    postsViewModel.incrementLikeCount(post._id)
-                                                } else {
-                                                    likeCount--
-                                                    postsViewModel.decrementLikeCount(post._id)
-                                                }
-                                            }
-                                    )
-                                    Text(
-                                        text = formatCount(likeCount),
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = post.ownerId?.username ?: "Chef",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1F2937)
+                                ),
+                                modifier = Modifier.padding(end = 4.dp)
+                            )
+                        }
+                    }
+
+
+                }
+            }
+
+            // 2. Bottom Content Section (White Background)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                // Action Icons Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                        Icon(
+                            imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = "Like",
+                            tint = if (isLiked) Color(0xFFFFC107) else Color(0xFF1F2937),
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clickable {
+                                    isLiked = !isLiked
+                                    if (isLiked) {
+                                        likeCount++
+                                        postsViewModel.incrementLikeCount(post._id)
+                                    } else {
+                                        likeCount--
+                                        postsViewModel.decrementLikeCount(post._id)
+                                    }
                                 }
-                                
-                                // Comments
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.ChatBubbleOutline,
-                                        contentDescription = "Comments",
-                                        tint = Color.White,
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .clickable { onCommentClick(post._id) }
-                                    )
-                                    Text(
-                                        text = formatCount(post.commentCount),
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                            }
+                        )
+                        Icon(
+                            imageVector = Icons.Outlined.ChatBubbleOutline,
+                            contentDescription = "Comment",
+                            tint = Color(0xFF1F2937),
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clickable { onCommentClick(post._id) }
+                        )
+                        Icon(
+                            imageVector = Icons.Outlined.Share,
+                            contentDescription = "Share",
+                            tint = Color(0xFF1F2937),
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                     
-                    // Caption in the center-bottom
+                    Icon(
+                        imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                        contentDescription = "Save",
+                        tint = if (isSaved) Color(0xFFFFC107) else Color(0xFF1F2937),
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clickable {
+                                isSaved = !isSaved
+                                if (isSaved) {
+                                    saveCount++
+                                    postsViewModel.incrementSaveCount(post._id)
+                                } else {
+                                    saveCount--
+                                    postsViewModel.decrementSaveCount(post._id)
+                                }
+                            }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Likes Count
+                Text(
+                    text = "${formatCount(likeCount)} likes",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1F2937)
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Caption
+                if (post.caption.isNotEmpty()) {
                     Text(
                         text = post.caption,
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(start = 60.dp, bottom = 50.dp) // Position below profile info
-                            .fillMaxWidth(0.7f) // Take 70% width
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                            color = Color(0xFF1F2937),
+                            lineHeight = 24.sp
+                        ),
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // View Comments
+                if (post.commentCount > 0) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "View all ${post.commentCount} comments",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = Color(0xFF9CA3AF)
+                        ),
+                        modifier = Modifier.clickable { onCommentClick(post._id) }
                     )
                 }
             }
         }
     }
+}
 
 @Preview(showBackground = true, name = "Food Posts Screen Preview")
 @Composable
 fun PostsScreenPreview() {
-        DamProjectFinalTheme {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
-            ) {
-                val navController = rememberNavController()
-                PostsScreen(navController = navController, headerContent = {})
-            }
+    DamProjectFinalTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            val navController = rememberNavController()
+            PostsScreen(navController = navController, headerContent = {})
         }
     }
-
+}
 //
 //@Preview(showBackground = true, name = "Single Recipe Card Preview")
 //@Composable
@@ -570,5 +582,180 @@ fun PostsScreenPreview() {
 //                onDeleteClicked = { postId -> println("Delete clicked for $postId") }
 //            )
 //        }
-//    }
-//}
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CommentsSheet(
+    post: PostResponse?,
+    comments: List<CommentResponse>,
+    isLoading: Boolean,
+    onAddComment: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var newCommentText by remember { mutableStateOf("") }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f) // Taller sheet like in screenshot
+                .padding(bottom = 20.dp)
+        ) {
+            // 1. Header with Close Button
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = "Comments",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.align(Alignment.Center)
+                )
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.Close,
+                        contentDescription = "Close"
+                    )
+                }
+            }
+
+            HorizontalDivider(color = Color(0xFFF3F4F6))
+
+            // 2. Post Summary Snippet (Gray Box)
+            if (post != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F4F6)), // Light gray
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = post.caption.ifEmpty { "No caption" },
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "${post.likeCount} likes   ${post.commentCount} comments",
+                            style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray)
+                        )
+                    }
+                }
+            }
+
+            // 3. Comments List
+            if (isLoading && comments.isEmpty()) {
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (comments.isEmpty()) {
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "No comments yet. Be the first to comment!",
+                            style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray)
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(comments) { comment ->
+                        CommentItem(comment)
+                    }
+                }
+            }
+
+            // 4. Input Field (Bottom)
+            HorizontalDivider(color = Color(0xFFF3F4F6))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .imePadding() // Key for keyboard handling
+                    .padding(bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // User Avatar (Optional, placeholder for now)
+                
+                OutlinedTextField(
+                    value = newCommentText,
+                    onValueChange = { newCommentText = it },
+                    placeholder = { Text("Add a comment...", color = Color.Gray) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(50), // Pill shape
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Color.LightGray,
+                        focusedBorderColor = Color.LightGray, // Keep it subtle
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent
+                    ),
+                    trailingIcon = {
+                         IconButton(
+                            onClick = {
+                                if (newCommentText.isNotBlank()) {
+                                    onAddComment(newCommentText)
+                                    newCommentText = ""
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.Send, contentDescription = "Send", tint = Color(0xFF4B5563))
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CommentItem(comment: CommentResponse) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+       // Avatar
+       val authorAvatar = comment.authorAvatar
+       AsyncImage(
+            model = BaseUrlProvider.getFullImageUrl(authorAvatar),
+            contentDescription = null,
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.Gray),
+            contentScale = ContentScale.Crop
+       )
+       Spacer(modifier = Modifier.width(12.dp))
+       Column {
+           Row(verticalAlignment = Alignment.CenterVertically) {
+               Text(
+                   text = comment.authorUsername ?: "User",
+                   fontWeight = FontWeight.Bold,
+                   style = MaterialTheme.typography.bodyMedium
+               )
+               Spacer(modifier = Modifier.width(8.dp))
+               Text(
+                   text = "Just now", 
+                   style = MaterialTheme.typography.bodySmall,
+                   color = Color.Gray
+               )
+           }
+           Text(
+               text = comment.text,
+               style = MaterialTheme.typography.bodyMedium,
+               color = Color(0xFF1F2937)
+           )
+       }
+    }
+}

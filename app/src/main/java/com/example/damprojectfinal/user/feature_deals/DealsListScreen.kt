@@ -280,17 +280,18 @@ fun DealCard(
         }
     }
     
-    // Mock data for missing fields (can be replaced with actual data when available)
-    val discountPercent = remember(deal._id) { Random.nextInt(30, 51) } // 30 to 50 inclusive
-    val rating = remember(deal._id) { 
-        4.5 + (Random.nextDouble() * 0.5) // Random between 4.5 and 5.0
-    }
-    val originalPrice = remember(deal._id) { Random.nextInt(40, 101) } // 40 to 100 inclusive
-    val discountedPrice = remember(deal._id, originalPrice, discountPercent) { 
-        (originalPrice * (1 - discountPercent / 100.0)).toInt() 
-    }
+    // Use real discount percentage from deal
+    val discountPercent = deal.discountPercentage
+    
+    // Tags from real categories
     val tags = remember(deal._id) { 
-        listOf(deal.category, "Special").take(2)
+        buildList {
+            if (deal.category.isNotBlank()) add(deal.category)
+            if (deal.applicableCategories.isNotEmpty()) {
+                addAll(deal.applicableCategories.take(1))
+            }
+            if (isEmpty()) add("Special Offer")
+        }.take(2)
     }
 
     Card(
@@ -377,36 +378,6 @@ fun DealCard(
                         tint = if (isFavorite) BrandColors.Red else BrandColors.TextSecondary,
                         modifier = Modifier.size(if (screenWidth > 600.dp) 24.dp else 18.dp)
                     )
-                }
-
-                // Rating (bottom-left overlay)
-                Surface(
-                    modifier = Modifier
-                        .padding(if (screenWidth > 600.dp) 12.dp else 8.dp)
-                        .align(Alignment.BottomStart),
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.Black.copy(alpha = 0.6f)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = null,
-                            tint = BrandColors.YellowPrimary,
-                            modifier = Modifier.size(if (screenWidth > 600.dp) 18.dp else 14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(
-                            text = String.format(Locale.getDefault(), "%.1f", rating),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = if (screenWidth > 600.dp) 14.sp else 11.sp
-                            ),
-                            color = Color.White
-                        )
-                    }
                 }
             }
 
@@ -505,60 +476,32 @@ fun DealCard(
 
                 Spacer(modifier = Modifier.height(if (screenWidth > 600.dp) 16.dp else 12.dp))
 
-                // Price row - responsive
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // "Grab Deal" button - full width
+                Button(
+                    onClick = onClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(if (screenWidth > 600.dp) 48.dp else 44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BrandColors.YellowPrimary
+                    )
                 ) {
-                    Column {
-                        Text(
-                            text = "$originalPrice DT",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                textDecoration = TextDecoration.LineThrough,
-                                fontSize = if (screenWidth > 600.dp) 14.sp else if (screenWidth > 360.dp) 12.sp else 10.sp
-                            ),
-                            color = BrandColors.TextSecondary
-                        )
-                        Text(
-                            text = "$discountedPrice DT",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = if (screenWidth > 900.dp) 22.sp else if (screenWidth > 600.dp) 20.sp else if (screenWidth > 360.dp) 18.sp else 16.sp
-                            ),
-                            color = BrandColors.TextPrimary
-                        )
-                    }
-
-                    // "Grab Deal" button - responsive
-                    Button(
-                        onClick = onClick,
-                        modifier = Modifier.height(if (screenWidth > 600.dp) 40.dp else if (screenWidth > 360.dp) 36.dp else 32.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = BrandColors.YellowPrimary
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = BrandColors.TextPrimary,
+                        modifier = Modifier.size(if (screenWidth > 600.dp) 20.dp else 18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Grab This Deal",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = if (screenWidth > 600.dp) 16.sp else 14.sp
                         ),
-                        contentPadding = PaddingValues(
-                            horizontal = if (screenWidth > 600.dp) 16.dp else if (screenWidth > 360.dp) 12.dp else 10.dp,
-                            vertical = if (screenWidth > 600.dp) 8.dp else 6.dp
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = BrandColors.TextPrimary,
-                            modifier = Modifier.size(if (screenWidth > 600.dp) 20.dp else if (screenWidth > 360.dp) 18.dp else 16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(if (screenWidth > 600.dp) 8.dp else 4.dp))
-                        Text(
-                            "Grab Deal",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = if (screenWidth > 600.dp) 14.sp else if (screenWidth > 360.dp) 12.sp else 11.sp
-                            ),
-                            color = BrandColors.TextPrimary
-                        )
-                    }
+                        color = BrandColors.TextPrimary
+                    )
                 }
             }
         }

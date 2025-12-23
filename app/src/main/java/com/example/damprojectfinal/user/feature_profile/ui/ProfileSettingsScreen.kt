@@ -152,14 +152,6 @@ fun ProfileSettingsScreen(
                             onClick = {
                                 // TODO: Navigate to Terms of Use
                             }
-                        ),
-                        SettingsItem(
-                            icon = Icons.Outlined.CreditCard,
-                            title = "Add Card",
-                            description = "Securely add payment method",
-                            onClick = {
-                                // TODO: Navigate to Add Card
-                            }
                         )
                     )
                 )
@@ -170,9 +162,6 @@ fun ProfileSettingsScreen(
                 PreferencesSection(
                     notificationsEnabled = notificationsEnabled,
                     onNotificationsToggle = { notificationsEnabled = it },
-                    onFaqClick = {
-                        // TODO: Navigate to FAQ
-                    },
                     onLogoutClick = {
                         logoutViewModel.logout()
                     }
@@ -266,7 +255,6 @@ private fun SettingsItemRow(item: SettingsItem) {
 private fun PreferencesSection(
     notificationsEnabled: Boolean,
     onNotificationsToggle: (Boolean) -> Unit,
-    onFaqClick: () -> Unit,
     onLogoutClick: () -> Unit
 ) {
     Column {
@@ -323,52 +311,6 @@ private fun PreferencesSection(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = IconYellow
                         )
-                    )
-                }
-                
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    color = Color(0xFFE5E7EB),
-                    thickness = 0.5.dp
-                )
-                
-                // FAQ
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onFaqClick)
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.HelpOutline,
-                        contentDescription = null,
-                        tint = IconYellow,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    
-                    Spacer(modifier = Modifier.width(16.dp))
-                    
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "FAQ",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = SettingsAccent
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Frequently asked questions",
-                            fontSize = 13.sp,
-                            color = SettingsSecondary
-                        )
-                    }
-                    
-                    Icon(
-                        imageVector = Icons.Outlined.ChevronRight,
-                        contentDescription = null,
-                        tint = SettingsSecondary,
-                        modifier = Modifier.size(20.dp)
                     )
                 }
                 

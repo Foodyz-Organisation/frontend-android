@@ -86,10 +86,13 @@ fun UserMenuScreenContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Menu",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp,
-                        color = Color(0xFF1F2937)
+                        text = "foodyz",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 32.sp,
+                            color = Color(0xFFFBBF24)
+                        )
                     )
                     IconButton(
                         onClick = onBackClick,
@@ -154,15 +157,16 @@ fun UserMenuScreenContent(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Loyalty Points Section
+        // Loyalty Points Section (Premium Dark Theme)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF6200EA).copy(alpha = 0.1f)
+                    containerColor = Color(0xFF1F2937) // Premium Dark Background
                 ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                 onClick = {
                     navController.navigate("loyalty_points_route")
                     onBackClick()
@@ -171,31 +175,43 @@ fun UserMenuScreenContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = "Points de fidélité",
-                            tint = Color(0xFFFFC107),
-                            modifier = Modifier.size(32.dp)
-                        )
+                        // Icon with Gold Background
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(
+                                    color = Color(0xFFFBBF24).copy(alpha = 0.2f),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "Points de fidélité",
+                                tint = Color(0xFFFBBF24), // Gold Icon
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        
                         Column {
                             Text(
                                 text = "${loyaltyPoints ?: 0} Points",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
-                                color = Color(0xFF6200EA)
+                                fontSize = 20.sp,
+                                color = Color.White // White Text
                             )
                             Text(
                                 text = "Points de Fidélité",
-                                fontSize = 12.sp,
-                                color = Color(0xFF6B7280)
+                                fontSize = 13.sp,
+                                color = Color(0xFFD1D5DB) // Light Gray Text
                             )
                         }
                     }
@@ -257,15 +273,69 @@ fun UserMenuScreenContent(
                 Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider(color = Color.LightGray, thickness = 0.5.dp)
 
-                // Signup as Professional
-                MenuOptionCard(
-                    icon = Icons.Default.Fastfood,
-                    title = "Signup as Professional",
-                    onClick = {
-                        navController.navigate("pro_signup_route")
-                        onBackClick()
+                // Signup as Professional - Highlighted
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            navController.navigate("pro_signup_route")
+                            onBackClick()
+                        },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.Transparent // Gradient handling
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xFFF59E0B), // Amber 500
+                                        Color(0xFFD97706)  // Amber 600
+                                    )
+                                )
+                            )
+                            .padding(20.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(
+                                        color = Color.White.copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Fastfood,
+                                    contentDescription = "Signup as Professional",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = "Signup as Professional",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "Navigate",
+                                tint = Color.White.copy(alpha = 0.8f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
-                )
+                }
             }
             
             // Add bottom padding to ensure last item is fully visible when scrolled

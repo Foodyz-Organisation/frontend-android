@@ -43,6 +43,12 @@ fun ReelsScreen(
     val reelsList by reelsViewModel.reels.collectAsState()
     val currentReelIndex by reelsViewModel.currentReelIndex.collectAsState()
 
+    // --- NEW: Comments Sheet State ---
+    var showCommentsSheet by remember { mutableStateOf(false) }
+    var selectedPostIdForComments by remember { mutableStateOf<String?>(null) }
+    val activeComments by postsViewModel.activeComments.collectAsState()
+    val isCommentsLoading by postsViewModel.areCommentsLoading.collectAsState()
+
     // Handle back button press for navigation
     BackHandler {
         navController.popBackStack()
@@ -73,6 +79,12 @@ fun ReelsScreen(
                             // Handle reel clicks (e.g., pause/play).
                             // This logic will be in the ViewModel to manage playback state.
                             reelsViewModel.togglePlayback(clickedReelId)
+                        },
+                        // --- NEW: Handle Comment Click ---
+                        onCommentClick = { postId ->
+                             selectedPostIdForComments = postId
+                             postsViewModel.loadComments(postId)
+                             showCommentsSheet = true
                         },
                         navController = navController,
                         postsViewModel = postsViewModel,
@@ -119,8 +131,25 @@ fun ReelsScreen(
             }
         )
 
-        // --- Overlay: Other UI elements (e.g., username, caption, interaction buttons)
-        // These are integrated within ReelItem composable now.
+        // --- NEW: Comments Sheet ---
+        if (showCommentsSheet && selectedPostIdForComments != null) {
+            val selectedPost = reelsList.find { it._id == selectedPostIdForComments }
+            com.example.damprojectfinal.user.feature_posts.ui.post_management.CommentsSheet(
+                post = selectedPost,
+                comments = activeComments,
+                isLoading = isCommentsLoading,
+                onAddComment = { text ->
+                    selectedPostIdForComments?.let { postId ->
+                        postsViewModel.createComment(postId, text)
+                    }
+                },
+                onDismiss = {
+                    showCommentsSheet = false
+                    selectedPostIdForComments = null
+                    postsViewModel.clearActiveComments()
+                }
+            )
+        }
     }
 }
 

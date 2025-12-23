@@ -1,7 +1,6 @@
 package com.example.damprojectfinal.user.common
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -13,25 +12,16 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DeliveryDining
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Redeem
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.draw.scale
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -53,14 +43,12 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.example.damprojectfinal.user.common._component.DynamicSearchOverlay
-import com.example.damprojectfinal.user.common._component.TopAppBar
 import com.example.damprojectfinal.user.common._component.SecondaryNavBar
+import com.example.damprojectfinal.UserRoutes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import androidx.compose.runtime.rememberCoroutineScope
 import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.api.ReclamationRetrofitClient
-import com.example.damprojectfinal.UserRoutes // <--- Ensure this imports the UserRoutes object correctly
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsScreen
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import android.util.Log
@@ -70,86 +58,63 @@ import com.example.damprojectfinal.core.api.UserApiService
 import com.example.damprojectfinal.core.repository.UserRepository
 import com.example.damprojectfinal.user.feature_notifications.viewmodel.NotificationViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import coil.compose.AsyncImage
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     navController: NavHostController,
-    currentRoute: String = "home", // Default route is home
+    currentRoute: String = "home",
     onLogout: () -> Unit,
     logoutSuccess: StateFlow<Boolean>
 ) {
-
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
     var isDrawerOpen by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
     var isSearchActive by remember { mutableStateOf(false) }
-
-    // ✅ NOUVEAU: État pour les points de fidélité
+    
     var loyaltyPoints by remember { mutableStateOf<Int?>(null) }
-
-    // ✅ NOUVEAU: Charger les points de fidélité au démarrage
-
-    // State for food types
     var foodTypes by remember { mutableStateOf<List<String>>(emptyList()) }
     var isLoadingFoodTypes by remember { mutableStateOf(false) }
-
-    // State for selected food type filter (null means "All")
     var selectedFoodType by remember { mutableStateOf<String?>(null) }
 
-    // Notifications ViewModel (for badges)
     val notificationViewModel: NotificationViewModel = viewModel(
         factory = NotificationViewModel.Factory(context, isProfessional = false)
     )
     val notifications by notificationViewModel.notifications.collectAsState()
     val unreadNotificationCount by notificationViewModel.unreadCount.collectAsState()
 
-
     LaunchedEffect(Unit) {
-                isLoadingFoodTypes = true
-                try {
-                    Log.d("HomeScreen", "🔄 Début chargement points...")
-                    val token = tokenManager.getAccessTokenAsync()
-                    Log.d("HomeScreen", "🔑 Token: ${token?.take(20)}...")
-
-                    if (!token.isNullOrEmpty()) {
-                        val api = ReclamationRetrofitClient.createClient(token)
-                        val balance = api.getUserLoyalty()
-                        loyaltyPoints = balance?.loyaltyPoints
-                        Log.d("HomeScreen", "✅ Points chargés: $loyaltyPoints")
-                        Log.d("HomeScreen", "📊 Balance: $balance")
-                    } else {
-                        Log.e("HomeScreen", "❌ Token vide ou null")
-                    }
-                    foodTypes = RetrofitClient.postsApiService.getFoodTypes()
-                } catch (e: Exception) {
-                    // Log the error here, where 'e' is correctly in scope
-                    Log.e("HomeScreen", "❌ Erreur chargement points: ${e.message}")
-                    e.printStackTrace() // Don't forget the parentheses for the function call
-                } finally {
-                    // Use finally for cleanup, not for re-logging the error
-                    isLoadingFoodTypes = false
-                }
+        isLoadingFoodTypes = true
+        try {
+            val token = tokenManager.getAccessTokenAsync()
+            if (!token.isNullOrEmpty()) {
+                val api = ReclamationRetrofitClient.createClient(token)
+                val balance = api.getUserLoyalty()
+                loyaltyPoints = balance?.loyaltyPoints
             }
-
+            foodTypes = RetrofitClient.postsApiService.getFoodTypes()
+        } catch (e: Exception) {
+            Log.e("HomeScreen", "Error loading data: ${e.message}")
+        } finally {
+            isLoadingFoodTypes = false
+        }
+    }
 
     val currentUserId: String by remember {
         mutableStateOf(tokenManager.getUserIdBlocking() ?: "placeholder_user_id_123")
     }
 
-    // State for user profile information
     var profilePictureUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var userName by rememberSaveable { mutableStateOf<String?>(null) }
     var userEmail by rememberSaveable { mutableStateOf<String?>(null) }
     var isLoadingProfilePicture by remember { mutableStateOf(false) }
 
-    // Fetch user profile information - only fetch if not already loaded
     LaunchedEffect(currentUserId) {
         if (currentUserId.isNotEmpty() && currentUserId != "placeholder_user_id_123" && !isLoadingProfilePicture) {
-            // Only fetch if we don't already have the data
             if (profilePictureUrl == null || userName == null) {
                 isLoadingProfilePicture = true
                 try {
@@ -158,41 +123,27 @@ fun HomeScreen(
                         val userApiService = UserApiService(tokenManager)
                         val userRepository = UserRepository(userApiService)
                         val user = userRepository.getUserById(currentUserId, token)
-                        // Update profile information
                         profilePictureUrl = user.profilePictureUrl
                         userName = user.username
                         userEmail = user.email
                     }
                 } catch (e: Exception) {
                     Log.e("HomeScreen", "Error fetching user profile: ${e.message}")
-                    // Keep the previous values if there's an error
                 } finally {
                     isLoadingProfilePicture = false
                 }
             }
         }
     }
-    
-    // Track current route for TopAppBar
-    val currentRoute = navController.currentBackStackEntry?.destination?.route
 
-    // Load notifications for badges
     LaunchedEffect(currentUserId) {
         if (currentUserId.isNotEmpty() && currentUserId != "placeholder_user_id_123") {
             notificationViewModel.loadNotifications(currentUserId)
         }
     }
 
-    // Derive badge flags
     val hasUnreadNotifications by remember(unreadNotificationCount) {
         mutableStateOf(unreadNotificationCount > 0)
-    }
-    val hasUnreadMessages by remember(notifications) {
-        mutableStateOf(
-            notifications.any {
-                !it.isRead && (it.type == "message_received" || it.type == "conversation_started")
-            }
-        )
     }
 
     LaunchedEffect(logoutSuccess) {
@@ -203,165 +154,127 @@ fun HomeScreen(
         }
     }
 
-    // General navigation helper
-    val navigateTo: (String) -> Unit = { route ->
-        navController.navigate(route) {
-            launchSingleTop = true
-            restoreState = true
-        }
-    }
-
-    // --- Main Screen Content with Right-Side Drawer ---
     Box(modifier = Modifier.fillMaxSize()) {
-        // Main content with fixed TopAppBar
         Scaffold(
-            topBar = {
-                TopAppBar(
-                    navController = navController,
-                    currentRoute = currentRoute ?: "",
-                    openDrawer = { 
-                        isDrawerOpen = !isDrawerOpen // Toggle drawer open/close
-                    },
-                    onSearchClick = { isSearchActive = true },
-                    currentUserId = currentUserId,
-                    onProfileClick = { userId ->
-                        navController.navigate("${UserRoutes.PROFILE_VIEW.substringBefore("/")}/${userId ?: currentUserId}")
-                    },
-                    onReelsClick = {
-                        navController.navigate(UserRoutes.REELS_SCREEN)
-                    },
-                    onLogoutClick = onLogout,
-                    profilePictureUrl = profilePictureUrl,
-                    hasUnreadNotifications = hasUnreadNotifications,
-                    hasUnreadMessages = hasUnreadMessages
-                )
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            bottomBar = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.Transparent)
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                        color = Color.White,
+                        shadowElevation = 16.dp,
+                        shape = RoundedCornerShape(28.dp),
+                        tonalElevation = 4.dp
+                    ) {
+                        SecondaryNavBar(
+                            navController = navController,
+                            currentRoute = navController.currentBackStackEntry?.destination?.route ?: UserRoutes.HOME_SCREEN,
+                            onReelsClick = {
+                                navController.navigate(UserRoutes.REELS_SCREEN)
+                            },
+                            hasUnreadMessages = notifications.any {
+                                !it.isRead && (it.type == "message_received" || it.type == "conversation_started")
+                            },
+                            hasUnreadNotifications = hasUnreadNotifications,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        )
+                    }
+                }
             }
         ) { innerPadding ->
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFFFFFFFF),
-                                Color(0xFFF8F9FA)
-                            )
-                        )
-                    )
+                    .background(Color(0xFFFAFAFA))
+                    .padding(bottom = innerPadding.calculateBottomPadding())
             ) {
-                // Body scrolls; TopAppBar stays fixed via Scaffold
+                // Top Delivery Location Bar
+                DeliveryLocationBar(
+                    onMenuClick = { isDrawerOpen = true }
+                )
+                
+                // Search Bar
+                SearchBar(
+                    onSearchClick = { isSearchActive = true },
+                    onAddClick = { navController.navigate(UserRoutes.CREATE_POST) }
+                )
+                
+                // Restaurant Cards with Header Content (No nested scroll)
                 PostsScreen(
                     navController = navController,
                     selectedFoodType = selectedFoodType,
                     headerContent = {
-                        val configuration = LocalConfiguration.current
-                        val screenWidth = configuration.screenWidthDp
-                        val isTablet = screenWidth > 600
-                        val isSmallScreen = screenWidth < 360
-                        
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    top = if (isTablet) 20.dp else if (isSmallScreen) 12.dp else 16.dp,
-                                    bottom = if (isSmallScreen) 6.dp else 8.dp)
-                        ) {
-                            // Feature Cards Section - Enhanced Food App Style
-                            FoodAppFeatureCards(navController = navController)
+                        Column {
+                            Spacer(modifier = Modifier.height(16.dp))
                             
-                            Spacer(modifier = Modifier.height(if (isTablet) 28.dp else if (isSmallScreen) 18.dp else 24.dp))
-                            
-                            // Category Filter Chips - Enhanced with better design
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(if (isTablet) 12.dp else if (isSmallScreen) 8.dp else 10.dp),
-                                contentPadding = PaddingValues(horizontal = if (isTablet) 24.dp else 16.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                // Always show "All" as the first item with icon
-                                item {
-                                    EnhancedFoodCategoryChip(
-                                        text = "All",
-                                        emoji = "🍽️",
-                                        selected = selectedFoodType == null,
-                                        onClick = {
-                                            selectedFoodType = null
-                                        }
-                                    )
+                            // Promotional Banner
+                            // Deals Carousel
+                            DealsCarousel(
+                                onDealClick = {
+                                    navController.navigate("deals")
                                 }
-
-                                // Display fetched food types dynamically with emojis
-                                if (isLoadingFoodTypes) {
-                                    item {
-                                        Box(modifier = Modifier.padding(horizontal = 8.dp)) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(20.dp),
-                                                strokeWidth = 2.dp,
-                                                color = Color(0xFFFFC107)
-                                            )
-                                        }
-                                    }
-                                } else {
-                                    items(foodTypes) { foodType ->
-                                        EnhancedFoodCategoryChip(
-                                            text = foodType,
-                                            emoji = getEmojiForFoodType(foodType),
-                                            selected = selectedFoodType == foodType,
-                                            onClick = {
-                                                selectedFoodType = foodType
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                            
-                            Spacer(modifier = Modifier.height(if (isTablet) 28.dp else if (isSmallScreen) 18.dp else 24.dp))
-                            
-                            // "Ready to be ordered" Section Header - Enhanced
-                            EnhancedSectionHeader(
-                                title = "Ready to be ordered",
-                                onClearClick = { /* Clear filter or dismiss */ }
                             )
                             
-                            Spacer(modifier = Modifier.height(if (isTablet) 20.dp else if (isSmallScreen) 12.dp else 16.dp))
+                            Spacer(modifier = Modifier.height(24.dp))
+                            
+                            // Category Icons Row
+                            CategoryIconsRow()
+                            
+                            Spacer(modifier = Modifier.height(28.dp))
+                            
+                            // Kitchen Near You Section
+                            Text(
+                                text = "Kitchen Near You",
+                                style = MaterialTheme.typography.headlineSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1F2937)
+                                ),
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
                 )
             }
         }
 
-        // Full-screen drawer overlay
+        // Drawer overlay
         if (isDrawerOpen) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight()
+                    .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.5f))
                     .clickable { isDrawerOpen = false }
             )
         }
 
-        // Full-screen drawer - slides from right, covers everything including TopAppBar
+        // Full-screen drawer
         AnimatedVisibility(
             visible = isDrawerOpen,
             enter = slideInHorizontally(
                 animationSpec = tween(300),
-                initialOffsetX = { fullWidth -> fullWidth }
+                initialOffsetX = { it }
             ) + fadeIn(animationSpec = tween(300)),
             exit = slideOutHorizontally(
                 animationSpec = tween(300),
-                targetOffsetX = { fullWidth -> fullWidth }
+                targetOffsetX = { it }
             ) + fadeOut(animationSpec = tween(300))
         ) {
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight()
-                    .align(Alignment.TopEnd)
-                    .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)),
+                    .fillMaxSize()
+                    .align(Alignment.TopEnd),
                 color = Color.White
             ) {
-                // Make the content fill the Surface and be scrollable
                 UserMenuScreenContent(
                     navController = navController,
                     onLogout = {
@@ -370,7 +283,7 @@ fun HomeScreen(
                     },
                     onBackClick = { isDrawerOpen = false },
                     loyaltyPoints = loyaltyPoints,
-                    showTopBar = true, // Show top bar since drawer covers everything
+                    showTopBar = true,
                     paddingValues = PaddingValues(0.dp),
                     userId = currentUserId,
                     profilePictureUrl = profilePictureUrl,
@@ -381,23 +294,496 @@ fun HomeScreen(
         }
     }
 
-    // --- Dynamic Search Overlay (Placed OUTSIDE Scaffold/Drawer to cover the whole screen) ---
     if (isSearchActive) {
-        // FIX: Passing Modifier.fillMaxSize() and relying on the implementation of
-        // DynamicSearchOverlay (from the previous step) to accept this modifier.
         DynamicSearchOverlay(
             onDismiss = { isSearchActive = false },
             onNavigateToProfile = { professionalId ->
                 isSearchActive = false
                 if (professionalId.isNotEmpty()) {
-                    // Navigate to restaurant profile view (RestaurantProfileView)
                     navController.navigate("restaurant_profile_view/$professionalId")
                 }
             },
-            modifier = Modifier.fillMaxSize() // This ensures it covers the entire view
+            modifier = Modifier.fillMaxSize()
         )
     }
+}
 
+// New Components for Food Delivery Design
+
+@Composable
+fun DeliveryLocationBar(
+    onMenuClick: () -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val isSmallScreen = screenWidth < 360
+    val isTablet = screenWidth > 600
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(
+                horizontal = when {
+                    isTablet -> 24.dp
+                    isSmallScreen -> 12.dp
+                    else -> 16.dp
+                },
+                vertical = when {
+                    isTablet -> 16.dp
+                    isSmallScreen -> 8.dp
+                    else -> 12.dp
+                }
+            )
+    ) {
+        // App Signature
+        Text(
+            text = "foodyz",
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
+                fontWeight = FontWeight.Bold,
+                fontSize = 38.sp,
+                color = Color(0xFFFBBF24) 
+            ),
+            modifier = Modifier.align(Alignment.Center)
+        )
+
+        // Menu Button (Right Side)
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .size(
+                    when {
+                        isTablet -> 48.dp
+                        isSmallScreen -> 36.dp
+                        else -> 40.dp
+                    }
+                )
+                .clip(CircleShape)
+                .background(Color(0xFFF3F4F6))
+                .clickable(onClick = onMenuClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Menu,
+                contentDescription = "Menu",
+                tint = Color(0xFF1F2937),
+                modifier = Modifier.size(
+                    when {
+                        isTablet -> 28.dp
+                        isSmallScreen -> 20.dp
+                        else -> 24.dp
+                    }
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun SearchBar(
+    onSearchClick: () -> Unit,
+    onAddClick: () -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val isSmallScreen = screenWidth < 360
+    val isTablet = screenWidth > 600
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = when {
+                    isTablet -> 24.dp
+                    isSmallScreen -> 12.dp
+                    else -> 16.dp
+                },
+                vertical = when {
+                    isTablet -> 12.dp
+                    isSmallScreen -> 6.dp
+                    else -> 8.dp
+                }
+            ),
+        horizontalArrangement = Arrangement.spacedBy(
+            when {
+                isTablet -> 16.dp
+                isSmallScreen -> 8.dp
+                else -> 12.dp
+            }
+        ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Fake Search Bar (Clickable)
+        Surface(
+            modifier = Modifier
+                .weight(1f)
+                .height(
+                    when {
+                        isTablet -> 60.dp
+                        isSmallScreen -> 48.dp
+                        else -> 52.dp
+                    }
+                )
+                .clickable(onClick = onSearchClick),
+            shape = RoundedCornerShape(
+                when {
+                    isTablet -> 16.dp
+                    else -> 12.dp
+                }
+            ),
+            color = Color(0xFFF9FAFB),
+            border = BorderStroke(1.dp, Color(0xFFE5E7EB))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Start
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = Color(0xFF9CA3AF),
+                    modifier = Modifier.size(
+                        when {
+                            isTablet -> 26.dp
+                            isSmallScreen -> 20.dp
+                            else -> 24.dp
+                        }
+                    )
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Search foods and Kitchen",
+                    color = Color(0xFF9CA3AF),
+                    fontSize = when {
+                        isTablet -> 16.sp
+                        isSmallScreen -> 12.sp
+                        else -> 14.sp
+                    }
+                )
+            }
+        }
+        
+        // Add Button
+        Box(
+            modifier = Modifier
+                .size(
+                    when {
+                        isTablet -> 60.dp
+                        isSmallScreen -> 48.dp
+                        else -> 52.dp
+                    }
+                )
+                .background(
+                    Color(0xFFFFC107),
+                    RoundedCornerShape(
+                        when {
+                            isTablet -> 16.dp
+                            else -> 12.dp
+                        }
+                    )
+                )
+                .clickable(onClick = onAddClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Add Post",
+                tint = Color.White,
+                modifier = Modifier.size(
+                    when {
+                        isTablet -> 28.dp
+                        isSmallScreen -> 20.dp
+                        else -> 24.dp
+                    }
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun CategoryTabsRow(
+    categories: List<String>,
+    selectedCategory: String,
+    onCategorySelected: (String) -> Unit
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp)
+    ) {
+        items(categories.size) { index ->
+            val category = categories[index]
+            val isSelected = category == selectedCategory
+            
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(if (isSelected) Color(0xFFFFC107) else Color.White)
+                    .clickable { onCategorySelected(category) }
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = category,
+                    color = if (isSelected) Color.White else Color(0xFF6B7280),
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 14.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DealsCarousel(
+    dealsViewModel: com.example.damprojectfinal.feature_deals.DealsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    onDealClick: () -> Unit = {}
+) {
+    val dealsState by dealsViewModel.dealsState.collectAsState()
+
+    when (val state = dealsState) {
+        is com.example.damprojectfinal.feature_deals.DealsUiState.Loading -> {
+            // Loading state
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Color(0xFFFFC107))
+            }
+        }
+        is com.example.damprojectfinal.feature_deals.DealsUiState.Success -> {
+            val activeDeals = state.deals.filter { it.isActive }
+            
+            if (activeDeals.isEmpty()) {
+                // Coming Soon Animation
+                ComingSoonCard()
+            } else {
+                // Show real deals from API
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(activeDeals) { deal ->
+                        RealDealCard(
+                            deal = deal,
+                            onClick = onDealClick
+                        )
+                    }
+                }
+            }
+        }
+        is com.example.damprojectfinal.feature_deals.DealsUiState.Error -> {
+            // Error state - show coming soon
+            ComingSoonCard()
+        }
+    }
+}
+
+@Composable
+fun ComingSoonCard() {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.95f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(160.dp)
+            .scale(scale),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1F2937)
+        )
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "🎉",
+                    fontSize = 48.sp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Exciting Deals",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFFC107)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Coming Soon!",
+                    fontSize = 16.sp,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun RealDealCard(
+    deal: com.example.damprojectfinal.core.dto.deals.Deal,
+    onClick: () -> Unit = {}
+) {
+    Card(
+        modifier = Modifier
+            .width(300.dp)
+            .height(160.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1F2937))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "SPECIAL OFFER",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "${deal.discountPercentage}% OFF",
+                    color = Color(0xFFFBBF24),
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = deal.description,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 13.sp,
+                    maxLines = 2
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = deal.restaurantName,
+                    color = Color(0xFFFBBF24),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            // Deal Image or Emoji
+            if (deal.image.isNotEmpty()) {
+                AsyncImage(
+                    model = deal.image,
+                    contentDescription = "Deal image",
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // Fallback emoji based on category
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF374151)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = getCategoryEmoji(deal.category),
+                        fontSize = 48.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+fun getCategoryEmoji(category: String): String {
+    return when (category.uppercase()) {
+        "PIZZA" -> "🍕"
+        "BURGER" -> "🍔"
+        "PASTA" -> "🍝"
+        "SUSHI" -> "🍣"
+        "DESSERT" -> "🍰"
+        "DRINK" -> "🥤"
+        "SALAD" -> "🥗"
+        else -> "🍽️"
+    }
+}
+
+@Composable
+fun CategoryIconsRow() {
+    val categories = listOf(
+        "🥐" to "Breakfast",
+        "🥗" to "Healthy",
+        "🍩" to "Dessert",
+        "🍔" to "Meal",
+        "🍕" to "Pizza"
+    )
+    
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp)
+    ) {
+        items(categories.size) { index ->
+            val (emoji, label) = categories[index]
+            CategoryIconItem(emoji = emoji, label = label)
+        }
+    }
+}
+
+@Composable
+fun CategoryIconItem(emoji: String, label: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(70.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(70.dp)
+                .background(Color(0xFFFFECB3), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = emoji,
+                fontSize = 32.sp
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color(0xFF1F2937),
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
 }
 
 @Composable
@@ -412,7 +798,6 @@ fun FoodAppFeatureCards(navController: NavHostController) {
             .padding(horizontal = if (isTablet) 24.dp else 16.dp),
         horizontalArrangement = Arrangement.spacedBy(if (isTablet) 20.dp else 14.dp)
     ) {
-        // Deliver Now Card - Enhanced
         EnhancedFoodFeatureCard(
             title = "Deliver Now",
             subtitle = "Fast delivery",
@@ -423,10 +808,9 @@ fun FoodAppFeatureCards(navController: NavHostController) {
                 Color(0xFFF5F7FA)
             ),
             iconBackground = Color(0xFFF3F4F6),
-            onClick = { /* Navigate to delivery */ }
+            onClick = { }
         )
         
-        // Daily Deals Card - More vibrant and exceptional
         EnhancedFoodFeatureCard(
             title = "Daily Deals",
             subtitle = "Up to 50% off",
