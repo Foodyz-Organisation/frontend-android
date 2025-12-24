@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -322,20 +323,14 @@ fun Step1ProfessionalDetails(
         // Icon with enhanced animation
         Box(
             modifier = Modifier
-                .size(90.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(Color(0xFFFFECB3), Color(0xFFFFC107))
-                    )
-                ),
+                .size(120.dp),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Filled.Restaurant,
+            androidx.compose.foundation.Image(
+                painter = painterResource(id = com.example.damprojectfinal.R.drawable.logo_name),
                 contentDescription = null,
-                tint = Color(0xFF5F370E),
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(120.dp),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit
             )
         }
 

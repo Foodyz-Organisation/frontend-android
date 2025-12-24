@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -98,7 +99,23 @@ fun SignupScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
-            Spacer(Modifier.height(48.dp))
+            Spacer(Modifier.height(24.dp))
+
+            // --- App Logo ---
+            Box(
+                modifier = Modifier
+                    .size(120.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(id = R.drawable.logo_name),
+                    contentDescription = "App Logo",
+                    modifier = Modifier.size(120.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
 
             // --- Header (Updated text) ---
             Text(

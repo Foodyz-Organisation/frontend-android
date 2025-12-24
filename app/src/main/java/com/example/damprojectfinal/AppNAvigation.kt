@@ -2034,6 +2034,15 @@ fun AppNavigation(
                 onBackClick = {
                     Log.d("AppNavigation", "⬅️ Retour depuis dealDetail")
                     navController.popBackStack()
+                },
+                onOrderClick = { professionalId ->
+                    if (professionalId.isNotEmpty()) {
+                        Log.d("AppNavigation", "🛒 Navigation vers le profil restaurant: $professionalId")
+                        navController.navigate("restaurant_profile_view/$professionalId")
+                    } else {
+                        Log.e("AppNavigation", "❌ Professional ID manquant dans le deal")
+                        Toast.makeText(navController.context, "Infos restaurant manquantes", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
         }

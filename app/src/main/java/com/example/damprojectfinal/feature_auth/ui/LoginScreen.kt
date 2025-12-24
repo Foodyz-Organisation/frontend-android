@@ -181,22 +181,14 @@ fun LoginScreen(
                 // --- App Logo ---
                 Box(
                     modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(
-                                    Color(0xFFFFECB3),
-                                    Color(0xFFFFC107)
-                                )
-                            )
-                        ),
+                        .size(150.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.restaurantmenu),
+                        painter = painterResource(id = R.drawable.logo_name),
                         contentDescription = "App Logo",
-                        modifier = Modifier.size(64.dp)
+                        modifier = Modifier.size(150.dp),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
                     )
                 }
 

@@ -3,6 +3,7 @@ package com.example.damprojectfinal.feature_auth.ui
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,10 +34,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.damprojectfinal.R
 import com.example.damprojectfinal.core.api.TokenManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -114,11 +118,11 @@ fun SplashScreen(
                 colors = CardDefaults.cardColors(containerColor = logoBackgroundColor)
             ) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Filled.Restaurant,
+                    Image(
+                        painter = painterResource(R.drawable.logo_name),
                         contentDescription = "App Logo",
-                        tint = logoTint,
-                        modifier = Modifier.size(72.dp)
+                        modifier = Modifier.size(120.dp),
+                        contentScale = ContentScale.Fit
                     )
                 }
             }

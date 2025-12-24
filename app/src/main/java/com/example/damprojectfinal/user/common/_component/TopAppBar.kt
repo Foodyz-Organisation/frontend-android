@@ -43,6 +43,7 @@ import com.example.damprojectfinal.core.repository.ProfessionalRepository
 import com.example.damprojectfinal.user.common.viewmodel.SearchViewModel
 import io.ktor.client.HttpClient
 import androidx.compose.ui.platform.LocalConfiguration
+import coil.request.ImageRequest
 
 // --- Design Colors/Constants ---
 private val PrimaryDark = Color(0xFF1F2A37) // Dark Gray for text/icons
@@ -683,6 +684,8 @@ fun ProfessionalListItem(
     professional: ProfessionalDto,
     onItemClick: (professionalId: String) -> Unit
 ) {
+    val context = LocalContext.current
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -696,37 +699,45 @@ fun ProfessionalListItem(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Placeholder Avatar/Image
+            // Profile Picture
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(56.dp)
                     .clip(CircleShape)
                     .background(Color(0xFFE5E7EB)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    Icons.Filled.Work,
-                    contentDescription = "Professional Icon",
-                    tint = PrimaryDark
-                )
+                if (professional.profilePictureUrl != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(BaseUrlProvider.getFullImageUrl(professional.profilePictureUrl))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = professional.fullName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        placeholder = rememberVectorPainter(Icons.Default.Store),
+                        error = rememberVectorPainter(Icons.Default.Store)
+                    )
+                } else {
+                    Icon(
+                        Icons.Filled.Store,
+                        contentDescription = "Professional Icon",
+                        tint = PrimaryDark,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
             Column {
-                // Display the Full Name
+                // Display the Full Name (Restaurant Name)
                 Text(
                     text = professional.fullName ?: "Unnamed Professional",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
+                    fontSize = 18.sp,
                     color = PrimaryDark
-                )
-                // Display the Email
-                Text(
-                    text = professional.email ?: "Email not provided",
-                    fontSize = 14.sp,
-                    color = GrayInactive,
-                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
         }

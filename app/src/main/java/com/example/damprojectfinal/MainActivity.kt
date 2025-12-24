@@ -22,6 +22,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Switch from launch theme to main app theme
+        setTheme(R.style.Theme_DamProjectFinal)
+        
         // Set up global exception handler to catch uncaught network exceptions
         // This is a safety net for exceptions that might slip through coroutine error handling
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()

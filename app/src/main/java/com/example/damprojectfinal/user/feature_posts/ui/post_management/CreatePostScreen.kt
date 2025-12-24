@@ -4,17 +4,27 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -24,12 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
-import coil.compose.AsyncImage // For displaying selected media
-
-import androidx.compose.material.icons.filled.Collections
-import androidx.compose.material.icons.filled.ZoomIn
-import androidx.compose.material.icons.filled.PhotoLibrary
-
+import coil.compose.AsyncImage
 import com.example.damprojectfinal.UserRoutes
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -38,32 +43,37 @@ import java.nio.charset.StandardCharsets
 @Composable
 fun CreatePostScreen(navController: NavController) {
     var selectedMediaUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    val context = LocalContext.current
+    // We can tack if the selected media is video to change preview behavior if needed
+    var isVideo by remember { mutableStateOf(false) }
 
-    // --- NEW: State to control dialog visibility ---
-    var showMediaTypePickerDialog by remember { mutableStateOf(false) }
-
-    // --- NEW: Launcher for picking multiple images (carousel) ---
+    // --- Launchers ---
     val multipleImagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10),
         onResult = { uris: List<Uri> ->
-            selectedMediaUris = uris // Update the state with the selected URIs
+            if (uris.isNotEmpty()) {
+                selectedMediaUris = uris
+                isVideo = false
+            }
         }
     )
 
-    // --- NEW: Launcher for picking single image ---
     val singleImagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri: Uri? ->
-            uri?.let { selectedMediaUris = listOf(it) }
+            uri?.let { 
+                selectedMediaUris = listOf(it)
+                isVideo = false
+            }
         }
     )
 
-    // --- NEW: Launcher specifically for picking videos (single video only) ---
     val videoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri: Uri? ->
-            uri?.let { selectedMediaUris = listOf(it) }
+            uri?.let { 
+                selectedMediaUris = listOf(it)
+                isVideo = true
+            }
         }
     )
 
@@ -72,256 +82,273 @@ fun CreatePostScreen(navController: NavController) {
             TopAppBar(
                 title = {
                     Text(
-                        text = if (selectedMediaUris.isEmpty()) "Créer une nouvelle publication" else "Rogné",
-                        color = Color.White
+                        text = "New Post",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1F2937), // Dark Gray
+                        fontSize = 20.sp
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(
+                            Icons.Filled.ArrowBack, 
+                            contentDescription = "Back", 
+                            tint = Color(0xFF1F2937)
+                        )
                     }
                 },
                 actions = {
                     if (selectedMediaUris.isNotEmpty()) {
-                        TextButton(
+                        Button(
                             onClick = {
-                                // Encode multiple URIs as comma-separated string
                                 val encodedUris = selectedMediaUris.joinToString(",") { uri ->
                                     URLEncoder.encode(uri.toString(), StandardCharsets.UTF_8.toString())
                                 }
                                 navController.navigate("${UserRoutes.CAPTION_PUBLISH_SCREEN}/$encodedUris")
-                            }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFFC107), // Yellow
+                                contentColor = Color(0xFF1F2937) // Dark Gray for contrast
+                            ),
+                            contentPadding = PaddingValues(horizontal = 20.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier.height(36.dp)
                         ) {
-                            Text("Suivant", color = Color(0xFF6A5ACD), fontWeight = FontWeight.SemiBold)
+                            Text("Next", fontWeight = FontWeight.SemiBold)
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF1E1E1E),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = Color.White
                 )
             )
         },
-        containerColor = Color(0xFF1E1E1E)
+        containerColor = Color(0xFFF9FAFB) // Light Gray Background
     ) { paddingValues ->
-        if (selectedMediaUris.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .background(Color(0xFF1E1E1E)),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Collections,
-                    contentDescription = "Select media",
-                    tint = Color.Gray,
-                    modifier = Modifier.size(100.dp)
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    text = "Faites glisser les photos et les vidéos ici",
-                    color = Color.LightGray,
-                    fontSize = 18.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 32.dp)
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Button(
-                    onClick = { showMediaTypePickerDialog = true }, // <--- MODIFIED: Show dialog when button clicked
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6A5ACD)),
-                    shape = RoundedCornerShape(8.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (selectedMediaUris.isEmpty()) {
+                // --- Empty State: Selection Options ---
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .height(50.dp)
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = "Sélectionner sur votre phone",
-                        color = Color.White,
+                        text = "Create Content",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF1F2937)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Share your food journey with the world",
                         fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
+                        color = Color(0xFF6B7280),
+                        textAlign = TextAlign.Center
                     )
-                }
-            }
-        } else {
-            // Display selected media (single image/video or carousel)
-            if (selectedMediaUris.size == 1) {
-                // Single media display
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .background(Color.Black)
-                ) {
-                    AsyncImage(
-                        model = selectedMediaUris.first(),
-                        contentDescription = "Selected Media",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
+                    
+                    Spacer(modifier = Modifier.height(48.dp))
+
+                    // Option 1: Carousel
+                    SelectionCard(
+                        title = "Carousel",
+                        subtitle = "Share multiple photos",
+                        icon = Icons.Filled.Collections,
+                        onClick = {
+                             multipleImagePickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Option 2: Single Photo
+                    SelectionCard(
+                        title = "Photo",
+                        subtitle = "Share a single moment",
+                        icon = Icons.Filled.Image,
+                        onClick = {
+                            singleImagePickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
                     )
 
-                    // Overlay for zoom controls (bottom-left)
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black.copy(alpha = 0.6f))
-                            .padding(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.ZoomIn,
-                            contentDescription = "Zoom",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    // Overlay for multi-select/video icon (bottom-right)
-                    IconButton(
-                        onClick = { showMediaTypePickerDialog = true },
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(16.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black.copy(alpha = 0.6f))
-                            .size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.PhotoLibrary,
-                            contentDescription = "Select more media",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Option 3: Reel/Video
+                    SelectionCard(
+                        title = "Reel",
+                        subtitle = "Share a short video",
+                        icon = Icons.Filled.Videocam,
+                        onClick = {
+                            videoPickerLauncher.launch("video/*")
+                        }
+                    )
                 }
             } else {
-                // Carousel display - show first image with indicator
-                Box(
+                // --- Media Preview State ---
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues)
-                        .background(Color.Black)
+                        .background(Color.Black), // Dark background for media preview
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    AsyncImage(
-                        model = selectedMediaUris.first(),
-                        contentDescription = "Selected Media",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
-                    )
-
-                    // Carousel indicator (top-center)
-                    Row(
+                    Box(
                         modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(16.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black.copy(alpha = 0.6f))
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Carousel: ${selectedMediaUris.size} photos",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold
+                        // Display first item as preview
+                        AsyncImage(
+                            model = selectedMediaUris.first(),
+                            contentDescription = "Selected Media",
+                            modifier = Modifier.fillMaxWidth(),
+                            contentScale = ContentScale.Fit
                         )
+                        
+                        // Carousel Indicator
+                        if (selectedMediaUris.size > 1) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(16.dp)
+                                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "+${selectedMediaUris.size - 1} more",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
 
-                    // Overlay for multi-select/video icon (bottom-right)
-                    IconButton(
-                        onClick = { showMediaTypePickerDialog = true },
+                    // Bottom Bar with "Change Selection"
+                    Box(
                         modifier = Modifier
-                            .align(Alignment.BottomEnd)
+                            .fillMaxWidth()
+                            .background(Color(0xFF1F2937))
                             .padding(16.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black.copy(alpha = 0.6f))
-                            .size(48.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.PhotoLibrary,
-                            contentDescription = "Select more media",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                             OutlinedButton(
+                                onClick = { selectedMediaUris = emptyList() },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color.White
+                                ),
+                                border = BorderStroke(1.dp, Color.Gray)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close, 
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Change Selection")
+                            }
+                        }
                     }
                 }
             }
         }
-
-        // --- NEW: Media Type Picker Dialog ---
-        if (showMediaTypePickerDialog) {
-            AlertDialog(
-                onDismissRequest = { showMediaTypePickerDialog = false },
-                title = { Text("Sélectionner le type de média", color = Color.White) },
-                text = { 
-                    Column {
-                        Text("Choisissez une option:", color = Color.LightGray)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("• Plusieurs photos = Carousel", color = Color.LightGray, fontSize = 12.sp)
-                        Text("• Une photo = Image", color = Color.LightGray, fontSize = 12.sp)
-                        Text("• Vidéo = Reel", color = Color.LightGray, fontSize = 12.sp)
-                    }
-                },
-                confirmButton = {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Multiple images (carousel)
-                        TextButton(
-                            onClick = {
-                                showMediaTypePickerDialog = false
-                                multipleImagePickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Plusieurs photos (Carousel)", color = Color(0xFF6A5ACD))
-                        }
-                        // Single image
-                        TextButton(
-                            onClick = {
-                                showMediaTypePickerDialog = false
-                                singleImagePickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Une photo", color = Color(0xFF6A5ACD))
-                        }
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        showMediaTypePickerDialog = false
-                        videoPickerLauncher.launch("video/*") // Launch video picker
-                    }) {
-                        Text("Vidéo", color = Color(0xFF6A5ACD))
-                    }
-                },
-                containerColor = Color(0xFF1E1E1E), // Dark background for dialog
-                titleContentColor = Color.White,
-                textContentColor = Color.White
-            )
-        }
-        // --- END NEW ---
     }
 }
 
-@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun SelectionCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(80.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icon Container
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFFC107).copy(alpha = 0.2f)), // Light Yellow
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color(0xFFFFC107), // Yellow
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color(0xFF1F2937)
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 13.sp,
+                    color = Color(0xFF9CA3AF)
+                )
+            }
+            
+            Spacer(modifier = Modifier.weight(1f))
+            
+            // Arrow indicator
+            Icon(
+                imageVector = Icons.Filled.ArrowBack, // Using back arrow rotated or right chevron if available
+                contentDescription = null,
+                tint = Color(0xFFD1D5DB),
+                modifier = Modifier
+                    .size(20.dp)
+                    .rotate(180f) // Point right
+            )
+        }
+    }
+}
+
+// Helper for rotation
+fun Modifier.rotate(degrees: Float) = this.then(
+    Modifier.graphicsLayer(rotationZ = degrees)
+)
+
+@Preview(showBackground = true)
 @Composable
 fun CreatePostScreenPreview() {
-    val dummyNavController = rememberNavController()
     MaterialTheme {
-        CreatePostScreen(navController = dummyNavController)
+        CreatePostScreen(navController = rememberNavController())
     }
 }

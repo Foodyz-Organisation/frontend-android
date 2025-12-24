@@ -223,16 +223,6 @@ fun HomeScreen(
                                 }
                             )
                             
-                            Spacer(modifier = Modifier.height(24.dp))
-                            
-                            // Category Icons Row with filtering
-                            CategoryIconsRow(
-                                selectedFoodType = selectedFoodType,
-                                onFoodTypeSelected = { foodType ->
-                                    selectedFoodType = foodType
-                                }
-                            )
-                            
                             Spacer(modifier = Modifier.height(28.dp))
                             
                             // Kitchen Near You Section
@@ -243,6 +233,16 @@ fun HomeScreen(
                                     color = Color(0xFF1F2937)
                                 ),
                                 modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            // Category Icons Row with filtering
+                            CategoryIconsRow(
+                                selectedFoodType = selectedFoodType,
+                                onFoodTypeSelected = { foodType ->
+                                    selectedFoodType = foodType
+                                }
                             )
                             
                             Spacer(modifier = Modifier.height(16.dp))
@@ -563,7 +563,7 @@ fun DealsCarousel(
             }
         }
         is com.example.damprojectfinal.feature_deals.DealsUiState.Success -> {
-            val activeDeals = state.deals.filter { it.isActive }
+            val activeDeals = state.deals.filter { it.isActive }.reversed()
             
             if (activeDeals.isEmpty()) {
                 // Coming Soon Animation

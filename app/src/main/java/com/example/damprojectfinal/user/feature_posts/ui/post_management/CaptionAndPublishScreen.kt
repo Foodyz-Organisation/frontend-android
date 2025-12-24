@@ -4,39 +4,51 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material3.*
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.CreatePostDto
 import com.example.damprojectfinal.core.dto.posts.FoodType
+import com.example.damprojectfinal.core.api.TokenManager
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
-import android.widget.Toast
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.sp
-import com.example.damprojectfinal.core.api.TokenManager // <-- Ensure this import is here
-import androidx.lifecycle.viewmodel.compose.viewModel
-
+import java.net.URLDecoder
 
 enum class AppMediaType(val value: String) {
     IMAGE("image"),
@@ -51,45 +63,61 @@ fun CaptionAndPublishScreen(
     mediaUriString: String?,
     postsViewModel: PostsViewModel = viewModel()
 ) {
-    // Parse multiple URIs from comma-separated string
-    val mediaUris = mediaUriString?.split(",")?.mapNotNull { 
-        try {
-            Uri.parse(java.net.URLDecoder.decode(it, "UTF-8"))
-        } catch (e: Exception) {
-            null
-        }
-    } ?: emptyList()
-    
-    val context = LocalContext.current
+    // --- State & Setup ---
+    val mediaUris = remember(mediaUriString) {
+        mediaUriString?.split(",")?.mapNotNull {
+            try {
+                Uri.parse(URLDecoder.decode(it, "UTF-8"))
+            } catch (e: Exception) {
+                null
+            }
+        } ?: emptyList()
+    }
 
+    val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
     val currentUserId = remember { tokenManager.getUserId() }
-    val currentUserType = remember { tokenManager.getUserType() } // Correctly calls getUserType()
-
-    var captionText by remember { mutableStateOf("") }
-    var isPublishing by remember { mutableStateOf(false) }
+    val currentUserType = remember { tokenManager.getUserType() }
     val coroutineScope = rememberCoroutineScope()
-    
-    // New fields for food type, price, and preparation time
+
+    // Input State
+    var captionText by remember { mutableStateOf("") }
     var selectedFoodType by remember { mutableStateOf<String?>(null) }
     var priceText by remember { mutableStateOf("") }
     var preparationTimeText by remember { mutableStateOf("") }
+    
+    // UI State
+    var isPublishing by remember { mutableStateOf(false) }
     var showFoodTypeDropdown by remember { mutableStateOf(false) }
+    var showSuccessDialog by remember { mutableStateOf(false) }
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
 
+    // --- Main Layout ---
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Nouvelle publication", color = Color.White) },
+                title = {
+                    Text(
+                        "New Post",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color(0xFF1F2937)
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color(0xFF1F2937)
+                        )
                     }
                 },
                 actions = {
-                    TextButton(
+                    Button(
                         onClick = {
                             coroutineScope.launch {
-                                // --- MODIFIED CALL TO publishPost: Pass ownerId and ownerType ---
                                 publishPost(
                                     context = context,
                                     mediaUris = mediaUris,
@@ -97,259 +125,380 @@ fun CaptionAndPublishScreen(
                                     foodType = selectedFoodType ?: "",
                                     price = priceText.toDoubleOrNull(),
                                     preparationTime = preparationTimeText.toIntOrNull(),
-                                    ownerId = currentUserId,   // <-- Pass currentUserId
-                                    ownerType = currentUserType, // <-- Pass currentUserType
+                                    ownerId = currentUserId,
+                                    ownerType = currentUserType,
                                     onPublishing = { isPublishing = it },
-                                    onSuccess = {
-                                        Toast.makeText(context, "Post published successfully!", Toast.LENGTH_SHORT).show()
-                                        postsViewModel.fetchPosts()
-                                        navController.popBackStack()
-                                    },
-                                    onError = { errorMessage ->
-                                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
-                                        Log.e("PublishPost", errorMessage)
+                                    onSuccess = { showSuccessDialog = true },
+                                    onError = { msg ->
+                                        errorMessage = msg
+                                        showErrorDialog = true
                                     }
                                 )
                             }
                         },
                         enabled = !isPublishing && captionText.isNotBlank() && selectedFoodType != null,
-                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF6A5ACD))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFC107), // Yellow
+                            contentColor = Color(0xFF1F2937), // Dark Gray
+                            disabledContainerColor = Color(0xFFE5E7EB),
+                            disabledContentColor = Color(0xFF9CA3AF)
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp),
+                        modifier = Modifier.height(36.dp)
                     ) {
                         if (isPublishing) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(16.dp),
                                 color = Color.White,
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Text("Publier", fontWeight = FontWeight.SemiBold)
+                            Text("Share", fontWeight = FontWeight.SemiBold)
                         }
                     }
+                    Spacer(modifier = Modifier.width(12.dp))
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF1E1E1E),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = Color.White
                 )
             )
         },
-        containerColor = Color(0xFF1E1E1E)
+        containerColor = Color.White
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color(0xFF1E1E1E)),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (mediaUris.isNotEmpty()) {
-                Log.d("CaptionAndPublishScreen", "Attempting to display ${mediaUris.size} media items")
-                
-                // Display carousel preview if multiple images, single image if one
-                if (mediaUris.size > 1) {
-                    // Carousel preview - show first image with indicator
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // 1. Media Preview Section
+                if (mediaUris.isNotEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(250.dp)
-                            .background(Color.Black)
+                            .height(300.dp)
+                            .background(Color(0xFFF3F4F6))
                     ) {
-                        AsyncImage(
-                            model = mediaUris.first(),
-                            contentDescription = "Carousel Preview",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                        
-                        // Carousel indicator overlay
-                        Row(
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .padding(8.dp)
-                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                                .background(Color.Black.copy(alpha = 0.7f))
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Carousel: ${mediaUris.size} photos",
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                } else {
-                    // Single media preview
-                    AsyncImage(
-                        model = mediaUris.first(),
-                        contentDescription = "Selected Media",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(250.dp)
-                            .background(Color.Black),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(250.dp)
-                        .background(Color.Gray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No Media Selected", color = Color.White)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = captionText,
-                onValueChange = { captionText = it },
-                label = { Text("Légende...", color = Color.LightGray) },
-                placeholder = { Text("Écrivez une légende...", color = Color.Gray) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                textStyle = LocalTextStyle.current.copy(color = Color.White),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6A5ACD),
-                    unfocusedBorderColor = Color.Gray,
-                    cursorColor = Color(0xFF6A5ACD),
-                    focusedLabelColor = Color(0xFF6A5ACD),
-                    unfocusedLabelColor = Color.LightGray,
-                    focusedContainerColor = Color(0xFF1E1E1E),
-                    unfocusedContainerColor = Color(0xFF1E1E1E)
-                ),
-                singleLine = false,
-                minLines = 3
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Food Type Dropdown (Required)
-            Box(modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)) {
-                ExposedDropdownMenuBox(
-                    expanded = showFoodTypeDropdown,
-                    onExpandedChange = { showFoodTypeDropdown = !showFoodTypeDropdown }
-                ) {
-                    OutlinedTextField(
-                        value = selectedFoodType ?: "",
-                        onValueChange = { },
-                        readOnly = true,
-                        label = { Text("Type de nourriture *", color = Color.LightGray) },
-                        placeholder = { Text("Sélectionnez un type...", color = Color.Gray) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showFoodTypeDropdown) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
-                        textStyle = LocalTextStyle.current.copy(color = Color.White),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6A5ACD),
-                            unfocusedBorderColor = if (selectedFoodType == null) Color(0xFFFF6B6B) else Color.Gray,
-                            cursorColor = Color(0xFF6A5ACD),
-                            focusedLabelColor = Color(0xFF6A5ACD),
-                            unfocusedLabelColor = Color.LightGray,
-                            focusedContainerColor = Color(0xFF1E1E1E),
-                            unfocusedContainerColor = Color(0xFF1E1E1E)
-                        )
-                    )
-                    ExposedDropdownMenu(
-                        expanded = showFoodTypeDropdown,
-                        onDismissRequest = { showFoodTypeDropdown = false },
-                        modifier = Modifier.background(Color(0xFF2E2E2E))
-                    ) {
-                        FoodType.values().forEach { foodType ->
-                            DropdownMenuItem(
-                                text = { 
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        if (mediaUris.size > 1) {
+                            // Multiple Images: Carousel View
+                            LazyRow(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(mediaUris) { uri ->
+                                    Card(
+                                        shape = RoundedCornerShape(12.dp),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                        modifier = Modifier
+                                            .width(280.dp)
+                                            .fillMaxHeight()
                                     ) {
-                                        Text(text = foodType.emoji, fontSize = 18.sp)
-                                        Text(
-                                            text = foodType.displayName,
-                                            color = Color.White
+                                        AsyncImage(
+                                            model = uri,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
                                         )
                                     }
-                                },
-                                onClick = {
-                                    selectedFoodType = foodType.value
-                                    showFoodTypeDropdown = false
-                                },
-                                modifier = Modifier.background(Color(0xFF2E2E2E))
+                                }
+                            }
+                        } else {
+                            // Single Image/Video
+                            AsyncImage(
+                                model = mediaUris.first(),
+                                contentDescription = "Preview",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop // Crop to fill styled area
                             )
                         }
                     }
                 }
+
+                // 2. Caption Input
+                OutlinedTextField(
+                    value = captionText,
+                    onValueChange = { captionText = it },
+                    placeholder = { 
+                        Text(
+                            "Write a caption...", 
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 16.sp
+                        ) 
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent, // No background
+                        unfocusedContainerColor = Color.Transparent
+                    ),
+                    textStyle = LocalTextStyle.current.copy(
+                        fontSize = 16.sp, 
+                        color = Color(0xFF1F2937)
+                    ),
+                    minLines = 3
+                )
+                
+                Divider(thickness = 0.5.dp, color = Color(0xFFE5E7EB))
+
+                // 3. Details Section
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Details",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color(0xFF111827),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    // Food Type Dropdown
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = selectedFoodType ?: "",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Food Type (Required)") },
+                            placeholder = { Text("Select type") },
+                            trailingIcon = { 
+                                Icon(Icons.Filled.KeyboardArrowDown, "Select", tint = Color(0xFF6B7280)) 
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showFoodTypeDropdown = true },
+                            enabled = false, // Disable typing, handle click on overlay box if needed, or just use readOnly
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = Color(0xFF1F2937),
+                                disabledBorderColor = Color(0xFFE5E7EB),
+                                disabledLabelColor = Color(0xFF6B7280),
+                                disabledContainerColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        // Invisible overlay to catch clicks
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { showFoodTypeDropdown = true }
+                        )
+                        
+                        DropdownMenu(
+                            expanded = showFoodTypeDropdown,
+                            onDismissRequest = { showFoodTypeDropdown = false },
+                            modifier = Modifier
+                                .background(Color.White)
+                                .width(300.dp) // Adjust width as needed
+                        ) {
+                            FoodType.values().forEach { type ->
+                                DropdownMenuItem(
+                                    text = { 
+                                        Text(
+                                            "${type.emoji}  ${type.displayName}",
+                                            color = Color(0xFF1F2937)
+                                        ) 
+                                    },
+                                    onClick = { 
+                                        selectedFoodType = type.value
+                                        showFoodTypeDropdown = false 
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Price & Time Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Price Input
+                        StyledInput(
+                            value = priceText,
+                            onValueChange = { 
+                                if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d*$"))) priceText = it 
+                            },
+                            label = "Price (TND)",
+                            icon = Icons.Filled.AttachMoney,
+                            keyboardType = KeyboardType.Decimal,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // Time Input
+                        StyledInput(
+                            value = preparationTimeText,
+                            onValueChange = { 
+                                if (it.isEmpty() || it.matches(Regex("^\\d+$"))) preparationTimeText = it 
+                            },
+                            label = "Time (min)",
+                            icon = Icons.Filled.Timer,
+                            keyboardType = KeyboardType.Number,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(40.dp))
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // --- Dialogs ---
+            
+            // Success Dialog
+            if (showSuccessDialog) {
+                AlertDialog(
+                    onDismissRequest = { /* Prevent dismiss, must click OK */ },
+                    icon = {
+                        Icon(
+                            Icons.Filled.CheckCircle, 
+                            contentDescription = null,
+                            tint = Color(0xFF10B981), // Green
+                            modifier = Modifier.size(48.dp)
+                        )
+                    },
+                    title = {
+                        Text(
+                            "Success!", 
+                            fontWeight = FontWeight.Bold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    },
+                    text = {
+                        Text(
+                            "Your post has been published successfully.",
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showSuccessDialog = false
+                                postsViewModel.fetchPosts()
+                                navController.popBackStack()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFFC107),
+                                contentColor = Color(0xFF1F2937)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Awesome!")
+                        }
+                    },
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,
+                    shape = RoundedCornerShape(16.dp)
+                )
+            }
 
-            // Price Input (Optional)
-            OutlinedTextField(
-                value = priceText,
-                onValueChange = { newValue ->
-                    // Only allow numbers and one decimal point
-                    if (newValue.isEmpty() || newValue.matches(Regex("^\\d*\\.?\\d*$"))) {
-                        priceText = newValue
+            // Error Dialog
+            if (showErrorDialog) {
+                AlertDialog(
+                    onDismissRequest = { showErrorDialog = false },
+                    icon = {
+                        Icon(
+                            Icons.Filled.Error,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444), // Red
+                            modifier = Modifier.size(48.dp)
+                        )
+                    },
+                    title = {
+                        Text(
+                            "Oops!",
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Text(
+                            errorMessage,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = { showErrorDialog = false }
+                        ) {
+                            Text("Try Again", color = Color(0xFFEF4444))
+                        }
+                    },
+                    containerColor = Color.White,
+                    shape = RoundedCornerShape(16.dp)
+                )
+            }
+            
+            // Loading Overlay
+            if (isPublishing) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .clickable(enabled = false) { }, // Block clicks
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        Column(
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                color = Color(0xFFFFC107)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("Publishing...", fontWeight = FontWeight.Medium)
+                        }
                     }
-                },
-                label = { Text("Prix (TND)", color = Color.LightGray) },
-                placeholder = { Text("Ex: 30.0", color = Color.Gray) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                textStyle = LocalTextStyle.current.copy(color = Color.White),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6A5ACD),
-                    unfocusedBorderColor = Color.Gray,
-                    cursorColor = Color(0xFF6A5ACD),
-                    focusedLabelColor = Color(0xFF6A5ACD),
-                    unfocusedLabelColor = Color.LightGray,
-                    focusedContainerColor = Color(0xFF1E1E1E),
-                    unfocusedContainerColor = Color(0xFF1E1E1E)
-                ),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Preparation Time Input (Optional)
-            OutlinedTextField(
-                value = preparationTimeText,
-                onValueChange = { newValue ->
-                    // Only allow positive integers
-                    if (newValue.isEmpty() || newValue.matches(Regex("^\\d+$"))) {
-                        preparationTimeText = newValue
-                    }
-                },
-                label = { Text("Temps de préparation (minutes)", color = Color.LightGray) },
-                placeholder = { Text("Ex: 15", color = Color.Gray) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                textStyle = LocalTextStyle.current.copy(color = Color.White),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6A5ACD),
-                    unfocusedBorderColor = Color.Gray,
-                    cursorColor = Color(0xFF6A5ACD),
-                    focusedLabelColor = Color(0xFF6A5ACD),
-                    unfocusedLabelColor = Color.LightGray,
-                    focusedContainerColor = Color(0xFF1E1E1E),
-                    unfocusedContainerColor = Color(0xFF1E1E1E)
-                ),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
+}
+
+@Composable
+fun StyledInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    icon: ImageVector,
+    keyboardType: KeyboardType,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, fontSize = 14.sp) },
+        leadingIcon = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color(0xFF9CA3AF),
+                modifier = Modifier.size(20.dp)
+            )
+        },
+        modifier = modifier,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Color(0xFFFFC107),
+            unfocusedBorderColor = Color(0xFFE5E7EB),
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White,
+            focusedLabelColor = Color(0xFFFFC107),
+            unfocusedLabelColor = Color(0xFF6B7280)
+        )
+    )
 }
 
 @Throws(Exception::class)
@@ -357,46 +506,28 @@ private fun getTempFileFromUri(context: Context, uri: Uri): File {
     val contentResolver = context.contentResolver
     val fileName = "upload_${System.currentTimeMillis()}"
     
-    // Get MIME type to determine file extension
     val mimeType = contentResolver.getType(uri)
-    Log.d("getTempFileFromUri", "URI: $uri, MIME type: $mimeType")
-    
     val fileExtension = when {
-        mimeType?.startsWith("video/") == true -> {
-            mimeType.split("/").getOrNull(1) ?: "mp4"
-        }
-        mimeType?.startsWith("image/") == true -> {
-            mimeType.split("/").getOrNull(1) ?: "jpg"
-        }
-        else -> {
-            // Try to get extension from URI path
-            uri.path?.substringAfterLast('.', "") ?: "tmp"
-        }
+        mimeType?.startsWith("video/") == true -> mimeType.split("/").getOrNull(1) ?: "mp4"
+        mimeType?.startsWith("image/") == true -> mimeType.split("/").getOrNull(1) ?: "jpg"
+        else -> uri.path?.substringAfterLast('.', "") ?: "tmp"
     }
     
     val tempFile = File(context.cacheDir, "$fileName.$fileExtension")
-    Log.d("getTempFileFromUri", "Creating temp file: ${tempFile.absolutePath}")
 
     try {
         contentResolver.openInputStream(uri)?.use { inputStream ->
             tempFile.outputStream().use { outputStream ->
-                val bytesCopied = inputStream.copyTo(outputStream)
-                Log.d("getTempFileFromUri", "Copied $bytesCopied bytes to temp file")
+                inputStream.copyTo(outputStream)
             }
-        } ?: throw Exception("Failed to open input stream for URI: $uri. Check if you have proper permissions.")
+        } ?: throw Exception("Failed to open input stream for URI: $uri.")
         
         if (!tempFile.exists() || tempFile.length() == 0L) {
-            throw Exception("Temp file was not created or is empty: ${tempFile.absolutePath}")
+            throw Exception("Temp file creation failed.")
         }
-        
-        Log.d("getTempFileFromUri", "Successfully created temp file: ${tempFile.absolutePath}, size: ${tempFile.length()} bytes")
         return tempFile
-    } catch (e: SecurityException) {
-        Log.e("getTempFileFromUri", "SecurityException: ${e.message}", e)
-        throw Exception("Permission denied. Please grant media access permissions. ${e.message}")
     } catch (e: Exception) {
-        Log.e("getTempFileFromUri", "Error reading URI: ${e.message}", e)
-        throw Exception("Failed to read file from URI: ${e.message}")
+        throw Exception("Failed to process file: ${e.message}")
     }
 }
 
@@ -407,50 +538,21 @@ private suspend fun publishPost(
     foodType: String,
     price: Double?,
     preparationTime: Int?,
-    ownerId: String?, // <-- NEW PARAMETER DEFINITION
-    ownerType: String?, // <-- NEW PARAMETER DEFINITION
+    ownerId: String?,
+    ownerType: String?,
     onPublishing: (Boolean) -> Unit,
     onSuccess: () -> Unit,
     onError: (String) -> Unit
 ) {
-    if (mediaUris.isEmpty()) {
-        onError("No media selected to publish.")
-        return
-    }
-
-    if (caption.isBlank()) {
-        onError("Caption cannot be empty.")
-        return
-    }
-
-    // Validate foodType (required)
-    if (foodType.isBlank()) {
-        onError("Food type is required. Please select a food type.")
-        return
-    }
-
-    // Validate price if provided (must be >= 0)
-    if (price != null && price < 0) {
-        onError("Price must be greater than or equal to 0.")
-        return
-    }
-
-    // Validate preparationTime if provided (must be >= 0)
-    if (preparationTime != null && preparationTime < 0) {
-        onError("Preparation time must be greater than or equal to 0.")
-        return
-    }
-
-    // --- Validate ownerId and ownerType before proceeding ---
-    if (ownerId == null || ownerType == null) {
-        onError("User information (ID or type) is missing. Please log in again.")
-        return
-    }
+    if (mediaUris.isEmpty()) { onError("No media selected."); return }
+    if (caption.isBlank()) { onError("Where is the love? Add a caption!"); return }
+    if (foodType.isBlank()) { onError("Please select a food type."); return }
+    if (ownerId == null || ownerType == null) { onError("Session expired. Please login again."); return }
 
     onPublishing(true)
 
     try {
-        // Step 1: Upload Multiple Media Files
+        // Upload Files
         val multipartBodyParts = mediaUris.map { uri ->
             val file = getTempFileFromUri(context, uri)
             val requestFile = file.asRequestBody(context.contentResolver.getType(uri)?.toMediaTypeOrNull())
@@ -458,102 +560,54 @@ private suspend fun publishPost(
         }
 
         val uploadResponse = RetrofitClient.postsApiService.uploadFiles(multipartBodyParts)
-        val uploadedMediaUrls = uploadResponse.urls
+        if (uploadResponse.urls.isEmpty()) { throw Exception("Upload returned no URLs.") }
 
-        if (uploadedMediaUrls.isEmpty()) {
-            onError("Media upload failed: No URLs returned.")
-            return
-        }
-
-        // Determine media type based on number of files and content type
+        // Determine Type
         val mediaType = when {
-            // Check if any file is a video
-            mediaUris.any { context.contentResolver.getType(it)?.startsWith("video") == true } -> {
-                AppMediaType.REEL.value
-            }
-            // Multiple images = carousel
-            mediaUris.size > 1 -> {
-                AppMediaType.CAROUSEL.value
-            }
-            // Single image
-            else -> {
-                AppMediaType.IMAGE.value
-            }
+            mediaUris.any { context.contentResolver.getType(it)?.startsWith("video") == true } -> AppMediaType.REEL.value
+            mediaUris.size > 1 -> AppMediaType.CAROUSEL.value
+            else -> AppMediaType.IMAGE.value
         }
 
-        // Step 2: Create Post
+        // Create Post
         val createPostDto = CreatePostDto(
             caption = caption,
-            mediaUrls = uploadedMediaUrls,
+            mediaUrls = uploadResponse.urls,
             mediaType = mediaType,
             foodType = foodType,
             price = price,
             preparationTime = preparationTime
         )
 
-        // --- MODIFIED API CALL: Pass ownerType ---
-        // AuthInterceptor handles x-user-id automatically.
-        // AuthInterceptor will also handle x-owner-type if we removed it from PostsApiService.createPost()
-        // and let AuthInterceptor add it. If you kept it in PostsApiService, then you'd also pass ownerId.
-        // For consistency with AuthInterceptor handling x-user-id, let AuthInterceptor handle x-owner-type as well.
-        val createdPost = RetrofitClient.postsApiService.createPost(
-            // ownerType is not passed directly here because AuthInterceptor will add x-owner-type.
-            // If you still have @Header("x-owner-type") in PostsApiService.createPost,
-            // then you MUST uncomment the line below:
-            // ownerType = ownerType,
-            createPostDto = createPostDto
-        )
-        // --- END MODIFIED API CALL ---
+        val createdPost = RetrofitClient.postsApiService.createPost(createPostDto = createPostDto)
 
-        // If this is a reel post and thumbnail is not yet generated, wait a bit and fetch again
-        // The backend generates thumbnails asynchronously, so we need to wait for it
+        // Wait for Reel thumbnail if needed
         if (mediaType == AppMediaType.REEL.value && createdPost.thumbnailUrl == null) {
-            // Wait 2 seconds for thumbnail generation, then fetch the post again
             kotlinx.coroutines.delay(2000)
             try {
-                val updatedPost = RetrofitClient.postsApiService.getPostById(createdPost._id)
-                // The updated post should now have the thumbnail
-                // The thumbnail will be included when posts are fetched for profiles
-            } catch (e: Exception) {
-                // If fetching fails, continue anyway - thumbnail might be generated later
-                Log.d("PublishPost", "Could not fetch updated post with thumbnail: ${e.message}")
-            }
+                RetrofitClient.postsApiService.getPostById(createdPost._id)
+            } catch (_: Exception) { }
         }
 
         onSuccess()
     } catch (e: Exception) {
-        val errorMessage = e.message ?: "An unknown error occurred during publishing."
-        Log.e("PublishPost", "Error publishing post: $errorMessage", e)
-        onError("Failed to publish post: ${e.localizedMessage ?: errorMessage}")
+        onError(e.message ?: "Something went wrong.")
     } finally {
         onPublishing(false)
-        // Clean up temporary files
-        mediaUris.forEach { uri ->
-            try {
-                // Attempt to delete temporary file
-                val tempFile = File(context.cacheDir, uri.pathSegments.lastOrNull() ?: "temp_file")
-                if(tempFile.exists()) tempFile.delete()
-            } catch (cleanupError: Exception) {
-                Log.e("PublishPost", "Error cleaning up temp file: ${cleanupError.message}")
-            }
+        // Cleanup
+        mediaUris.forEach { 
+             try { File(context.cacheDir, it.pathSegments.lastOrNull() ?: "temp").delete() } catch (_: Exception) {}
         }
     }
 }
 
-
-
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true)
 @Composable
 fun CaptionAndPublishScreenPreview() {
-    val dummyNavController = rememberNavController()
     MaterialTheme {
-        val context = LocalContext.current
-        val packageName = context.packageName
-        val drawableUriString = "android.resource://$packageName/drawable/foodone"
-
         CaptionAndPublishScreen(
-            navController = dummyNavController,
-            mediaUriString = drawableUriString
+            navController = rememberNavController(),
+            mediaUriString = null
         )
     }
 }

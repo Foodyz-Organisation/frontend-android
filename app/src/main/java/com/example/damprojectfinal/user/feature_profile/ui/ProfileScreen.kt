@@ -157,7 +157,8 @@ fun ProfileScreen(
             ProfileHeader(
                 userProfile = userProfile,
                 viewModel = viewModel,
-                navController = navController
+                navController = navController,
+                postCount = uiState.userPosts.size
             )
             
             // Tabs
@@ -223,7 +224,8 @@ fun ProfileScreen(
 fun ProfileHeader(
     userProfile: UserProfile,
     viewModel: UserViewModel = viewModel(),
-    navController: NavController
+    navController: NavController,
+    postCount: Int
 ) {
     Box(
         modifier = Modifier.fillMaxWidth()
@@ -274,39 +276,14 @@ fun ProfileHeader(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Stats Row (centered with dividers)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     ProfileStat(
-                        count = userProfile.postCount,
+                        count = postCount,
                         label = "Posts"
-                    )
-                    Spacer(modifier = Modifier.width(24.dp))
-                    Divider(
-                        modifier = Modifier
-                            .height(35.dp)
-                            .width(1.dp),
-                        color = Color(0xFFE5E7EB)
-                    )
-                    Spacer(modifier = Modifier.width(24.dp))
-                    ProfileStat(
-                        count = userProfile.followerCount,
-                        label = "Followers"
-                    )
-                    Spacer(modifier = Modifier.width(24.dp))
-                    Divider(
-                        modifier = Modifier
-                            .height(35.dp)
-                            .width(1.dp),
-                        color = Color(0xFFE5E7EB)
-                    )
-                    Spacer(modifier = Modifier.width(24.dp))
-                    ProfileStat(
-                        count = userProfile.followingCount,
-                        label = "Following"
                     )
                 }
 

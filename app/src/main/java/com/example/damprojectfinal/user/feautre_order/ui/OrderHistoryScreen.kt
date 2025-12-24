@@ -1,5 +1,6 @@
 package com.example.damprojectfinal.user.feautre_order.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -70,8 +71,37 @@ fun OrderHistoryScreen(
                 onReelsClick = {
                     navController.navigate(UserRoutes.REELS_SCREEN)
                 },
-                onLogoutClick = onLogout
+                onLogoutClick = onLogout,
+                showNavBar = false
             )
+        },
+        bottomBar = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.Transparent)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    color = Color.White,
+                    shadowElevation = 16.dp,
+                    shape = RoundedCornerShape(28.dp),
+                    tonalElevation = 4.dp
+                ) {
+                    com.example.damprojectfinal.user.common._component.SecondaryNavBar(
+                        navController = navController,
+                        currentRoute = UserRoutes.ORDERS_ROUTE,
+                        onReelsClick = {
+                            navController.navigate(UserRoutes.REELS_SCREEN)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    )
+                }
+            }
         },
         content = { paddingValues ->
             Box(modifier = Modifier

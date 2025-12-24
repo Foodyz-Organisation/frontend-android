@@ -1621,9 +1621,9 @@ fun MenuItemCard(
     
     Card(
         modifier = finalModifier
-            .height(260.dp) // Slightly increased for better spacing
+            .height(280.dp) // Adjusted height for nice proportions
             .clickable { onAddClick() },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 4.dp,
@@ -1632,140 +1632,118 @@ fun MenuItemCard(
         )
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Top Section: Image
+            // Top Section: Full Width Image
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
+                    .height(150.dp) // Fixed height for image area
             ) {
-                // Background circle for image
-                Box(
-                    modifier = Modifier
-                        .size(110.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFFFF8F0)) // Light cream background
-                        .padding(8.dp)
-                ) {
-                    AsyncImage(
-                        model = item.imageUrl,
-                        contentDescription = item.name,
-                        contentScale = ContentScale.Crop,
-                        placeholder = painterResource(id = R.drawable.placeholder),
-                        error = painterResource(id = R.drawable.placeholder),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                    )
+                AsyncImage(
+                    model = item.imageUrl,
+                    contentDescription = item.name,
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(id = R.drawable.placeholder),
+                    error = painterResource(id = R.drawable.placeholder),
+                    modifier = Modifier.fillMaxSize()
+                )
+                
+                // Discount Badge overlay (top-left)
+                if (item.discountedPrice != null && item.discountPercentage != null && item.discountPercentage > 0) {
+                     Surface(
+                        color = Color(0xFFFF5722),
+                        shape = RoundedCornerShape(bottomEnd = 12.dp),
+                        modifier = Modifier.align(Alignment.TopStart)
+                    ) {
+                        Text(
+                            text = "-${item.discountPercentage}%",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
 
-            // Middle Section: Product Info
+            // Bottom Section: Info & Action
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(12.dp)
+                    .weight(1f),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Product Name
-                Text(
-                    text = item.name,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 17.sp,
-                    color = AppDarkText,
-                    maxLines = 1,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
+                // Product Name & Description
+                Column {
+                    Text(
+                        text = item.name,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = AppDarkText,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = item.description ?: "Fresh and delicious",
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        lineHeight = 16.sp
+                    )
+                }
 
-                // Short Description
-                Text(
-                    text = item.description?.take(50) ?: "Fresh and delicious",
-                    fontSize = 11.sp,
-                    color = Color.Gray,
-                    maxLines = 1,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    lineHeight = 13.sp
-                )
-            }
-
-            // Bottom Section: Price and Add Button
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Price Section with Deal Support
-                if (item.discountedPrice != null && item.discountPercentage != null && item.discountPercentage > 0) {
-                    // Show discount badge
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Discount Badge
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFFF5722), // Red/Orange for discount
-                            modifier = Modifier.padding(end = 8.dp)
-                        ) {
+                // Price & Add Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Price Display
+                    Column {
+                        if (item.discountedPrice != null && item.discountPercentage != null && item.discountPercentage > 0) {
                             Text(
-                                text = "-${item.discountPercentage}%",
-                                fontWeight = FontWeight.Bold,
+                                text = "${String.format("%.2f", item.priceDT)} TND",
+                                fontWeight = FontWeight.Medium,
                                 fontSize = 12.sp,
-                                color = Color.White,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                color = Color.Gray,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough
+                                )
+                            )
+                            Text(
+                                text = "${String.format("%.2f", item.discountedPrice)} TND",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = AppCartButtonYellow
+                            )
+                        } else {
+                            Text(
+                                text = "${String.format("%.2f", item.priceDT)} TND",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = AppCartButtonYellow
                             )
                         }
                     }
                     
-                    Spacer(Modifier.height(4.dp))
-                    
-                    // Old price (strikethrough)
-                    Text(
-                        text = "${String.format("%.2f", item.priceDT)} TND",
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp,
-                        color = Color.Gray,
-                        style = androidx.compose.ui.text.TextStyle(
-                            textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough
-                        )
-                    )
-                    
-                    // New discounted price
+                    // Add Button (Small)
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = AppCartButtonYellow,
-                        modifier = Modifier.padding(horizontal = 8.dp)
+                        modifier = Modifier.size(32.dp).clickable { onAddClick() }
                     ) {
-                        Text(
-                            text = "${String.format("%.2f", item.discountedPrice)} TND",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                        )
-                    }
-                } else {
-                    // Normal price (no discount)
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = AppCartButtonYellow,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    ) {
-                        Text(
-                            text = "${String.format("%.2f", item.priceDT)} TND",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = "Add",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }

@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Launch Screen Theme - Shows immediately on app launch -->
+    <style name="Theme.DamProjectFinal.Launch" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/launch_screen</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
 
+    <!-- Main App Theme -->
     <style name="Theme.DamProjectFinal" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

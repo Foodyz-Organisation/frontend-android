@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -66,6 +67,18 @@ fun DealsListScreen(
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
     
+    // Calculate dynamic max discount from deals
+    val maxDiscount = remember(dealsState) {
+        if (dealsState is DealsUiState.Success) {
+            val deals = (dealsState as DealsUiState.Success).deals
+            if (deals.isNotEmpty()) {
+                deals.maxOfOrNull { it.discountPercentage } ?: 50
+            } else 50
+        } else {
+            50 // Default fallback
+        }
+    }
+    
     // Responsive: Adaptive columns based on screen width
     val columns = remember(configuration.screenWidthDp) {
         when {
@@ -84,7 +97,7 @@ fun DealsListScreen(
                     .background(BrandColors.YellowCream)
                     .statusBarsPadding()
             ) {
-                // Top bar with back button, title, and "Up to 50% OFF" button
+                // Top bar with back button, title, and "Up to X% OFF" button
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -103,7 +116,7 @@ fun DealsListScreen(
                             .background(BrandColors.YellowLight, shape = CircleShape)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack, // Updated icon
                             contentDescription = "Retour",
                             tint = BrandColors.TextPrimary,
                             modifier = Modifier.size(if (screenWidth > 600.dp) 24.dp else 20.dp)
@@ -133,7 +146,7 @@ fun DealsListScreen(
                         )
                     }
 
-                    // "Up to 50% OFF" button - responsive text size
+                    // Dynamic "Up to X% OFF" button
                     Surface(
                         modifier = Modifier
                             .height(if (screenWidth > 600.dp) 40.dp else 32.dp)
@@ -142,7 +155,7 @@ fun DealsListScreen(
                         color = BrandColors.YellowLight
                     ) {
                         Text(
-                            "Up to 50% OFF",
+                            "Up to $maxDiscount% OFF",
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = if (screenWidth > 600.dp) 14.sp else if (screenWidth > 360.dp) 12.sp else 10.sp
@@ -266,7 +279,6 @@ fun DealCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isFavorite by remember { mutableStateOf(false) }
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
     
@@ -363,22 +375,7 @@ fun DealCard(
                     )
                 }
 
-                // Favorite icon (top-right)
-                IconButton(
-                    onClick = { isFavorite = !isFavorite },
-                    modifier = Modifier
-                        .padding(if (screenWidth > 600.dp) 12.dp else 8.dp)
-                        .align(Alignment.TopEnd)
-                        .size(if (screenWidth > 600.dp) 40.dp else 32.dp)
-                        .background(Color.White.copy(alpha = 0.9f), shape = CircleShape)
-                ) {
-                    Icon(
-                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = "Favorite",
-                        tint = if (isFavorite) BrandColors.Red else BrandColors.TextSecondary,
-                        modifier = Modifier.size(if (screenWidth > 600.dp) 24.dp else 18.dp)
-                    )
-                }
+                // REMOVED: Favorite icon (heart button) as requested
             }
 
             // Content section - responsive padding
@@ -476,29 +473,23 @@ fun DealCard(
 
                 Spacer(modifier = Modifier.height(if (screenWidth > 600.dp) 16.dp else 12.dp))
 
-                // "Grab Deal" button - full width
+                // "Grab Deal" button - Cleaner, Text Centered, No Icon
                 Button(
                     onClick = onClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (screenWidth > 600.dp) 48.dp else 44.dp),
-                    shape = RoundedCornerShape(12.dp),
+                        .height(36.dp), // Reduced height for cleaner look
+                    shape = RoundedCornerShape(50), // Fully rounded
                     colors = ButtonDefaults.buttonColors(
                         containerColor = BrandColors.YellowPrimary
-                    )
+                    ),
+                    contentPadding = PaddingValues(0.dp) // Reset padding to center content perfectly
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = BrandColors.TextPrimary,
-                        modifier = Modifier.size(if (screenWidth > 600.dp) 20.dp else 18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "Grab This Deal",
-                        style = MaterialTheme.typography.labelLarge.copy(
+                        "Grab Deal",
+                        style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = if (screenWidth > 600.dp) 16.sp else 14.sp
+                            fontSize = 13.sp
                         ),
                         color = BrandColors.TextPrimary
                     )
@@ -508,7 +499,7 @@ fun DealCard(
     }
 }
 
-// ------------------ Helper Views ------------------
+// ------------------ Helper Views (unchanged) ------------------
 
 @Composable
 fun LoadingView() {
