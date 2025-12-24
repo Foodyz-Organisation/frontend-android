@@ -37,6 +37,11 @@
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-3940256099942544~3347511713" />
 
+        <!-- Google OAuth2 Web Client ID -->
+        <meta-data
+            android:name="com.google.android.gms.auth.api.signin.client_id"
+            android:value="AIzaSyD6ki5TOokvJjiycXNGp1XKZCDOQDknXvY" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -103,6 +108,20 @@
             </intent-filter>
 
         </activity>
+
+        <!-- Firebase Cloud Messaging Service -->
+        <service
+            android:name=".core.service.MyFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Default Notification Channel (Android O+) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="@string/default_notification_channel_id" />
 
     </application>
 

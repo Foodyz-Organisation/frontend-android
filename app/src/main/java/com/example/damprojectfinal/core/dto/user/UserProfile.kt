@@ -12,7 +12,8 @@ data class UpdateUserRequest(
     val email: String? = null,      // <- added
     val password: String? = null,
     val isActive: Boolean? = null,
-    val profilePictureUrl: String? = null
+    val profilePictureUrl: String? = null,
+    val fcmToken: String? = null
 )
 
 

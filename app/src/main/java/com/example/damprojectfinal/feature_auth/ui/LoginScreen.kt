@@ -5,7 +5,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -41,6 +40,9 @@ import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
 import kotlinx.coroutines.launch
 import com.example.damprojectfinal.core.utils.ViewModelFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,10 +60,19 @@ fun LoginScreen(
     val context = LocalContext.current
     val application = context.applicationContext as Application
 
+    // Initialize Legacy Google Auth Helper
+    val legacyGoogleAuthHelper = remember { com.example.damprojectfinal.core.utils.LegacyGoogleAuthHelper(context) }
+    val scope = rememberCoroutineScope()
+    
+    // ⭐ Initialize NotificationManager for FCM token sync
+    val notificationManager = remember { 
+        com.example.damprojectfinal.core.utils.NotificationManager(context, tokenManager) 
+    }
+    
     // Instantiate ViewModel with the correct factory
     val viewModel: LoginViewModel = viewModel(
         factory = ViewModelFactory {
-            LoginViewModel(authApiService, tokenManager)
+            LoginViewModel(authApiService, tokenManager, notificationManager)
         }
     )
 
@@ -70,7 +81,35 @@ fun LoginScreen(
     var showPassword by remember { mutableStateOf(false) }
     var rememberMeChecked by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    
+    // Activity Result Launcher for Google Sign-In (must be after viewModel and snackbarHostState)
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        legacyGoogleAuthHelper.handleSignInResult(
+            data = result.data,
+            onSuccess = { accountInfo ->
+                // Handle successful sign-in
+                viewModel.loginWithGoogle(
+                    idToken = accountInfo.idToken,
+                    email = accountInfo.email,
+                    displayName = accountInfo.displayName,
+                    profilePictureUrl = accountInfo.profilePictureUrl
+                )
+            },
+            onError = { errorMessage ->
+                // Show error to user
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = errorMessage,
+                        duration = SnackbarDuration.Long
+                    )
+                }
+            }
+        )
+    }
+
+
 
     // --- Handle Login Navigation & Feedback ---
     // Now observes uiState.loginSuccess, uiState.error, and uiState.role (which is the formatted role)
@@ -357,7 +396,11 @@ fun LoginScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         },
-                        onClick = onGoogleSignIn,
+                        onClick = {
+                            // Launch legacy Google Sign-In (browser-based)
+                            val signInIntent = legacyGoogleAuthHelper.getSignInIntent()
+                            googleSignInLauncher.launch(signInIntent)
+                        },
                         modifier = Modifier.weight(1f)
                     )
                     SocialButton(

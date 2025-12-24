@@ -71,4 +71,13 @@ class ProfessionalApiService(
             throw e
         }
     }
+
+    suspend fun update(id: String, request: com.example.damprojectfinal.core.dto.professional.UpdateProfessionalRequest): ProfessionalDto {
+        val url = "$BASE_URL/$id"
+        return client.patch(url) {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+            addAuthHeader()
+        }.body()
+    }
 }

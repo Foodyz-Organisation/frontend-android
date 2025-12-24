@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -26,6 +25,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.damprojectfinal.feature_auth.viewmodels.SignupViewModel
 import com.example.damprojectfinal.R
+import kotlinx.coroutines.launch
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+
 
 @Composable
 fun SignupScreen(
@@ -35,12 +38,48 @@ fun SignupScreen(
     onFacebookSignIn: () -> Unit = {},
     onNavigateToLogin: () -> Unit = {}
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val legacyGoogleAuthHelper = remember { com.example.damprojectfinal.core.utils.LegacyGoogleAuthHelper(context) }
+    val scope = rememberCoroutineScope()
+    
     val uiState = viewModel.uiState
     var showPassword by remember { mutableStateOf(false) }
     var showConfirmPassword by remember { mutableStateOf(false) }
 
     // ✅ FIX: Removed the redundant inner remember {} block.
     val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Activity Result Launcher for Google Sign-In (must be after snackbarHostState)
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        legacyGoogleAuthHelper.handleSignInResult(
+            data = result.data,
+            onSuccess = { accountInfo ->
+                // Pre-fill registration form with Google data
+                accountInfo.email?.let { viewModel.updateEmail(it) }
+                accountInfo.displayName?.let { viewModel.updateUsername(it) }
+                
+                // Show success message
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = "Google account connected! Please complete registration.",
+                        duration = SnackbarDuration.Short
+                    )
+                }
+            },
+            onError = { errorMessage ->
+                // Show error to user
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = errorMessage,
+                        duration = SnackbarDuration.Long
+                    )
+                }
+            }
+        )
+    }
+
 
     // --- Side Effect: Handle API Response and Navigation (Kept) ---
     LaunchedEffect(uiState.signupSuccess, uiState.error) {
@@ -274,7 +313,11 @@ fun SignupScreen(
                     modifier = Modifier.weight(1f),
                     text = "Google",
                     icon = { Icon(painter = painterResource(id = R.drawable.google), contentDescription = null, tint = secondaryDarkText) },
-                    onClick = onGoogleSignIn
+                    onClick = {
+                        // Launch legacy Google Sign-In (browser-based)
+                        val signInIntent = legacyGoogleAuthHelper.getSignInIntent()
+                        googleSignInLauncher.launch(signInIntent)
+                    }
                 )
             }
 

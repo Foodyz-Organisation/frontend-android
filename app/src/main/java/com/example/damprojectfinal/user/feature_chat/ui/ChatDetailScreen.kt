@@ -120,6 +120,16 @@ fun ChatDetailScreen(
             vm.loadMessages(accessToken!!, conversationId, showLoading = true, currentUserId = currentUserId)
             vm.startMessagesAutoRefresh(accessToken!!, conversationId, currentUserId = currentUserId)
             vm.markConversationAsRead(conversationId, currentUserId)
+            
+            // Validate and Connect Socket
+            val baseUrl = com.example.damprojectfinal.core.api.BaseUrlProvider.BASE_URL
+                .replace("http://", "")
+                .replace("https://", "")
+                .substringBefore("/") // Clean up base URL for socket if needed
+            
+            // Using the full base URL string for now as logic might vary
+            val fullBaseUrl = com.example.damprojectfinal.core.api.BaseUrlProvider.BASE_URL
+            vm.initSocket(fullBaseUrl, accessToken!!, conversationId)
         }
     }
     
@@ -130,7 +140,10 @@ fun ChatDetailScreen(
         }
     }
     DisposableEffect(conversationId) {
-        onDispose { vm.stopMessagesAutoRefresh() }
+        onDispose { 
+            vm.stopMessagesAutoRefresh() 
+            // vm.disconnectSocket() ? The ViewModel handles disconnect onCleared, but we might want to leave conversation here.
+        }
     }
 
     val messages: List<Message> = remember(httpMessages, currentUserId) {
@@ -193,6 +206,7 @@ fun ChatDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.White)
+                .padding(padding) // Apply Scaffold padding to respect topBar and bottomBar
         ) {
             // Error message
             if (errorMessage != null) {

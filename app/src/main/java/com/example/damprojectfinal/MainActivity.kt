@@ -24,6 +24,23 @@ class MainActivity : ComponentActivity() {
         
         // Switch from launch theme to main app theme
         setTheme(R.style.Theme_DamProjectFinal)
+
+        // Request Notification Permission (Android 13+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val permission = android.Manifest.permission.POST_NOTIFICATIONS
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this, permission) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                androidx.core.app.ActivityCompat.requestPermissions(this, arrayOf(permission), 101)
+            }
+        }
+
+        // Initialize Clients & Managers
+        val tokenManager = com.example.damprojectfinal.core.api.TokenManager(applicationContext)
+        RetrofitClient.appContext = applicationContext
+        KtorClient.initialize(applicationContext)
+        
+        // Setup Notification Manager to sync FCM tokens
+        val notificationManager = com.example.damprojectfinal.core.utils.NotificationManager(applicationContext, tokenManager)
+        notificationManager.initialize() // This will get token and sync with backend
         
         // Set up global exception handler to catch uncaught network exceptions
         // This is a safety net for exceptions that might slip through coroutine error handling
@@ -48,9 +65,7 @@ class MainActivity : ComponentActivity() {
         deepLinkToken = extractTokenFromIntent(intent)
 
         enableEdgeToEdge() // Keep your edge-to-edge setup
-        RetrofitClient.appContext = applicationContext
-        KtorClient.initialize(applicationContext)
-        enableEdgeToEdge()
+
         setContent {
             DamProjectFinalTheme {
                 AppNavigation(initialDeepLinkToken = deepLinkToken)

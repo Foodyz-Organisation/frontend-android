@@ -1,5 +1,6 @@
 package com.example.damprojectfinal.feature_auth.ui
 
+import android.util.Log
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -15,11 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -88,12 +86,31 @@ fun SplashScreen(
         val accessToken = tokenManager.getAccessTokenAsync()
 
         if (!accessToken.isNullOrEmpty()) {
-            // User is logged in: fetch details and pass them to the navigator.
-            val userId = tokenManager.getUserIdFlow().first()
-            val userRole = tokenManager.getUserRole().first()
-            onAuthCheckComplete(userId, userRole)
+            // Check if token is expired
+            val isExpired = com.example.damprojectfinal.core.utils.JwtUtils.isTokenExpired(accessToken)
+            
+            if (isExpired) {
+                // Token is expired - clear all auth data and go to login
+                Log.w("SplashScreen", "🔓 Token expired - clearing auth data")
+                tokenManager.clearTokens()
+                onAuthCheckComplete(null, null)
+            } else {
+                // Token is valid - verify we have complete data
+                val userId = tokenManager.getUserIdFlow().first()
+                val userRole = tokenManager.getUserRole().first()
+                
+                // Check if we have all required data
+                if (userId.isNullOrEmpty() || userRole.isNullOrEmpty()) {
+                    // Incomplete auth data - clear and go to login
+                    tokenManager.clearTokens()
+                    onAuthCheckComplete(null, null)
+                } else {
+                    // Token is valid and data is complete - proceed to home
+                    onAuthCheckComplete(userId, userRole)
+                }
+            }
         } else {
-            // User is logged out: pass nulls.
+            // No token: user is logged out
             onAuthCheckComplete(null, null)
         }
     }

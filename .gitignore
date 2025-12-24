@@ -13,3 +13,26 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Sensitive Firebase & API Keys
+google-services.json
+**/google-services.json
+firebase-service-account.json
+**/firebase-service-account.json
+*service-account*.json
+
+# Keystores & Signing Keys
+*.keystore
+*.jks
+release.keystore
+debug.keystore
+
+# API Keys & Secrets
+apikeys.properties
+secrets.properties
+*.env
+.env.*
+
+# Gradle signing configs (if you have them)
+signing.properties
+keystore.properties

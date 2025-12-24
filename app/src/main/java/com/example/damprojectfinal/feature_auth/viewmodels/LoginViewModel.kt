@@ -34,7 +34,8 @@ typealias OnLoginSuccess = (userId: String, role: String) -> Unit
 // --- CHANGE: Extend AndroidViewModel to get access to Application context ---
 class LoginViewModel(
     private val authApiService: AuthApiService,
-    private val tokenManager: TokenManager
+    private val tokenManager: TokenManager,
+    private val notificationManager: com.example.damprojectfinal.core.utils.NotificationManager
 ) : ViewModel() {
 
     private val TAG = "LoginViewModel"
@@ -117,6 +118,21 @@ class LoginViewModel(
 
                 Log.i(TAG, "Tokens and User ID saved. Login COMPLETE.") // ⬅️ DEBUG
 
+                // ⭐ CRITICAL: Sync FCM token with backend after successful login
+                try {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            val fcmToken = task.result
+                            Log.d(TAG, "🔥 Syncing FCM token after login: $fcmToken")
+                            notificationManager.syncTokenWithBackend(fcmToken)
+                        } else {
+                            Log.w(TAG, "Failed to get FCM token after login", task.exception)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error getting FCM token after login", e)
+                }
+
                 // UPDATE UI STATE: This is the single source of truth
                 uiState = uiState.copy(
                     isLoading = false,
@@ -174,6 +190,92 @@ class LoginViewModel(
                 }
 
                 uiState = uiState.copy(isLoading = false, error = errorMessage)
+            }
+        }
+    }
+
+    fun loginWithGoogle(
+        idToken: String,
+        email: String?,
+        displayName: String?,
+        profilePictureUrl: String?
+    ) {
+        Log.d(TAG, "========== loginWithGoogle() called ==========")
+        Log.d(TAG, "Email: $email, Name: $displayName")
+        
+        uiState = uiState.copy(
+            isLoading = true,
+            error = null,
+            loginSuccess = false
+        )
+
+        viewModelScope.launch {
+            try {
+                // Create request with only idToken
+                // Backend will extract email, name, and picture from the token
+                val request = com.example.damprojectfinal.core.dto.auth.GoogleLoginRequest(
+                    idToken = idToken
+                )
+                
+                Log.d(TAG, "Sending Google login request to backend...")
+                val response = authApiService.loginWithGoogle(request)
+                Log.d(TAG, "Google login successful - UserId: ${response.id}, Role: ${response.role}")
+                
+                // Extract required fields
+                val accessToken = response.access_token
+                val refreshToken = response.refresh_token
+                val userId = response.id
+                
+                // Determine role priority
+                val prioritizedRole = if (response.role.equals("PROFESSIONAL", ignoreCase = true))
+                    "PROFESSIONAL"
+                else
+                    "USER"
+                
+                Log.d(TAG, "Saving tokens for Google user...")
+                
+                // Save tokens
+                tokenManager.saveTokens(
+                    accessToken = accessToken,
+                    refreshToken = refreshToken,
+                    userId = userId,
+                    role = prioritizedRole
+                )
+                
+                Log.i(TAG, "Google login complete. Tokens saved.")
+                
+                // ⭐ CRITICAL: Sync FCM token with backend after successful Google login
+                try {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            val fcmToken = task.result
+                            Log.d(TAG, "🔥 Syncing FCM token after Google login: $fcmToken")
+                            notificationManager.syncTokenWithBackend(fcmToken)
+                        } else {
+                            Log.w(TAG, "Failed to get FCM token after Google login", task.exception)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error getting FCM token after Google login", e)
+                }
+                
+                // Update UI state for navigation
+                uiState = uiState.copy(
+                    isLoading = false,
+                    loginSuccess = true,
+                    userId = userId,
+                    role = prioritizedRole,
+                    accessToken = accessToken,
+                    refreshToken = refreshToken,
+                    error = null
+                )
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Google login failed", e)
+                uiState = uiState.copy(
+                    isLoading = false,
+                    error = "Google Sign-In failed: ${e.message}"
+                )
             }
         }
     }

@@ -2,6 +2,7 @@ package com.example.damprojectfinal.core.api
 
 import com.example.damprojectfinal.core.dto.auth.LoginRequest
 import com.example.damprojectfinal.core.dto.auth.LoginResponse
+import com.example.damprojectfinal.core.dto.auth.GoogleLoginRequest
 import com.example.damprojectfinal.core.dto.auth.OtpResponse
 import com.example.damprojectfinal.core.dto.auth.ProfessionalSignupRequest
 import com.example.damprojectfinal.core.dto.auth.ProfessionalSignupResponse
@@ -71,6 +72,18 @@ class AuthApiService {
 
     suspend fun login(request: LoginRequest): LoginResponse {
         val url = "$BASE_URL/auth/login"
+        return client.post(url) {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
+    }
+
+    /**
+     * Google Sign-In authentication endpoint
+     * Sends Google ID token to backend for verification
+     */
+    suspend fun loginWithGoogle(request: GoogleLoginRequest): LoginResponse {
+        val url = "$BASE_URL/auth/google"
         return client.post(url) {
             contentType(ContentType.Application.Json)
             setBody(request)

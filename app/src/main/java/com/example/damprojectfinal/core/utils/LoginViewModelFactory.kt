@@ -8,13 +8,14 @@ import com.example.damprojectfinal.feature_auth.viewmodels.LoginViewModel
 
 class LoginViewModelFactory(
     private val authApiService: AuthApiService,
-    private val tokenManager: TokenManager
+    private val tokenManager: TokenManager,
+    private val notificationManager: NotificationManager
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
-            return LoginViewModel(authApiService, tokenManager) as T
+            return LoginViewModel(authApiService, tokenManager, notificationManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

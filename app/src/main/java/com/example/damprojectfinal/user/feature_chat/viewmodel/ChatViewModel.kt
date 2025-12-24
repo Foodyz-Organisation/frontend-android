@@ -462,7 +462,20 @@ class ChatViewModel(
                     conversationId = conversationId,
                     dto = payload
                 )
-                _messages.value = (_messages.value + sentMessage).sortedBy { it.createdAt ?: "" }
+                Log.d("ChatViewModel", "✅ Message sent: ${sentMessage.content}, id=${sentMessage.id}, createdAt=${sentMessage.createdAt}")
+                
+                // If createdAt is null, assume it's new and use current time or just ensure it's at the end
+                val safeMessage = if (sentMessage.createdAt.isNullOrBlank()) {
+                     // Generate a simplified ISO-like string for sorting if missing
+                     val now = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply { 
+                         timeZone = TimeZone.getTimeZone("UTC") 
+                     }.format(java.util.Date())
+                     sentMessage.copy(createdAt = now)
+                } else {
+                    sentMessage
+                }
+
+                _messages.value = (_messages.value + safeMessage).sortedBy { it.createdAt ?: "" }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Unable to send message"
             } finally {

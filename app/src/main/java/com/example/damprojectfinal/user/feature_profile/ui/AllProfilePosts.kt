@@ -3,12 +3,13 @@ package com.example.damprojectfinal.user.feature_profile.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -17,13 +18,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
@@ -128,9 +127,12 @@ fun AllProfilePosts(
                     }
                 }
             } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                LazyVerticalStaggeredGrid(
+                    columns = StaggeredGridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalItemSpacing = 12.dp,
+                    contentPadding = PaddingValues(16.dp),
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     items(posts) { post ->
                         PostItem(
@@ -284,38 +286,122 @@ fun PostItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp), 
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp), 
-        shape = androidx.compose.ui.graphics.RectangleShape 
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column {
-            // Header: Date + Three Dots Menu
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Post Date
-                Text(
-                    text = post.createdAt.take(10), 
-                    color = Color(0xFF9CA3AF),
-                    fontSize = 12.sp
-                )
-                
-                // Three Dots Menu
-                Box {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More Options",
-                        tint = Color(0xFF1F2937),
+            Box(modifier = Modifier.fillMaxWidth()) {
+                // Media (Image or Video)
+                 if (post.mediaType == "reel" || (post.mediaUrls.firstOrNull()?.endsWith(".mp4") == true)) {
+                    val videoUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls.firstOrNull()) ?: ""
+                    FeedVideoPlayer(
+                        videoUrl = videoUrl,
                         modifier = Modifier
-                            .clickable { showMenu = true }
-                            .padding(4.dp)
+                            .fillMaxWidth()
+                            .aspectRatio(4f / 3f) // Slightly taller than wide for food
+                            .background(Color.Black)
                     )
-                    
+                } else {
+                    val rawUrl = post.mediaUrls.firstOrNull()
+                    val imageUrlToLoad = BaseUrlProvider.getFullImageUrl(rawUrl)
+
+                    AsyncImage(
+                        model = imageUrlToLoad,
+                        contentDescription = post.caption,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(4f / 3f)
+                            .background(Color(0xFFE5E7EB))
+                    )
+                }
+
+                // --- Overlays ---
+
+                // Price Badge (Top Right)
+                if (post.price != null && post.price > 0) {
+                    Surface(
+                        color = Color(0xFFFFC107), // Yellow
+                        contentColor = Color(0xFF1F2937),
+                        shape = RoundedCornerShape(bottomStart = 12.dp),
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        Text(
+                            text = "${post.price} TND",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+
+                // Prep Time Badge (Bottom Right)
+                if (post.preparationTime != null && post.preparationTime > 0) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.7f),
+                        contentColor = Color.White,
+                        shape = RoundedCornerShape(topStart = 12.dp),
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Timer,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${post.preparationTime} min",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+                
+                // Food Type Badge (Bottom Left)
+                 if (!post.foodType.isNullOrBlank()) {
+                    Surface(
+                        color = Color.White.copy(alpha = 0.9f),
+                        contentColor = Color(0xFF1F2937),
+                        shape = RoundedCornerShape(topEnd = 12.dp),
+                        modifier = Modifier.align(Alignment.BottomStart)
+                    ) {
+                        Text(
+                            text = post.foodType,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+
+                // Menu Button (Top Left - Overlay)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                ) {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier
+                            .background(Color.Black.copy(alpha = 0.4f), shape = RoundedCornerShape(50))
+                            .size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Options",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
                     DropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false },
@@ -323,17 +409,17 @@ fun PostItem(
                     ) {
                         DropdownMenuItem(
                             text = { Text("Edit") },
-                            onClick = { 
+                            onClick = {
                                 showMenu = false
                                 onEditRequest(post._id)
                             },
                             leadingIcon = {
-                                Icon(Icons.Outlined.Edit, contentDescription = null, tint = Color(0xFF1F2937)) // Dark Icon
+                                Icon(Icons.Outlined.Edit, contentDescription = null)
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Delete", color = Color(0xFFEF4444)) },
-                            onClick = { 
+                            onClick = {
                                 showMenu = false
                                 onDeleteRequest(post._id)
                             },
@@ -345,114 +431,76 @@ fun PostItem(
                 }
             }
 
-            // Post Media
-            // Decide whether to show VideoPlayer or Image
-            if (post.mediaType == "reel" || (post.mediaUrls.firstOrNull()?.endsWith(".mp4") == true)) {
-                // Video Player
-                val videoUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls.firstOrNull()) ?: ""
-                FeedVideoPlayer(
-                    videoUrl = videoUrl,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f) // Keep square for feed consistency
-                        .background(Color.Black)
-                )
-            } else {
-                // Static Image
-                val rawUrl = post.mediaUrls.firstOrNull()
-                val imageUrlToLoad = BaseUrlProvider.getFullImageUrl(rawUrl)
-
-                AsyncImage(
-                    model = imageUrlToLoad,
-                    contentDescription = post.caption,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f) 
-                        .background(Color(0xFFE5E7EB))
-                )
-            }
-
-            // Action Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Footer Section
+            Column(
+                modifier = Modifier.padding(16.dp)
             ) {
-                // Left Actions: Like & Comment
+                 // Caption
+                if (post.caption.isNotBlank()) {
+                    Text(
+                        text = post.caption,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF1F2937),
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                     Spacer(modifier = Modifier.height(12.dp))
+                }
+                
+                // Actions Row
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Like
-                    Icon(
-                        imageVector = if (post.likeCount > 0) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = "Like",
-                        tint = if (post.likeCount > 0) Color(0xFFEF4444) else Color(0xFF1F2937),
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clickable { onLikeClick(post._id) }
-                    )
-                    
-                    // Comment
-                    Icon(
-                        imageVector = Icons.Outlined.ChatBubbleOutline, 
-                        contentDescription = "Comment",
-                        tint = Color(0xFF1F2937),
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clickable { onCommentClick(post._id) }
-                    )
-                    
-                    // Share
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Share",
-                        tint = Color(0xFF1F2937),
-                        modifier = Modifier.size(26.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                         // Like Button
+                        Icon(
+                            imageVector = if (post.likeCount > 0) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = "Like",
+                            tint = if (post.likeCount > 0) Color(0xFFEF4444) else Color(0xFF9CA3AF),
+                            modifier = Modifier
+                                .size(24.dp) // Slightly smaller
+                                .clickable { onLikeClick(post._id) }
+                        )
+                        if (post.likeCount > 0) {
+                            Text(
+                                text = "${post.likeCount}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF6B7280),
+                                modifier = Modifier.padding(start = 6.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(20.dp))
+
+                        // Comment Button
+                        Icon(
+                            imageVector = Icons.Outlined.ChatBubbleOutline,
+                            contentDescription = "Comment",
+                            tint = Color(0xFF9CA3AF),
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clickable { onCommentClick(post._id) }
+                        )
+                        if (post.commentCount > 0) {
+                            Text(
+                                text = "${post.commentCount}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF6B7280),
+                                modifier = Modifier.padding(start = 6.dp)
+                            )
+                        }
+                    }
+
+                    // Date (Moved to footer)
+                    Text(
+                        text = post.createdAt.take(10), // Simplistic date formatting
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF9CA3AF)
                     )
                 }
             }
-            
-            // Likes Count
-            if (post.likeCount > 0) {
-                Text(
-                    text = "${post.likeCount} likes",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = Color(0xFF1F2937),
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-
-            // Caption
-            if (post.caption.isNotBlank()) {
-                Text(
-                    text = post.caption,
-                    fontSize = 14.sp,
-                    color = Color(0xFF1F2937),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    lineHeight = 20.sp
-                )
-            }
-            
-            // View Comments Link
-            if (post.commentCount > 0) {
-                 Text(
-                    text = "View all ${post.commentCount} comments",
-                    fontSize = 14.sp,
-                    color = Color(0xFF6B7280),
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .clickable { onCommentClick(post._id) }
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
