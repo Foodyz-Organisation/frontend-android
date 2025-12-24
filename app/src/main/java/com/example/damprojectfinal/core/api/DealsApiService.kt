@@ -3,6 +3,8 @@ package com.example.damprojectfinal.core.api
 import com.example.damprojectfinal.core.dto.deals.CreateDealDto
 import com.example.damprojectfinal.core.dto.deals.Deal
 import com.example.damprojectfinal.core.dto.deals.UpdateDealDto
+import com.example.damprojectfinal.core.dto.posts.UploadResponse
+import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -28,11 +30,19 @@ interface DealsApiService {
 
     @DELETE("deals/{id}")
     suspend fun deleteDeal(@Path("id") id: String): Response<Deal>
+    
+    // Upload endpoint for deals images
+    @Multipart
+    @POST("deals/uploads")
+    suspend fun uploadDealImages(
+        @Part files: List<MultipartBody.Part>
+    ): UploadResponse
 }
 
 // Singleton pour créer l'instance Retrofit
 object RetrofitInstance {
-    private const val BASE_URL = "http://10.0.2.2:3000/"
+    // Use centralized BaseUrlProvider for automatic emulator/device detection
+    private val BASE_URL = BaseUrlProvider.BASE_URL_WITH_SLASH
 
     private val retrofit by lazy {
         Retrofit.Builder()

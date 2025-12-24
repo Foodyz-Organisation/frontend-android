@@ -18,7 +18,7 @@ class DealsRepository {
         return try {
             Log.d(TAG, "📡 ========================================")
             Log.d(TAG, "📡 Appel API getAllDeals()")
-            Log.d(TAG, "📡 URL: http://192.168.137.208:3000/api/deals")
+            Log.d(TAG, "📡 URL: ${com.example.damprojectfinal.core.api.BaseUrlProvider.BASE_URL}/deals")
 
             val response = api.getAllDeals()
 

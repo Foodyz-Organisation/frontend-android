@@ -196,6 +196,12 @@ fun PostsScreen(
                                     )
                                 },
                                 onDeleteClicked = { postId -> postsViewModel.deletePost(postId) },
+                                onOrderClick = { professionalId, foodType ->
+                                    // Navigate to menu with optional highlightCategory
+                                    // Set highlightCategory in savedStateHandle before navigation
+                                    navController.currentBackStackEntry?.savedStateHandle?.set("highlightCategory", foodType)
+                                    navController.navigate("menu_order_route/$professionalId")
+                                },
                                 postsViewModel = postsViewModel
                             )
                         }
@@ -297,6 +303,7 @@ fun RecipeCard(
     onBookmarkClick: (postId: String) -> Unit,
     onEditClicked: (postId: String) -> Unit,
     onDeleteClicked: (postId: String) -> Unit,
+    onOrderClick: ((professionalId: String, foodType: String?) -> Unit)? = null,
     postsViewModel: PostsViewModel = viewModel()
 ) {
     // Track state
@@ -509,6 +516,30 @@ fun RecipeCard(
                         modifier = Modifier.clickable { onCommentClick(post._id) }
                     )
                 }
+
+                // Order Button (only for ProfessionalAccount posts)
+                if (post.ownerModel == "ProfessionalAccount" && post.ownerId?._id != null && onOrderClick != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            onOrderClick(post.ownerId!!._id, post.foodType)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFC107),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "Order",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }
@@ -527,61 +558,94 @@ fun PostsScreenPreview() {
         }
     }
 }
-//
-//@Preview(showBackground = true, name = "Single Recipe Card Preview")
-//@Composable
-//fun RecipeCardPreview() {
-//    DamProjectFinalTheme {
-//        Column(
-//            modifier = Modifier
-//                .padding(16.dp)
-//                .fillMaxWidth(),
-//            horizontalAlignment = Alignment.CenterHorizontally
-//        ) {
-//            val dummyPost = PostResponse(
-//                _id = "dummy_id",
-//                caption = "Spicy Wok Noodle Bowl",
-//                mediaUrls = listOf("https://picsum.photos/300/200"),
-//                mediaType = "image",
-//                createdAt = "2025-01-01T00:00:00Z",
-//                updatedAt = "2025-01-01T00:00:00Z",
-//                version = 0,
-//                viewsCount = 0,
-//                thumbnailUrl = null,
-//                duration = null,
-//                aspectRatio = null,
-//                likeCount = 12,
-//                commentCount = 5,
-//                saveCount = 3,
-//                // --- ADD THE MISSING 'userId' PARAMETER HERE ---
-//                userId = UserProfile(
-//                    _id = "dummy_user_id",
-//                    username = "preview_user",
-//                    fullName = "Preview User",
-//                    profilePictureUrl = "https://picsum.photos/60", // Example image
-//                    followerCount = 100,
-//                    followingCount = 50,
-//                    bio = "A preview user for testing",
-//                    postCount = 5,
-//                    phone = null, address = null, email = null, isActive = true
-//                )
-//                // --- END ADDITION ---
-//            )
-//            val navController = rememberNavController()
-//            RecipeCard(
-//                post = dummyPost,
-//                onPostClick = { postId -> println("Navigate to Post Details for $postId") },
-//                onFavoriteClick = { postId -> println("Favorite clicked for $postId") },
-//                onCommentClick = { postId -> println("Comment clicked for $postId") },
-//                onShareClick = {},
-//                onBookmarkClick = { postId -> println("Bookmark clicked for $postId") },
-//                onEditClicked = { postId ->
-//                    val encodedCaption = URLEncoder.encode(dummyPost.caption, StandardCharsets.UTF_8.toString())
-//                    navController.navigate("${UserRoutes.EDIT_POST_SCREEN}/$postId/$encodedCaption")
-//                },
-//                onDeleteClicked = { postId -> println("Delete clicked for $postId") }
-//            )
-//        }
+
+@Preview(showBackground = true, name = "Single Recipe Card Preview")
+@Composable
+fun RecipeCardPreview() {
+    DamProjectFinalTheme {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            val dummyPost = PostResponse(
+                _id = "dummy_id",
+                caption = "test supabase",
+                mediaUrls = listOf("https://picsum.photos/400/600"),
+                mediaType = "image",
+                createdAt = "2025-01-01T00:00:00Z",
+                updatedAt = "2025-01-01T00:00:00Z",
+                version = 0,
+                ownerId = com.example.damprojectfinal.core.dto.normalUser.UserProfile(
+                    _id = "dummy_user_id",
+                    username = "charlot",
+                    fullName = "charlot",
+                    profilePictureUrl = "https://picsum.photos/60",
+                    followerCount = 0,
+                    followingCount = 0,
+                    postCount = 0,
+                    bio = "",
+                    phone = null,
+                    address = null,
+                    email = "charlot@gmail.com",
+                    isActive = true
+                ),
+                ownerModel = "ProfessionalAccount",
+                viewsCount = 0,
+                thumbnailUrl = null,
+                duration = null,
+                aspectRatio = null,
+                likeCount = 1,
+                commentCount = 0,
+                saveCount = 0,
+                foodType = "Seafood",
+                price = null,
+                preparationTime = null,
+                description = null,
+                ingredients = null,
+                postRating = null,
+                reviewsCount = null
+            )
+            
+            // Mock ViewModel for preview (no-op methods)
+            val mockViewModel = object : PostsViewModel() {
+                // Prevent API calls in preview
+                override fun fetchPosts() {
+                    // No-op for preview
+                }
+                override fun incrementLikeCount(postId: String) {
+                    // No-op for preview
+                }
+                override fun decrementLikeCount(postId: String) {
+                    // No-op for preview
+                }
+                override fun incrementSaveCount(postId: String) {
+                    // No-op for preview
+                }
+                override fun decrementSaveCount(postId: String) {
+                    // No-op for preview
+                }
+            }
+            
+            val navController = rememberNavController()
+            RecipeCard(
+                post = dummyPost,
+                onPostClick = { postId -> println("Navigate to Post Details for $postId") },
+                onFavoriteClick = { postId -> println("Favorite clicked for $postId") },
+                onCommentClick = { postId -> println("Comment clicked for $postId") },
+                onShareClick = {},
+                onBookmarkClick = { postId -> println("Bookmark clicked for $postId") },
+                onEditClicked = { postId ->
+                    val encodedCaption = URLEncoder.encode(dummyPost.caption, StandardCharsets.UTF_8.toString())
+                    navController.navigate("${UserRoutes.EDIT_POST_SCREEN.replace("{postId}", postId).replace("{initialCaption}", encodedCaption)}")
+                },
+                onDeleteClicked = { postId -> println("Delete clicked for $postId") },
+                postsViewModel = mockViewModel
+            )
+        }
+    }
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommentsSheet(

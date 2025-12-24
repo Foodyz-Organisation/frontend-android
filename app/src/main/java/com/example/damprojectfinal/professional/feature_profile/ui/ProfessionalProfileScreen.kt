@@ -638,7 +638,13 @@ fun PostsGrid(
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             items(posts) { post ->
-                val imageUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls.firstOrNull())
+                // Use thumbnail for videos/reels, otherwise use first media URL
+                val rawUrl = if (post.mediaType == "reel" && post.thumbnailUrl != null) {
+                    post.thumbnailUrl
+                } else {
+                    post.mediaUrls.firstOrNull()
+                }
+                val imageUrl = BaseUrlProvider.getFullImageUrl(rawUrl)
                 Box(
                     modifier = Modifier
                         .aspectRatio(1f)

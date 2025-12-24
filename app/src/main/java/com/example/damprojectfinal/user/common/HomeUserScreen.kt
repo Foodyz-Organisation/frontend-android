@@ -225,8 +225,13 @@ fun HomeScreen(
                             
                             Spacer(modifier = Modifier.height(24.dp))
                             
-                            // Category Icons Row
-                            CategoryIconsRow()
+                            // Category Icons Row with filtering
+                            CategoryIconsRow(
+                                selectedFoodType = selectedFoodType,
+                                onFoodTypeSelected = { foodType ->
+                                    selectedFoodType = foodType
+                                }
+                            )
                             
                             Spacer(modifier = Modifier.height(28.dp))
                             
@@ -736,36 +741,56 @@ fun getCategoryEmoji(category: String): String {
 }
 
 @Composable
-fun CategoryIconsRow() {
-    val categories = listOf(
-        "🥐" to "Breakfast",
-        "🥗" to "Healthy",
-        "🍩" to "Dessert",
-        "🍔" to "Meal",
-        "🍕" to "Pizza"
-    )
+fun CategoryIconsRow(
+    selectedFoodType: String? = null,
+    onFoodTypeSelected: (String?) -> Unit = {}
+) {
+    val popularFoodTypes = com.example.damprojectfinal.core.dto.posts.FoodType.getPopularFoodTypes()
     
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(horizontal = 16.dp)
     ) {
-        items(categories.size) { index ->
-            val (emoji, label) = categories[index]
-            CategoryIconItem(emoji = emoji, label = label)
+        items(popularFoodTypes.size) { index ->
+            val foodType = popularFoodTypes[index]
+            val isSelected = selectedFoodType == foodType.value
+            CategoryIconItem(
+                emoji = foodType.emoji,
+                label = foodType.displayName,
+                isSelected = isSelected,
+                onClick = {
+                    // Toggle: if already selected, deselect (show all posts)
+                    if (isSelected) {
+                        onFoodTypeSelected(null)
+                    } else {
+                        onFoodTypeSelected(foodType.value)
+                    }
+                }
+            )
         }
     }
 }
 
 @Composable
-fun CategoryIconItem(emoji: String, label: String) {
+fun CategoryIconItem(
+    emoji: String,
+    label: String,
+    isSelected: Boolean = false,
+    onClick: () -> Unit = {}
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(70.dp)
+        modifier = Modifier
+            .width(70.dp)
+            .clickable(onClick = onClick)
     ) {
         Box(
             modifier = Modifier
                 .size(70.dp)
-                .background(Color(0xFFFFECB3), CircleShape),
+                .background(
+                    color = if (isSelected) Color(0xFFFFC107) else Color(0xFFFFECB3),
+                    shape = CircleShape
+                ),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -777,8 +802,8 @@ fun CategoryIconItem(emoji: String, label: String) {
         Text(
             text = label,
             fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color(0xFF1F2937),
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) Color(0xFFFFC107) else Color(0xFF1F2937),
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis

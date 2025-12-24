@@ -266,7 +266,18 @@ fun CaptionAndPublishScreen(
                     ) {
                         FoodType.values().forEach { foodType ->
                             DropdownMenuItem(
-                                text = { Text(foodType.value, color = Color.White) },
+                                text = { 
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(text = foodType.emoji, fontSize = 18.sp)
+                                        Text(
+                                            text = foodType.displayName,
+                                            color = Color.White
+                                        )
+                                    }
+                                },
                                 onClick = {
                                     selectedFoodType = foodType.value
                                     showFoodTypeDropdown = false

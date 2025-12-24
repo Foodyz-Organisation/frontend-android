@@ -3,6 +3,7 @@ package com.example.damprojectfinal.feature_deals
 import android.content.Context
 import android.location.Geocoder
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -33,13 +34,18 @@ import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.core.dto.deals.CreateDealDto
 import com.example.damprojectfinal.core.dto.deals.UpdateDealDto
+import com.example.damprojectfinal.core.retro.RetrofitClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -115,12 +121,73 @@ fun AddEditDealScreen(
 
     val operationResult by viewModel.operationResult.collectAsState()
     var showSuccessDialog by remember { mutableStateOf(false) }
+    
+    // Upload state
+    var isUploadingImage by remember { mutableStateOf(false) }
+    var uploadError by remember { mutableStateOf<String?>(null) }
 
     val isEditMode = dealId != null
+    val scope = rememberCoroutineScope()
 
     // Image picker
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         imageUri = uri
+    }
+    
+    // Helper function to upload image
+    suspend fun uploadImageToSupabase(uri: Uri): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                Log.d("AddEditDealScreen", "Starting image upload for URI: $uri")
+                
+                // Create temp file from URI
+                val contentResolver = context.contentResolver
+                val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
+                val extension = when {
+                    mimeType.contains("jpeg") || mimeType.contains("jpg") -> "jpg"
+                    mimeType.contains("png") -> "png"
+                    mimeType.contains("gif") -> "gif"
+                    mimeType.contains("webp") -> "webp"
+                    else -> "jpg"
+                }
+                
+                val tempFile = File(context.cacheDir, "deal_upload_${System.currentTimeMillis()}.$extension")
+                contentResolver.openInputStream(uri)?.use { inputStream ->
+                    tempFile.outputStream().use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                
+                if (!tempFile.exists() || tempFile.length() == 0L) {
+                    Log.e("AddEditDealScreen", "Temp file creation failed")
+                    return@withContext null
+                }
+                
+                Log.d("AddEditDealScreen", "Temp file created: ${tempFile.absolutePath}, size: ${tempFile.length()}")
+                
+                // Upload to backend (temporarily using posts endpoint until deals endpoint is set up)
+                val requestFile = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
+                val filePart = MultipartBody.Part.createFormData("files", tempFile.name, requestFile)
+                
+                // TODO: Switch to dealsApi.uploadDealImages() after backend /deals/uploads endpoint is created
+                val uploadResponse = com.example.damprojectfinal.core.retro.RetrofitClient.postsApiService.uploadFiles(listOf(filePart))
+                
+                // Clean up temp file
+                tempFile.delete()
+                
+                if (uploadResponse.urls.isNotEmpty()) {
+                    val uploadedUrl = uploadResponse.urls.first()
+                    Log.d("AddEditDealScreen", "Image uploaded successfully: $uploadedUrl")
+                    uploadedUrl
+                } else {
+                    Log.e("AddEditDealScreen", "Upload response has no URLs")
+                    null
+                }
+            } catch (e: Exception) {
+                Log.e("AddEditDealScreen", "Error uploading image: ${e.message}", e)
+                null
+            }
+        }
     }
 
     // Catégories prédéfinies
@@ -553,57 +620,111 @@ fun AddEditDealScreen(
                             )
                         }
                     )
-                    .clickable(enabled = isValid) {
-                        if (isValid) {
-                            val formattedStart = combineDateAndTime(startDate, startTime)
-                            val formattedEnd = combineDateAndTime(endDate, endTime)
-                            val imageUrl = imageUri?.toString() ?: "https://via.placeholder.com/400"
+                    .clickable(enabled = isValid && !isUploadingImage) {
+                        if (isValid && !isUploadingImage) {
+                            scope.launch {
+                                try {
+                                    uploadError = null
+                                    
+                                    // Upload image first if provided
+                                    val imageUrl = if (imageUri != null) {
+                                        isUploadingImage = true
+                                        val uploadedUrl = uploadImageToSupabase(imageUri!!)
+                                        isUploadingImage = false
+                                        
+                                        if (uploadedUrl == null) {
+                                            uploadError = "Failed to upload image. Please try again."
+                                            return@launch
+                                        }
+                                        uploadedUrl
+                                    } else {
+                                        "https://via.placeholder.com/400"
+                                    }
+                                    
+                                    val formattedStart = combineDateAndTime(startDate, startTime)
+                                    val formattedEnd = combineDateAndTime(endDate, endTime)
 
-                            if (isEditMode) {
-                                viewModel.updateDeal(
-                                    dealId!!,
-                                    UpdateDealDto(
-                                        restaurantName = restaurantName,
-                                        description = description,
-                                        image = imageUrl,
-                                        category = category,
-                                        discountPercentage = discountPercentage.toIntOrNull(), // 🎯 NEW
-                                        applicableMenuItems = if (selectionMode == "items") selectedMenuItemIds.toList() else null,
-                                        applicableCategories = if (selectionMode == "categories") selectedCategories.toList() else null,
-                                        startDate = formattedStart,
-                                        endDate = formattedEnd,
-                                        isActive = isActive
-                                    )
-                                )
-                            } else {
-                                viewModel.createDeal(
-                                    CreateDealDto(
-                                        professionalId = professionalId, // 🎯 NEW
-                                        restaurantName = restaurantName,
-                                        description = description,
-                                        image = imageUrl,
-                                        category = category,
-                                        discountPercentage = discountPercentage.toIntOrNull() ?: 0, // 🎯 NEW
-                                        applicableMenuItems = if (selectionMode == "items") selectedMenuItemIds.toList() else emptyList(),
-                                        applicableCategories = if (selectionMode == "categories") selectedCategories.toList() else emptyList(),
-                                        startDate = formattedStart,
-                                        endDate = formattedEnd,
-                                        isActive = true
-                                    )
-                                )
+                                    if (isEditMode) {
+                                        viewModel.updateDeal(
+                                            dealId!!,
+                                            UpdateDealDto(
+                                                restaurantName = restaurantName,
+                                                description = description,
+                                                image = imageUrl,
+                                                category = category,
+                                                discountPercentage = discountPercentage.toIntOrNull(),
+                                                applicableMenuItems = if (selectionMode == "items") selectedMenuItemIds.toList() else null,
+                                                applicableCategories = if (selectionMode == "categories") selectedCategories.toList() else null,
+                                                startDate = formattedStart,
+                                                endDate = formattedEnd,
+                                                isActive = isActive
+                                            )
+                                        )
+                                    } else {
+                                        viewModel.createDeal(
+                                            CreateDealDto(
+                                                professionalId = professionalId,
+                                                restaurantName = restaurantName,
+                                                description = description,
+                                                image = imageUrl,
+                                                category = category,
+                                                discountPercentage = discountPercentage.toIntOrNull() ?: 0,
+                                                applicableMenuItems = if (selectionMode == "items") selectedMenuItemIds.toList() else emptyList(),
+                                                applicableCategories = if (selectionMode == "categories") selectedCategories.toList() else emptyList(),
+                                                startDate = formattedStart,
+                                                endDate = formattedEnd,
+                                                isActive = true
+                                            )
+                                        )
+                                    }
+                                } catch (e: Exception) {
+                                    isUploadingImage = false
+                                    uploadError = "An error occurred: ${e.message}"
+                                    Log.e("AddEditDealScreen", "Error in deal submission", e)
+                                }
                             }
                         }
                     },
                 contentAlignment = Alignment.Center
             ) {
+                if (isUploadingImage) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = BrandColors.TextPrimary,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = "Uploading image...",
+                            fontWeight = FontWeight.SemiBold,
+                            color = BrandColors.TextPrimary
+                        )
+                    }
+                } else {
+                    Text(
+                        text = if (isValid) {
+                            if (isEditMode) "Mettre à jour le deal" else "Créer le deal"
+                        } else {
+                            "Remplissez tous les champs"
+                        },
+                        fontWeight = FontWeight.SemiBold,
+                        color = BrandColors.TextPrimary
+                    )
+                }
+            }
+            
+            // Error message display
+            if (uploadError != null) {
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    text = if (isValid) {
-                        if (isEditMode) "Mettre à jour le deal" else "Créer le deal"
-                    } else {
-                        "Remplissez tous les champs"
-                    },
-                    fontWeight = FontWeight.SemiBold,
-                    color = BrandColors.TextPrimary
+                    text = uploadError!!,
+                    color = Color.Red,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
 

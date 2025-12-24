@@ -207,6 +207,7 @@ private fun MenuItem.isRecent(): Boolean {
 @Composable
 fun RestaurantMenuScreen(   
     restaurantId: String,
+    highlightCategory: String? = null,
     onBackClick: () -> Unit,
     onViewCartClick: () -> Unit,
     onConfirmOrderClick: () -> Unit,
@@ -252,8 +253,22 @@ fun RestaurantMenuScreen(
 
     var selectedItemForCustomization by remember { mutableStateOf<MenuItem?>(null) }
     
-    // Category selection state
-    var selectedCategory by remember { mutableStateOf<Category?>(null) }
+    // Category selection state - initialize with highlightCategory if provided
+    var selectedCategory by remember(highlightCategory, uiMenuItems) { 
+        mutableStateOf<Category?>(
+            // Try to match highlightCategory (FoodType string) with Category enum
+            highlightCategory?.let { foodType ->
+                try {
+                    // Try to find matching Category enum value
+                    Category.values().find { 
+                        it.name.equals(foodType, ignoreCase = true) 
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        )
+    }
     
     // Filter items by category
     val filteredItems = remember(uiMenuItems, selectedCategory) {
@@ -275,6 +290,25 @@ fun RestaurantMenuScreen(
     val availableCategories = remember(uiMenuItems) {
         val categories = uiMenuItems.map { it.category }.distinct()
         getCategoryItems().filter { it.category in categories }
+    }
+    
+    // Validate and set selectedCategory based on highlightCategory
+    LaunchedEffect(highlightCategory, availableCategories) {
+        if (highlightCategory != null && selectedCategory == null) {
+            // Try to match highlightCategory (FoodType string) with available Category enum
+            val matchedCategory = try {
+                Category.values().find { 
+                    it.name.equals(highlightCategory, ignoreCase = true) 
+                }
+            } catch (e: Exception) {
+                null
+            }
+            
+            // Only set if the category exists in available categories
+            if (matchedCategory != null && availableCategories.any { it.category == matchedCategory }) {
+                selectedCategory = matchedCategory
+            }
+        }
     }
 
     // Derived state for UI display (Reads directly from the updated cart)

@@ -18,6 +18,7 @@ import androidx.navigation.NavController
 import com.airbnb.lottie.compose.*
 import com.example.damprojectfinal.R
 import com.example.damprojectfinal.UserRoutes
+import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.dto.order.OrderResponse
 import com.example.damprojectfinal.core.dto.order.OrderStatus
 import com.example.damprojectfinal.user.common._component.TopAppBar
@@ -26,8 +27,6 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
-
-private const val BASE_URL = "http://10.0.2.2:3000/"
 
 // ----------- COLORS -----------
 private val BackgroundLight = Color(0xFFF9FAFB)
@@ -279,7 +278,7 @@ fun OrderItemCard(
 
                 // Item Image
                 AsyncImage(
-                    model = order.items.firstOrNull()?.image?.let { BASE_URL + it },
+                    model = BaseUrlProvider.getFullImageUrl(order.items.firstOrNull()?.image),
                     contentDescription = "Order item",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier

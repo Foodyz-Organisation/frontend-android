@@ -1730,6 +1730,10 @@ fun AppNavigation(
             arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
         ) { backStackEntry ->
             val professionalId = backStackEntry.arguments?.getString("professionalId") ?: ""
+            // Extract highlightCategory from savedStateHandle (set before navigation)
+            val highlightCategory = backStackEntry.savedStateHandle.get<String>("highlightCategory")
+            // Clear it after reading to prevent persistence
+            backStackEntry.savedStateHandle.remove<String>("highlightCategory")
             val context = LocalContext.current
 
             val tokenManager = remember { TokenManager(context) }
@@ -1748,6 +1752,7 @@ fun AppNavigation(
 
             RestaurantMenuScreen(
                 restaurantId = professionalId,
+                highlightCategory = highlightCategory,
                 onBackClick = { navController.popBackStack() },
                 onViewCartClick = { navController.navigate("shopping_cart_route/$professionalId") },
                 onConfirmOrderClick = {
