@@ -37,10 +37,6 @@
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-3940256099942544~3347511713" />
 
-        <!-- Google OAuth2 Web Client ID -->
-        <meta-data
-            android:name="com.google.android.gms.auth.api.signin.client_id"
-            android:value="AIzaSyD6ki5TOokvJjiycXNGp1XKZCDOQDknXvY" />
 
         <activity
             android:name=".MainActivity"

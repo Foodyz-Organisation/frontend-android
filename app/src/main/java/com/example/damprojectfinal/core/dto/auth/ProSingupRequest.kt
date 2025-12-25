@@ -17,7 +17,7 @@ data class ProfessionalSignupRequest(
     val email: String,
     val password: String,
     val fullName: String,
-    val licenseNumber: String? = null,
+    val licenseImage: String? = null, // Base64 encoded image for OCR validation
     val linkedUserId: String? = null, // optional link to normal user
     val locations: List<LocationDto>? = null // Optional locations array
 )
@@ -26,7 +26,10 @@ data class ProfessionalSignupRequest(
 @OptIn(kotlinx.serialization.InternalSerializationApi::class)
 @Serializable
 data class ProfessionalSignupResponse(
-    // 🔑 FIX: Make the missing fields nullable (String?)
+    val message: String? = null,
+    val professionalId: String? = null,
+    val permitNumber: String? = null, // Extracted permit number from OCR
+    val confidence: String? = null, // OCR confidence level (high, medium, low)
     val id: String? = null,
     val role: String? = null,
     val token: String? = null

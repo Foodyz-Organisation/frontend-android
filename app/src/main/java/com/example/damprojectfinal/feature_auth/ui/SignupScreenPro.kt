@@ -1,9 +1,14 @@
 package com.example.damprojectfinal.feature_auth.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -17,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -30,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import coil.compose.AsyncImage
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.utils.ViewModelFactory
 import com.example.damprojectfinal.feature_auth.viewmodels.ProSignupViewModel
@@ -172,11 +180,23 @@ fun ProSignupScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         if (viewModel.isLoading.value) {
-                            CircularProgressIndicator(
-                                color = Color(0xFF111827),
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 3.dp
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                CircularProgressIndicator(
+                                    color = Color(0xFF111827),
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 3.dp
+                                )
+                                if (viewModel.currentStep.value == 3 && viewModel.permitImageBase64.value != null) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Validating permit...",
+                                        color = Color(0xFF111827),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
                         } else {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -235,7 +255,9 @@ fun ProSignupScreen(
 
     // Success Dialog
     if (viewModel.showSuccessDialog.value) {
-        SuccessCelebrationDialog()
+        SuccessCelebrationDialog(
+            permitNumber = viewModel.permitNumberExtracted.value
+        )
     }
 
     // OSM Location Picker
@@ -481,15 +503,29 @@ fun Step2LicenseInfo(
     viewModel: ProSignupViewModel,
     lightGrayBackground: Color
 ) {
-    val textFieldColors = TextFieldDefaults.colors(
-        focusedContainerColor = lightGrayBackground,
-        unfocusedContainerColor = lightGrayBackground,
-        disabledContainerColor = lightGrayBackground.copy(alpha = 0.5f),
-        focusedIndicatorColor = Color(0xFFF59E0B),
-        unfocusedIndicatorColor = Color.Transparent,
-        cursorColor = Color(0xFFB87300),
-        focusedLabelColor = Color(0xFFB87300),
-        unfocusedLabelColor = Color(0xFF6B7280)
+    val context = LocalContext.current
+    var showImageSourceDialog by remember { mutableStateOf(false) }
+    
+    // Image picker launcher (Gallery)
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri: Uri? ->
+            uri?.let {
+                viewModel.convertImageToBase64(context, it)
+            }
+        }
+    )
+    
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+        onResult = { success ->
+            if (success) {
+                viewModel.permitImageUri.value?.let { uri ->
+                    viewModel.convertImageToBase64(context, uri)
+                }
+            }
+        }
     )
 
     Column(
@@ -538,30 +574,203 @@ fun Step2LicenseInfo(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        // License Number
-        OutlinedTextField(
-            value = viewModel.licenseNumber.value,
-            onValueChange = { viewModel.licenseNumber.value = it },
-            label = { Text("Restaurant License Number") },
-            leadingIcon = { 
-                Icon(
-                    Icons.Filled.Badge, 
-                    contentDescription = null,
-                    tint = Color(0xFF10B981)
-                ) 
-            },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = textFieldColors,
-            supportingText = {
-                Text(
-                    "Optional - You can add this later",
-                    color = Color(0xFF6B7280),
-                    fontSize = 12.sp
-                )
+        // Upload Section
+        if (viewModel.isCompressingImage.value) {
+            // Show compression progress
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = lightGrayBackground
+                ),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(2.dp, Color(0xFFFFC107))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(40.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(
+                        color = Color(0xFFFFC107),
+                        modifier = Modifier.size(48.dp),
+                        strokeWidth = 4.dp
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Compressing image...",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFFFC107),
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "This will take a few seconds",
+                        fontSize = 14.sp,
+                        color = Color(0xFF6B7280),
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
-        )
+        } else if (viewModel.permitImageUri.value == null) {
+            // Upload Button
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showImageSourceDialog = true },
+                colors = CardDefaults.cardColors(
+                    containerColor = lightGrayBackground
+                ),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(2.dp, Color(0xFFE5E7EB))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(40.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.CameraAlt,
+                        contentDescription = null,
+                        tint = Color(0xFF10B981),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Text(
+                        text = "📷 Upload Restaurant Permit",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF111827),
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "Tap to upload permit photo\nor take a photo",
+                        fontSize = 14.sp,
+                        color = Color(0xFF6B7280),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+                }
+            }
+        } else {
+            // Image Preview
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFDCFCE7)
+                ),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "✅ Permit Photo Uploaded",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981)
+                            )
+                        }
+                        IconButton(
+                            onClick = { viewModel.clearPermitImage() }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Remove",
+                                tint = Color(0xFF6B7280)
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // Image Preview
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White)
+                    ) {
+                        AsyncImage(
+                            model = viewModel.permitImageUri.value,
+                            contentDescription = "Permit preview",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // File Info
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Description,
+                            contentDescription = null,
+                            tint = Color(0xFF6B7280),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "${viewModel.permitFileName.value ?: "permit.jpg"} (${viewModel.permitFileSize.value ?: "0 KB"})",
+                            fontSize = 12.sp,
+                            color = Color(0xFF6B7280)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // Change Photo Button
+                    OutlinedButton(
+                        onClick = { showImageSourceDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF10B981)
+                        ),
+                        border = BorderStroke(1.5.dp, Color(0xFF10B981)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Change Photo")
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -586,7 +795,7 @@ fun Step2LicenseInfo(
                 )
                 Spacer(modifier = Modifier.width(14.dp))
                 Text(
-                    text = "Your license number helps customers trust your business. You can skip this step and add it later from your profile.",
+                    text = "ℹ️ Upload \"Autorisation d'exploitation d'un restaurant\" document. Your permit helps customers trust your business. You can skip this step and add it later from your profile.",
                     color = Color(0xFF78350F),
                     style = MaterialTheme.typography.bodyMedium,
                     fontSize = 14.sp,
@@ -594,6 +803,45 @@ fun Step2LicenseInfo(
                 )
             }
         }
+    }
+    
+    // Image Source Selection Dialog
+    if (showImageSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showImageSourceDialog = false },
+            title = {
+                Text(
+                    text = "Upload Restaurant Permit",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text("Choose how to upload your permit")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        imagePickerLauncher.launch("image/*")
+                        showImageSourceDialog = false
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Collections,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Choose from Gallery")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showImageSourceDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -766,7 +1014,9 @@ fun Step3Location(
 }
 
 @Composable
-fun SuccessCelebrationDialog() {
+fun SuccessCelebrationDialog(
+    permitNumber: String? = null
+) {
     val scale = remember { Animatable(0f) }
     val alpha = remember { Animatable(0f) }
 
@@ -827,19 +1077,51 @@ fun SuccessCelebrationDialog() {
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Text(
-                    text = "Welcome to foodyz!",
+                    text = "Success! ✅",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFB87300),
+                    color = Color(0xFF10B981),
                     textAlign = TextAlign.Center
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
+                if (permitNumber != null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFDCFCE7)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Your restaurant permit has been validated!",
+                                fontSize = 14.sp,
+                                color = Color(0xFF10B981),
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Permit Number: $permitNumber",
+                                fontSize = 16.sp,
+                                color = Color(0xFF059669),
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 Text(
                     text = "Your professional account has been created successfully. You can now start managing your restaurant!",
                     color = Color(0xFF6B7280),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center
                 )
 

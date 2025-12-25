@@ -13,22 +13,38 @@ import com.example.damprojectfinal.core.dto.auth.SimpleMessageResponse
 import com.example.damprojectfinal.core.dto.auth.UserSignupRequest
 import com.example.damprojectfinal.core.dto.auth.VerifyOtpRequest
 import com.example.damprojectfinal.core.dto.auth.VerifyOtpResponse
+import android.util.Log
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import io.ktor.client.plugins.HttpResponseValidator
+import kotlinx.serialization.Serializable
 
+// Error response DTO
+@Serializable
+data class ErrorResponse(
+    val statusCode: Int? = null,
+    val message: String? = null,
+    val reason: String? = null,
+    val error: String? = null
+)
 
 class AuthApiService {
 
+    private val TAG = "AuthApiService"
+    
     // Use centralized BaseUrlProvider instead of hardcoded URL
     private val BASE_URL = BaseUrlProvider.BASE_URL
 
@@ -63,11 +79,43 @@ class AuthApiService {
 
     suspend fun professionalSignup(request: ProfessionalSignupRequest): ProfessionalSignupResponse {
         val url = "$BASE_URL/auth/signup/professional"
-        val response = client.post(url) {
+        Log.d(TAG, "🔄 Professional signup request to: $url")
+        Log.d(TAG, "📧 Email: ${request.email}, Has image: ${request.licenseImage != null}")
+        
+        val response: HttpResponse = client.post(url) {
             contentType(ContentType.Application.Json)
             setBody(request)
+            // Increase timeout for OCR processing (30 seconds)
+            timeout {
+                requestTimeoutMillis = 30000
+            }
         }
-        return response.body()
+        
+        Log.d(TAG, "📡 Response status: ${response.status.value} ${response.status.description}")
+        
+        // Check if response is successful
+        if (!response.status.isSuccess()) {
+            val errorBody = response.bodyAsText()
+            Log.e(TAG, "❌ Professional signup failed with status ${response.status.value}")
+            Log.e(TAG, "❌ Error body: $errorBody")
+            
+            // Try to parse error response
+            try {
+                val json = Json { ignoreUnknownKeys = true }
+                val errorResponse = json.decodeFromString<ErrorResponse>(errorBody)
+                val errorMsg = errorResponse.reason ?: errorResponse.message ?: errorResponse.error ?: "Signup failed"
+                Log.e(TAG, "📝 Parsed error message: $errorMsg")
+                throw Exception(errorMsg)
+            } catch (e: kotlinx.serialization.SerializationException) {
+                // JSON parsing failed, throw generic error
+                Log.e(TAG, "⚠️ Failed to parse error JSON, using generic message")
+                throw Exception("Professional signup failed: ${response.status.description}")
+            }
+        }
+        
+        val successResponse = response.body<ProfessionalSignupResponse>()
+        Log.d(TAG, "✅ Professional signup successful! Permit: ${successResponse.permitNumber}")
+        return successResponse
     }
 
     suspend fun login(request: LoginRequest): LoginResponse {
