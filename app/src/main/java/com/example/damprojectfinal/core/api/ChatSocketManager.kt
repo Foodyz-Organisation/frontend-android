@@ -17,6 +17,13 @@ class ChatSocketManager(
     private var onMessageReceived: ((MessageDto) -> Unit)? = null
     private var onConnectionChange: ((Boolean) -> Unit)? = null
     private var onError: ((String) -> Unit)? = null
+    
+    // WebRTC Callbacks
+    private var onCallMade: ((JSONObject) -> Unit)? = null
+    private var onAnswerMade: ((JSONObject) -> Unit)? = null
+    private var onIceCandidateReceived: ((JSONObject) -> Unit)? = null
+    private var onCallEnded: ((JSONObject) -> Unit)? = null
+    private var onCallDeclined: ((JSONObject) -> Unit)? = null
 
     fun connect() {
         try {
@@ -58,6 +65,43 @@ class ChatSocketManager(
                 val error = if (args.isNotEmpty()) args[0].toString() else "Unknown error"
                 Log.e(TAG, "Connection error: $error")
                 onError?.invoke("Connection error: $error")
+            }
+
+            // WebRTC Events
+            socket?.on("call_made") { args ->
+                val data = args[0] as? JSONObject
+                if (data != null) {
+                    Log.d(TAG, "Received call_made event")
+                    onCallMade?.invoke(data)
+                }
+            }
+
+            socket?.on("answer_made") { args ->
+                val data = args[0] as? JSONObject
+                if (data != null) {
+                    Log.d(TAG, "Received answer_made event")
+                    onAnswerMade?.invoke(data)
+                }
+            }
+
+            socket?.on("ice_candidate_received") { args ->
+                val data = args[0] as? JSONObject
+                if (data != null) {
+                    Log.d(TAG, "Received ice_candidate event")
+                    onIceCandidateReceived?.invoke(data)
+                }
+            }
+            
+            socket?.on("call_ended") { args ->
+                val data = args[0] as? JSONObject
+                Log.d(TAG, "Received call_ended event")
+                if (data != null) onCallEnded?.invoke(data)
+            }
+
+            socket?.on("call_declined") { args ->
+                val data = args[0] as? JSONObject
+                Log.d(TAG, "Received call_declined event")
+                if (data != null) onCallDeclined?.invoke(data)
             }
 
             socket?.connect()
@@ -116,6 +160,53 @@ class ChatSocketManager(
 
     fun setOnError(listener: (String) -> Unit) {
         onError = listener
+    }
+
+    // WebRTC Signaling Methods
+    fun emitCallUser(conversationId: String, offer: JSONObject) {
+        val payload = JSONObject().apply {
+            put("conversationId", conversationId)
+            put("offer", offer)
+        }
+        socket?.emit("call_user", payload)
+        Log.d(TAG, "Emitted call_user for conversation: $conversationId")
+    }
+
+    fun emitMakeAnswer(toSocketId: String, answer: JSONObject) {
+        val payload = JSONObject().apply {
+            put("to", toSocketId)
+            put("answer", answer)
+        }
+        socket?.emit("make_answer", payload)
+        Log.d(TAG, "Emitted make_answer to: $toSocketId")
+    }
+
+    fun emitIceCandidate(toSocketId: String, candidate: JSONObject) {
+        val payload = JSONObject().apply {
+            put("to", toSocketId)
+            put("candidate", candidate)
+        }
+        socket?.emit("ice_candidate", payload)
+        Log.d(TAG, "Emitted ice_candidate to: $toSocketId")
+    }
+    
+    fun emitEndCall(conversationId: String) {
+        val payload = JSONObject().apply {
+            put("conversationId", conversationId)
+        }
+        socket?.emit("end_call", payload)
+        Log.d(TAG, "Emitted end_call for conversation: $conversationId")
+    }
+
+    fun setOnCallMade(listener: (JSONObject) -> Unit) { onCallMade = listener }
+    fun setOnAnswerMade(listener: (JSONObject) -> Unit) { onAnswerMade = listener }
+    fun setOnIceCandidateReceived(listener: (JSONObject) -> Unit) { onIceCandidateReceived = listener }
+    fun setOnCallEnded(listener: (JSONObject) -> Unit) { onCallEnded = listener }
+    fun setOnCallDeclined(listener: (JSONObject) -> Unit) { onCallDeclined = listener }
+    
+    fun emit(event: String, data: JSONObject) {
+        socket?.emit(event, data)
+        Log.d(TAG, "Emitted event: $event")
     }
 
     fun isConnected(): Boolean = socket?.connected() ?: false

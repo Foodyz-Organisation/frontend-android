@@ -29,6 +29,7 @@ class TokenManager(private val context: Context) {
     private val REFRESH_TOKEN_KEY = stringPreferencesKey("refresh_token")
     private val USER_ID_KEY = stringPreferencesKey("user_id")
     private val USER_ROLE_KEY = stringPreferencesKey("user_role") // This holds the user's type
+    private val ONBOARDING_COMPLETED_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("onboarding_completed")
 
     suspend fun saveTokens(
         accessToken: String,
@@ -265,7 +266,23 @@ class TokenManager(private val context: Context) {
         } else {
             null
         }
+        }
+
+    suspend fun saveOnboardingCompleted() {
+        Log.d(TAG, "✅ Saving Onboarding Completed")
+        try {
+            context.dataStore.edit { prefs ->
+                prefs[ONBOARDING_COMPLETED_KEY] = true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error saving onboarding status: ${e.message}", e)
+        }
+    }
+
+    fun isOnboardingCompleted(): Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[ONBOARDING_COMPLETED_KEY] ?: false
     }
 }
+
 
 

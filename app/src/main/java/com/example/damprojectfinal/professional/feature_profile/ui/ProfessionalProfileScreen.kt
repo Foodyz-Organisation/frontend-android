@@ -301,15 +301,33 @@ fun ProfessionalProfileScreen(
                             }
                         }
 
-                        // Address - Always show
-                        if (!profile?.address.isNullOrBlank()) {
+                        // Locations (multiple supported)
+                        if (!profile?.locations.isNullOrEmpty()) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                profile?.locations?.forEach { location ->
+                                    // Backend stores address in the "name" field
+                                    val displayText = location.name 
+                                        ?: location.address 
+                                        ?: "Lat: ${location.lat}, Lng: ${location.lon}"
+                                    
+                                    InfoRow(
+                                        icon = Icons.Filled.LocationOn,
+                                        text = displayText,
+                                        iconColor = ProfessionalYellow
+                                    )
+                                }
+                            }
+                        } else if (!profile?.address.isNullOrBlank()) {
+                            // Fallback to old single address field if locations array is empty
                             InfoRow(
                                 icon = Icons.Filled.LocationOn,
                                 text = profile?.address ?: "",
                                 iconColor = ProfessionalYellow
                             )
                         } else {
-                            // Show placeholder if address is empty
+                            // Show placeholder if no addresses
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,

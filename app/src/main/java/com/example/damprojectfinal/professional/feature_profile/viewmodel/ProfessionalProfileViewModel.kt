@@ -70,6 +70,14 @@ class ProfessionalProfileViewModel(
                 val fetchedAccount = professionalApiService.getProfessionalAccount(professionalId)
                 _profile.value = fetchedAccount
                 Log.d("ProfileVM", "Profile loaded: ${fetchedAccount.fullName}")
+                Log.d("ProfileVM", "📍 Locations count: ${fetchedAccount.locations.size}")
+                fetchedAccount.locations.forEachIndexed { index, loc ->
+                    Log.d("ProfileVM", "  Location $index:")
+                    Log.d("ProfileVM", "    - Name: ${loc.name}")
+                    Log.d("ProfileVM", "    - Address: ${loc.address}")
+                    Log.d("ProfileVM", "    - Lat/Lng: ${loc.lat}, ${loc.lon}")
+                }
+                Log.d("ProfileVM", "📬 Old address field: ${fetchedAccount.address}")
             } catch (e: ConnectException) {
                 // Network connection error - backend not available
                 Log.w("ProfileVM", "Cannot connect to backend: ${e.message}. Profile will not be loaded.")

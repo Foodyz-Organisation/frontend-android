@@ -92,6 +92,37 @@ class ChatViewModel(
 
     private var socketManager: ChatSocketManager? = null
 
+    // ===== WebRTC =====
+    private var webRtcClient: com.example.damprojectfinal.core.webrtc.WebRtcClient? = null
+    private val _incomingCall = MutableStateFlow<Boolean>(false)
+    val incomingCall: StateFlow<Boolean> = _incomingCall
+
+    private val _isInCall = MutableStateFlow<Boolean>(false)
+    val isInCall: StateFlow<Boolean> = _isInCall
+
+    private val _isVideoCall = MutableStateFlow<Boolean>(false)
+    val isVideoCall: StateFlow<Boolean> = _isVideoCall
+
+    private val _remoteVideoTrackStream = MutableStateFlow<org.webrtc.MediaStream?>(null)
+    val remoteVideoTrackStream: StateFlow<org.webrtc.MediaStream?> = _remoteVideoTrackStream
+
+    private val _isMicMuted = MutableStateFlow(false)
+    val isMicMuted: StateFlow<Boolean> = _isMicMuted
+
+    private val _isVideoMuted = MutableStateFlow(false)
+    val isVideoMuted: StateFlow<Boolean> = _isVideoMuted
+
+    private val _isSpeakerOn = MutableStateFlow(false)
+    val isSpeakerOn: StateFlow<Boolean> = _isSpeakerOn
+
+    // Context needed for WebRTC initialization - passed via initWebRtc
+    private var applicationContext: android.content.Context? = null
+    private var eglBaseContext: org.webrtc.EglBase.Context? = null
+
+    private var pendingOffer: org.json.JSONObject? = null
+    private var callerSocketId: String? = null
+    private var currentCallConversationId: String? = null
+
     // =======================
     //      API REST
     // =======================
@@ -363,6 +394,48 @@ class ChatViewModel(
                 // Update conversation with this new message
                 updateConversationLastMessage(conversationId, msg, null)
             }
+
+            // WebRTC Signaling
+            setOnCallMade { data ->
+                // Incoming call
+                _incomingCall.value = true
+                // Store offer to answer later
+                pendingOffer = data.optJSONObject("offer")
+                callerSocketId = data.optString("socket")
+            }
+
+            setOnAnswerMade { data ->
+                val answerJson = data.optJSONObject("answer")
+                answerJson?.let {
+                    val sdp = org.webrtc.SessionDescription(
+                        org.webrtc.SessionDescription.Type.ANSWER,
+                        it.optString("sdp")
+                    )
+                    webRtcClient?.onRemoteSessionReceived(sdp)
+                }
+            }
+
+            setOnIceCandidateReceived { data ->
+                val candidateJson = data.optJSONObject("candidate")
+                candidateJson?.let {
+                    val candidate = org.webrtc.IceCandidate(
+                        it.optString("sdpMid"),
+                        it.optInt("sdpMLineIndex"),
+                        it.optString("candidate")
+                    )
+                    webRtcClient?.addIceCandidate(candidate)
+                }
+            }
+
+            setOnCallEnded {
+                endCall()
+            }
+
+            setOnCallDeclined {
+                viewModelScope.launch {
+                    endCall()
+                }
+            }
         }
 
         socketManager?.connect()
@@ -521,6 +594,8 @@ class ChatViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        webRtcClient?.close()
+        webRtcClient = null
         socketManager?.disconnect()
         socketManager = null
         stopAutoRefresh()
@@ -694,6 +769,186 @@ class ChatViewModel(
             .take(2)
             .mapNotNull { it.firstOrNull()?.uppercaseChar()?.toString() }
             .joinToString("")
+    }
+
+    // =======================
+    //      WebRTC
+    // =======================
+
+    fun initWebRtc(context: android.content.Context) {
+        this.applicationContext = context.applicationContext
+        val eglBase = org.webrtc.EglBase.create()
+        this.eglBaseContext = eglBase.eglBaseContext
+
+        webRtcClient = com.example.damprojectfinal.core.webrtc.WebRtcClient(
+            context = context,
+            eglBaseContext = eglBase.eglBaseContext,
+            onIceCandidate = { candidate ->
+                val json = org.json.JSONObject().apply {
+                    put("sdpMid", candidate.sdpMid)
+                    put("sdpMLineIndex", candidate.sdpMLineIndex)
+                    put("candidate", candidate.sdp)
+                }
+                callerSocketId?.let { socketManager?.emitIceCandidate(it, json) }
+            },
+            onSessionDescription = { sdp ->
+                val json = org.json.JSONObject().apply {
+                    put("type", sdp.type.canonicalForm())
+                    put("sdp", sdp.description)
+                }
+
+                if (sdp.type == org.webrtc.SessionDescription.Type.OFFER) {
+                    currentCallConversationId?.let { cid ->
+                        socketManager?.emitCallUser(cid, json)
+                    }
+                } else {
+                    callerSocketId?.let { socketManager?.emitMakeAnswer(it, json) }
+                }
+            }
+        )
+    }
+
+    fun startCall(conversationId: String, isVideo: Boolean = false) {
+        android.util.Log.d("ChatViewModel", "startCall called: conversationId=$conversationId, isVideo=$isVideo")
+        
+        if (webRtcClient == null && applicationContext != null) {
+            android.util.Log.d("ChatViewModel", "Initializing WebRTC client")
+            initWebRtc(applicationContext!!)
+        }
+
+        android.util.Log.d("ChatViewModel", "Setting call states: isInCall=true, isVideoCall=$isVideo")
+        _isInCall.value = true
+        _isVideoCall.value = isVideo
+        
+        android.util.Log.d("ChatViewModel", "Starting local stream")
+        webRtcClient?.startLocalStream(isVideo = isVideo)
+
+        android.util.Log.d("ChatViewModel", "Creating peer connection")
+        webRtcClient?.createPeerConnection(object : org.webrtc.PeerConnection.Observer {
+            override fun onSignalingChange(p0: org.webrtc.PeerConnection.SignalingState?) {}
+            override fun onIceConnectionChange(p0: org.webrtc.PeerConnection.IceConnectionState?) {}
+            override fun onIceConnectionReceivingChange(p0: Boolean) {}
+            override fun onIceGatheringChange(p0: org.webrtc.PeerConnection.IceGatheringState?) {}
+            override fun onIceCandidate(p0: org.webrtc.IceCandidate?) {}
+            override fun onIceCandidatesRemoved(p0: Array<out org.webrtc.IceCandidate>?) {}
+            override fun onAddStream(p0: org.webrtc.MediaStream?) {
+                // Handle remote stream
+                p0?.let { stream ->
+                    if (stream.videoTracks.isNotEmpty()) {
+                        // Notify UI to attach renderer
+                        _remoteVideoTrackStream.value = stream
+                    }
+                }
+            }
+            override fun onRemoveStream(p0: org.webrtc.MediaStream?) {}
+            override fun onDataChannel(p0: org.webrtc.DataChannel?) {}
+            override fun onRenegotiationNeeded() {}
+            override fun onAddTrack(p0: org.webrtc.RtpReceiver?, p1: Array<out org.webrtc.MediaStream>?) {}
+        })
+
+        currentCallConversationId = conversationId
+        android.util.Log.d("ChatViewModel", "Calling webRtcClient.call()")
+        webRtcClient?.call()
+        android.util.Log.d("ChatViewModel", "startCall completed")
+    }
+
+    fun acceptCall(isVideo: Boolean = false) {
+        if (webRtcClient == null && applicationContext != null) {
+            initWebRtc(applicationContext!!)
+        }
+
+        _incomingCall.value = false
+        _isInCall.value = true
+        _isVideoCall.value = isVideo
+
+        webRtcClient?.startLocalStream(isVideo = isVideo)
+
+        webRtcClient?.createPeerConnection(object : org.webrtc.PeerConnection.Observer {
+            override fun onSignalingChange(p0: org.webrtc.PeerConnection.SignalingState?) {}
+            override fun onIceConnectionChange(p0: org.webrtc.PeerConnection.IceConnectionState?) {}
+            override fun onIceConnectionReceivingChange(p0: Boolean) {}
+            override fun onIceGatheringChange(p0: org.webrtc.PeerConnection.IceGatheringState?) {}
+            override fun onIceCandidate(p0: org.webrtc.IceCandidate?) {}
+            override fun onIceCandidatesRemoved(p0: Array<out org.webrtc.IceCandidate>?) {}
+            override fun onAddStream(p0: org.webrtc.MediaStream?) {
+                p0?.let { stream ->
+                    if (stream.videoTracks.isNotEmpty()) {
+                        _remoteVideoTrackStream.value = stream
+                    }
+                }
+            }
+            override fun onRemoveStream(p0: org.webrtc.MediaStream?) {}
+            override fun onDataChannel(p0: org.webrtc.DataChannel?) {}
+            override fun onRenegotiationNeeded() {}
+            override fun onAddTrack(p0: org.webrtc.RtpReceiver?, p1: Array<out org.webrtc.MediaStream>?) {}
+        })
+
+        pendingOffer?.let { offerJson ->
+            val sdp = org.webrtc.SessionDescription(
+                org.webrtc.SessionDescription.Type.OFFER,
+                offerJson.getString("sdp")
+            )
+            webRtcClient?.onRemoteSessionReceived(sdp)
+            webRtcClient?.answer()
+        }
+    }
+
+    fun declineCall() {
+        _incomingCall.value = false
+        currentCallConversationId?.let { cid ->
+            socketManager?.emit("decline_call", org.json.JSONObject().put("conversationId", cid))
+        }
+        endCall()
+    }
+
+    fun endCall() {
+        currentCallConversationId?.let { cid ->
+            socketManager?.emitEndCall(cid)
+        }
+        webRtcClient?.close()
+        _isInCall.value = false
+        _incomingCall.value = false
+        _remoteVideoTrackStream.value = null
+        _isVideoCall.value = false
+
+        // Reset mute states
+        _isMicMuted.value = false
+        _isVideoMuted.value = false
+        _isSpeakerOn.value = false
+    }
+
+    fun attachLocalVideo(renderer: org.webrtc.SurfaceViewRenderer) {
+        webRtcClient?.attachLocalVideo(renderer)
+    }
+
+    fun attachRemoteVideo(renderer: org.webrtc.SurfaceViewRenderer) {
+        _remoteVideoTrackStream.value?.let { stream ->
+            webRtcClient?.attachRemoteVideo(stream, renderer)
+        }
+    }
+
+    // ===== Call Controls =====
+    fun toggleMic() {
+        val newState = !_isMicMuted.value
+        _isMicMuted.value = newState
+        webRtcClient?.toggleAudio(newState)
+    }
+
+    fun toggleVideo() {
+        val newState = !_isVideoMuted.value
+        _isVideoMuted.value = newState
+        webRtcClient?.toggleVideo(newState)
+    }
+
+    fun switchCamera() {
+        webRtcClient?.switchCamera()
+    }
+
+    fun toggleSpeaker(context: android.content.Context) {
+        val newState = !_isSpeakerOn.value
+        _isSpeakerOn.value = newState
+        val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+        audioManager.isSpeakerphoneOn = newState
     }
 
     // =======================

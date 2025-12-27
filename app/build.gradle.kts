@@ -85,6 +85,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-text")
     // Socket.IO for real-time messaging
     implementation("io.socket:socket.io-client:2.1.0")
+    
+    // WebRTC for voice and video calls
+    implementation("io.github.webrtc-sdk:android:125.6422.04")
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -94,14 +97,14 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
 
     // ===== Images =====
-    implementation("io.coil-kt:coil-compose:2.5.0")
+
 
     // ===== Ktor =====
     implementation("io.ktor:ktor-client-core:2.3.6")
     implementation("io.ktor:ktor-client-android:2.3.6")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
-    implementation("io.coil-kt:coil-compose:2.5.0") // Check for the latest version
+
     // Ktor JSON Serialization (Your Existing)
     implementation("androidx.compose.ui:ui-text") // <--- THIS ONE
     implementation("io.ktor:ktor-client-content-negotiation:2.3.6")
@@ -175,6 +178,7 @@ dependencies {
     implementation("com.google.accompanist:accompanist-swiperefresh:0.34.0")
     //video implements
     implementation("io.coil-kt:coil-video:2.6.0")
+    implementation("io.coil-kt:coil-gif:2.6.0")
 
     // --- START: NEW DEPENDENCIES FOR REELS FEATURE ---
     // Coroutines for Android-specific dispatchers
@@ -203,7 +207,7 @@ dependencies {
     // Debug tools (Your Existing)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-    implementation("io.coil-kt:coil-compose:2.4.0")
+
     implementation("androidx.compose.material3:material3:1.1.1")
     // Retrofit
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
@@ -227,7 +231,7 @@ dependencies {
         implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
 
         // Coil pour les images
-        implementation("io.coil-kt:coil-compose:2.5.0")
+
 
     // ===== Firebase =====
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))

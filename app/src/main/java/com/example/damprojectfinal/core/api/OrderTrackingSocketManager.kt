@@ -95,6 +95,9 @@ class OrderTrackingSocketManager(
             // Listen for location updates
             socket?.on("location-update") { args ->
                 try {
+                    val rawData = args[0]?.toString() ?: "null"
+                    Log.d(TAG, "📥 RECEIVED RAW UPDATE: $rawData")
+                    
                     val jsonObj = args[0] as? JSONObject
                     if (jsonObj != null) {
                         // Parse restaurant location if present
@@ -111,13 +114,13 @@ class OrderTrackingSocketManager(
                         } else null
 
                         val update = LocationUpdate(
-                            userId = jsonObj.getString("userId"),
-                            lat = jsonObj.getDouble("lat"),
-                            lng = jsonObj.getDouble("lng"),
+                            userId = if (jsonObj.has("userId")) jsonObj.getString("userId") else "",
+                            lat = if (jsonObj.has("lat")) jsonObj.getDouble("lat") else 0.0,
+                            lng = if (jsonObj.has("lng")) jsonObj.getDouble("lng") else 0.0,
                             accuracy = if (jsonObj.has("accuracy") && !jsonObj.isNull("accuracy")) {
                                 jsonObj.getDouble("accuracy")
                             } else null,
-                            timestamp = jsonObj.getLong("timestamp"),
+                            timestamp = if (jsonObj.has("timestamp")) jsonObj.getLong("timestamp") else System.currentTimeMillis(),
                             distance = if (jsonObj.has("distance") && !jsonObj.isNull("distance")) {
                                 jsonObj.getDouble("distance")
                             } else null,
@@ -127,6 +130,8 @@ class OrderTrackingSocketManager(
                             restaurantLocation = restaurantLocationObj
                         )
                         onLocationUpdate?.invoke(update)
+                    } else {
+                        Log.e(TAG, "❌ Received location-update but payload is not JSONObject: ${args[0]?.javaClass?.name}")
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error parsing location update", e)

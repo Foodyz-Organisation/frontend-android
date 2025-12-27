@@ -1,5 +1,10 @@
 package com.example.damprojectfinal.user.feature_chat.ui
 
+import android.Manifest
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +30,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.VideocamOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachFile
@@ -41,6 +54,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -102,14 +116,109 @@ fun ChatDetailScreen(
     val isSending by vm.isSendingMessage.collectAsState(initial = false)
     val isLoading by vm.isLoading.collectAsState(initial = false)
 
+    // WebRTC states
+    val incomingCall by vm.incomingCall.collectAsState()
+    val isInCall by vm.isInCall.collectAsState()
+    val isVideoCall by vm.isVideoCall.collectAsState()
+    val isMicMuted by vm.isMicMuted.collectAsState()
+    val isVideoMuted by vm.isVideoMuted.collectAsState()
+    val isSpeakerOn by vm.isSpeakerOn.collectAsState()
+
     // Get profile picture URL - use state to update when peers are loaded
     var profilePictureUrl by remember { mutableStateOf<String?>(null) }
     
     // Observe peers state to update profile picture when enriched
     val peers by vm.peers.collectAsState()
 
+    // Track pending call type
+    var pendingCallType by remember { mutableStateOf<String?>(null) } // "voice" or "video"
+    
+    // Show permission rationale dialog
+    var showPermissionDialog by remember { mutableStateOf(false) }
+    var permissionDialogMessage by remember { mutableStateOf("") }
+
+    // Track permission state
+    // Track permission state
+    var hasAudioPermission by remember { mutableStateOf(false) }
+    var hasCameraPermission by remember { mutableStateOf(false) }
+
+    // Check permissions on resume
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                hasAudioPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, 
+                    Manifest.permission.RECORD_AUDIO
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                
+                hasCameraPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, 
+                    Manifest.permission.CAMERA
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                
+                android.util.Log.d("ChatDetailScreen", "ON_RESUME: Audio=$hasAudioPermission, Camera=$hasCameraPermission")
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Permission launcher for calls
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        android.util.Log.d("ChatDetailScreen", "Permission result: $permissions")
+        
+        if (permissions.all { it.value }) {
+            android.util.Log.d("ChatDetailScreen", "All permissions granted, pendingCallType=$pendingCallType")
+            // Permissions granted, start the pending call
+            when (pendingCallType) {
+                "voice" -> {
+                    if (conversationId != null) {
+                        android.util.Log.d("ChatDetailScreen", "Starting voice call")
+                        vm.startCall(conversationId, isVideo = false)
+                    }
+                }
+                "video" -> {
+                    if (conversationId != null) {
+                        android.util.Log.d("ChatDetailScreen", "Starting video call")
+                        vm.startCall(conversationId, isVideo = true)
+                    }
+                }
+                "accept" -> {
+                    android.util.Log.d("ChatDetailScreen", "Accepting call")
+                    vm.acceptCall(isVideo = true)
+                }
+            }
+            pendingCallType = null
+        } else {
+            val deniedPermissions = permissions.filter { !it.value }.keys.joinToString()
+            android.util.Log.e("ChatDetailScreen", "Permissions denied: $deniedPermissions")
+            
+            // Simple toast with explicit instruction + Settings Intent
+            Toast.makeText(context, "Permission Denied. Please enable in Settings.", Toast.LENGTH_LONG).show()
+            
+            // Allow user to open settings manually if they want
+             try {
+                val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                intent.data = android.net.Uri.fromParts("package", context.packageName, null)
+                intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                android.util.Log.e("ChatDetailScreen", "Failed to open settings", e)
+            }
+            pendingCallType = null
+        }
+    }
+
     LaunchedEffect(conversationId, accessToken) {
         if (conversationId != null && accessToken != null) {
+            // Initialize WebRTC
+            vm.initWebRtc(context)
+            
             // Load peers first to get profile pictures
             vm.loadPeers(accessToken, force = true, currentUserId = currentUserId)
             // Wait for peer enrichment to complete
@@ -167,6 +276,82 @@ fun ChatDetailScreen(
         }
     }
 
+    // Permission rationale dialog
+    if (showPermissionDialog) {
+        PermissionRationaleDialog(
+            message = permissionDialogMessage,
+            onAllow = {
+                showPermissionDialog = false
+                // Request actual system permissions
+                when (pendingCallType) {
+                    "voice" -> {
+                        permissionLauncher.launch(arrayOf(
+                            Manifest.permission.RECORD_AUDIO
+                        ))
+                    }
+                    "video" -> {
+                        permissionLauncher.launch(arrayOf(
+                            Manifest.permission.CAMERA,
+                            Manifest.permission.RECORD_AUDIO
+                        ))
+                    }
+                    "accept" -> {
+                        permissionLauncher.launch(arrayOf(
+                            Manifest.permission.CAMERA,
+                            Manifest.permission.RECORD_AUDIO
+                        ))
+                    }
+                }
+            },
+            onDontAllow = {
+                showPermissionDialog = false
+                pendingCallType = null
+                Toast.makeText(context, "Permissions are required to make calls", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    // Incoming call dialog
+    if (incomingCall) {
+        IncomingCallDialog(
+            callerName = chatName,
+            onAccept = {
+                // Check permissions first
+                val hasAudio = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                val hasCamera = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                
+                if (hasAudio && hasCamera) {
+                    android.util.Log.d("ChatDetailScreen", "Permissions already granted, accepting call")
+                    vm.acceptCall(isVideo = true)
+                } else {
+                    pendingCallType = "accept"
+                    permissionDialogMessage = "Allow Foodyz to access your camera and microphone to accept this video call?"
+                    showPermissionDialog = true
+                }
+            },
+            onDecline = { vm.declineCall() }
+        )
+    }
+
+    // Active call screen
+    if (isInCall) {
+        ActiveCallScreen(
+            callerName = chatName,
+            isVideoCall = isVideoCall,
+            isMicMuted = isMicMuted,
+            isVideoMuted = isVideoMuted,
+            isSpeakerOn = isSpeakerOn,
+            onToggleMic = { vm.toggleMic() },
+            onToggleVideo = { vm.toggleVideo() },
+            onSwitchCamera = { vm.switchCamera() },
+            onToggleSpeaker = { vm.toggleSpeaker(context) },
+            onEndCall = { vm.endCall() },
+            onAttachLocalVideo = { renderer -> vm.attachLocalVideo(renderer) },
+            onAttachRemoteVideo = { renderer -> vm.attachRemoteVideo(renderer) }
+        )
+        return // Don't show chat UI during call
+    }
+
     Scaffold(
         topBar = {
             ChatHeader(
@@ -174,8 +359,48 @@ fun ChatDetailScreen(
                 profilePictureUrl = profilePictureUrl,
                 isOnline = isConnected || messages.isNotEmpty(),
                 onBack = { navController.popBackStack() },
-                onCallClick = { /* TODO: Implement call */ },
-                onVideoCallClick = { /* TODO: Implement video call */ },
+                onCallClick = {
+                    if (conversationId != null) {
+                        // Use the state we checked in ON_RESUME as a backup, but always check fresh
+                        val isGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                            context, 
+                            Manifest.permission.RECORD_AUDIO
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        
+                        android.util.Log.d("ChatDetailScreen", "onCallClick: isGranted=$isGranted")
+
+                        if (isGranted) {
+                            vm.startCall(conversationId, isVideo = false)
+                        } else {
+                            pendingCallType = "voice"
+                            permissionDialogMessage = "Allow Foodyz to access your microphone to make voice calls?"
+                            showPermissionDialog = true
+                        }
+                    }
+                },
+                onVideoCallClick = {
+                    if (conversationId != null) {
+                        val hasAudio = androidx.core.content.ContextCompat.checkSelfPermission(
+                            context, 
+                            Manifest.permission.RECORD_AUDIO
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        
+                        val hasCamera = androidx.core.content.ContextCompat.checkSelfPermission(
+                            context, 
+                            Manifest.permission.CAMERA
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        
+                        android.util.Log.d("ChatDetailScreen", "onVideoCallClick: Audio=$hasAudio, Camera=$hasCamera")
+
+                        if (hasAudio && hasCamera) {
+                            vm.startCall(conversationId, isVideo = true)
+                        } else {
+                            pendingCallType = "video"
+                            permissionDialogMessage = "Allow Foodyz to access your camera and microphone to make video calls?"
+                            showPermissionDialog = true
+                        }
+                    }
+                },
                 onMoreClick = { /* TODO: Implement more options */ }
             )
         },
@@ -728,5 +953,273 @@ fun formatMessageTime(timestamp: String?): String {
         }
     } catch (e: Exception) {
         timestamp
+    }
+}
+
+@Composable
+fun IncomingCallDialog(
+    callerName: String,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDecline,
+        title = {
+            Text(
+                text = "Incoming Call",
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "$callerName is calling...",
+                    fontSize = 16.sp,
+                    color = Color(0xFF6B7280)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onAccept,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF4CAF50)
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Call,
+                    contentDescription = "Accept",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Accept")
+            }
+        },
+        dismissButton = {
+            Button(
+                onClick = onDecline,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFEF4444)
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.CallEnd,
+                    contentDescription = "Decline",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Decline")
+            }
+        }
+    )
+}
+
+@Composable
+fun ActiveCallScreen(
+    callerName: String,
+    isVideoCall: Boolean,
+    isMicMuted: Boolean,
+    isVideoMuted: Boolean,
+    isSpeakerOn: Boolean,
+    onToggleMic: () -> Unit,
+    onToggleVideo: () -> Unit,
+    onSwitchCamera: () -> Unit,
+    onToggleSpeaker: () -> Unit,
+    onEndCall: () -> Unit,
+    onAttachLocalVideo: (org.webrtc.SurfaceViewRenderer) -> Unit,
+    onAttachRemoteVideo: (org.webrtc.SurfaceViewRenderer) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF1F2937))
+    ) {
+        // Remote video (full screen)
+        if (isVideoCall) {
+            AndroidView(
+                factory = { context ->
+                    org.webrtc.SurfaceViewRenderer(context).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        onAttachRemoteVideo(this)
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Local video (picture-in-picture)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(120.dp, 160.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black)
+            ) {
+                AndroidView(
+                    factory = { context ->
+                        org.webrtc.SurfaceViewRenderer(context).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            onAttachLocalVideo(this)
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        } else {
+            // Voice call UI - show caller name
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF374151)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = callerName.take(1).uppercase(),
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = callerName,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "In call...",
+                    fontSize = 16.sp,
+                    color = Color(0xFF9CA3AF)
+                )
+            }
+        }
+
+        // Call controls at bottom
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.7f)
+                        )
+                    )
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Mic toggle
+                IconButton(
+                    onClick = onToggleMic,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(
+                            if (isMicMuted) Color(0xFFEF4444) else Color(0xFF374151),
+                            CircleShape
+                        )
+                ) {
+                    Icon(
+                        imageVector = if (isMicMuted) Icons.Filled.MicOff else Icons.Filled.Mic,
+                        contentDescription = "Toggle Mic",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                // Video toggle (only for video calls)
+                if (isVideoCall) {
+                    IconButton(
+                        onClick = onToggleVideo,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(
+                                if (isVideoMuted) Color(0xFFEF4444) else Color(0xFF374151),
+                                CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = if (isVideoMuted) Icons.Filled.VideocamOff else Icons.Filled.Videocam,
+                            contentDescription = "Toggle Video",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    // Camera switch
+                    IconButton(
+                        onClick = onSwitchCamera,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(Color(0xFF374151), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Cameraswitch,
+                            contentDescription = "Switch Camera",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+
+                // Speaker toggle (voice calls only)
+                if (!isVideoCall) {
+                    IconButton(
+                        onClick = onToggleSpeaker,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(
+                                if (isSpeakerOn) Color(0xFFFFC107) else Color(0xFF374151),
+                                CircleShape
+                            )
+                    ) {
+                        Text(
+                            text = "🔊",
+                            fontSize = 24.sp
+                        )
+                    }
+                }
+
+                // End call
+                IconButton(
+                    onClick = onEndCall,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(Color(0xFFEF4444), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.CallEnd,
+                        contentDescription = "End Call",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+        }
     }
 }

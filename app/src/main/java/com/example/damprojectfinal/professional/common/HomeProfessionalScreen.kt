@@ -382,8 +382,20 @@ fun HomeScreenPro(
                                         }
                                     },
                                     onOrderClick = {
-                                        // Navigate to order details screen
-                                        navController.navigate("pro_order_details/${order.id}")
+                                        // For TAKEAWAY/EAT_IN orders, show live tracking
+                                        // For DELIVERY, show regular order details
+                                        val originalOrder = ordersFromBackend?.find { it._id == order.id }
+                                        if (originalOrder != null && 
+                                            (originalOrder.orderType == BackendOrderType.TAKEAWAY || 
+                                             originalOrder.orderType == BackendOrderType.EAT_IN) &&
+                                            (originalOrder.status == OrderStatus.PENDING || 
+                                             originalOrder.status == OrderStatus.CONFIRMED)) {
+                                            // Navigate to live tracking screen
+                                            navController.navigate("pro_order_tracking/${order.id}/$professionalId")
+                                        } else {
+                                            // Navigate to regular order details
+                                            navController.navigate("pro_order_details/${order.id}")
+                                        }
                                     }
                                 )
                             }

@@ -21,7 +21,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.example.damprojectfinal.ui.theme.AppPrimaryRed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -31,7 +30,6 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import android.graphics.Paint
 import org.json.JSONObject
-import org.json.JSONArray
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -66,9 +64,17 @@ fun OrderTrackingMap(
 
     // Calculate route when locations change (with debouncing for real-time updates)
     LaunchedEffect(restaurantLocation, userLocation) {
+        // Debug logging
+        android.util.Log.d("OrderTrackingMap", "=== LOCATION STATE UPDATE ===")
+        android.util.Log.d("OrderTrackingMap", "Restaurant: ${restaurantLocation?.lat}, ${restaurantLocation?.lng}")
+        android.util.Log.d("OrderTrackingMap", "User: ${userLocation?.lat}, ${userLocation?.lng}")
+        android.util.Log.d("OrderTrackingMap", "Distance: $distanceFormatted")
+        
         if (restaurantLocation != null && userLocation != null) {
             // Debounce route calculation to avoid too many API calls
             delay(1000) // Wait 1 second after location change
+            
+            android.util.Log.d("OrderTrackingMap", "🔄 Calculating route...")
             
             // Check if locations are still valid (user might have moved)
             if (restaurantLocation != null && userLocation != null) {
@@ -79,9 +85,16 @@ fun OrderTrackingMap(
                 )
                 routePoints = route
                 isCalculatingRoute = false
-                android.util.Log.d("OrderTrackingMap", "🔄 Route updated: ${route.size} points")
+                android.util.Log.d("OrderTrackingMap", "✅ Route updated: ${route.size} points")
             }
         } else {
+            android.util.Log.w("OrderTrackingMap", "⚠️ Missing location data - cannot calculate route")
+            if (restaurantLocation == null) {
+                android.util.Log.w("OrderTrackingMap", "  - Restaurant location: NULL")
+            }
+            if (userLocation == null) {
+                android.util.Log.w("OrderTrackingMap", "  - User location: NULL")
+            }
             routePoints = emptyList()
         }
     }
@@ -152,9 +165,6 @@ fun OrderTrackingMap(
                         overlays.add(userMarker)
                     }
 
-                    // Route polyline (will be updated via update block)
-                    // Initial route will be set in update block
-
                     mapViewRef = this
                 }
             },
@@ -189,10 +199,8 @@ fun OrderTrackingMap(
 
                 // Update route polyline
                 if (routePoints.isNotEmpty()) {
-                    // Remove old route polylines
                     mapView.overlays.removeAll { it is Polyline }
                     
-                    // Add new route polyline
                     val routePolyline = Polyline()
                     routePolyline.setPoints(routePoints)
                     routePolyline.setColor(Color(0xFF3B82F6).hashCode())
@@ -315,7 +323,7 @@ fun OrderTrackingMap(
             }
         }
 
-        // Status indicator (Top Left - if no user location or calculating route)
+        // Status indicator (if no user location or calculating route)
         if (userLocation == null || isCalculatingRoute) {
             Card(
                 modifier = Modifier
@@ -350,70 +358,7 @@ fun OrderTrackingMap(
             }
         }
 
-        // Zoom Controls (Bottom Right)
-        Card(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 16.dp, end = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Card(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(10.dp)),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF3B82F6).copy(alpha = 0.1f)
-                    ),
-                    onClick = {
-                        mapViewRef?.controller?.zoomIn()
-                    }
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Zoom In",
-                            tint = Color(0xFF3B82F6),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                Card(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(10.dp)),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF3B82F6).copy(alpha = 0.1f)
-                    ),
-                    onClick = {
-                        mapViewRef?.controller?.zoomOut()
-                    }
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Remove,
-                            contentDescription = "Zoom Out",
-                            tint = Color(0xFF3B82F6),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-            }
-        }
+
     }
 }
 
@@ -456,8 +401,6 @@ suspend fun calculateRoute(
     endLon: Double
 ): List<GeoPoint> = withContext(Dispatchers.IO) {
     try {
-        // OSRM API endpoint (public, free, no API key required)
-        // Format: /route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=full&geometries=geojson
         val urlString = "https://router.project-osrm.org/route/v1/driving/" +
                 "$startLon,$startLat;$endLon,$endLat" +
                 "?overview=full&geometries=geojson"
@@ -482,7 +425,6 @@ suspend fun calculateRoute(
 
             val jsonResponse = JSONObject(response.toString())
             
-            // Check if route was found
             if (jsonResponse.optString("code") == "Ok") {
                 val routes = jsonResponse.getJSONArray("routes")
                 if (routes.length() > 0) {
@@ -511,7 +453,6 @@ suspend fun calculateRoute(
         android.util.Log.e("OrderTrackingMap", "❌ Route calculation error: ${e.message}", e)
     }
 
-    // Return empty list if route calculation fails
     return@withContext emptyList()
 }
 

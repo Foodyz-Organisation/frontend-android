@@ -76,6 +76,7 @@ import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalC
 import com.example.damprojectfinal.professional.feature_profile.ui.ProfessionalProfileSettingsScreen
 import com.example.damprojectfinal.professional.feature_profile.viewmodel.ProfessionalProfileViewModel
 import com.example.damprojectfinal.professional.feature_profile.ui.AllProfilePosts
+import com.example.damprojectfinal.professional.feature_order.ui.ProfessionalOrderTrackingScreen
 import com.example.damprojectfinal.user.feature_chat.ui.ChatDetailScreen
 import com.example.damprojectfinal.professional.feature_menu.ui.MenuItemManagementScreen
 import com.example.damprojectfinal.professional.feature_menu.ui.components.CreateMenuItemScreen
@@ -143,6 +144,7 @@ object AuthRoutes {
     const val RESET_PASSWORD = "reset_password_route"
     const val FORGET_PASSWORD = "forget_password_route"
     const val PRO_SIGNUP = "pro_signup_route" // Added Pro Signup route
+    const val ONBOARDING = "onboarding_route"
 }
 
 /**
@@ -183,6 +185,7 @@ object ProRoutes {
     const val PROFESSIONAL_CHANGE_PASSWORD = "professional_change_password/{professionalId}"
     const val ALL_PROFILE_POSTS = "all_profile_posts"
     const val NOTIFICATIONS_SCREEN = "pro_notifications_screen"
+    const val PRO_ORDER_TRACKING = "pro_order_tracking/{orderId}/{professionalId}"
 }
 
 object ProfileRoutes {
@@ -245,7 +248,10 @@ fun AppNavigation(
                         // 2. USER (Normal) LOGIC: Navigate to standard user home
                         "user" -> UserRoutes.HOME_SCREEN
 
-                        // 3. LOGGED OUT / UNKNOWN ROLE LOGIC: Default to Login screen
+                        // 3. ONBOARDING LOGIC
+                        "onboarding" -> AuthRoutes.ONBOARDING
+
+                        // 4. LOGGED OUT / UNKNOWN ROLE LOGIC: Default to Login screen
                         else -> AuthRoutes.LOGIN
                     }
 
@@ -254,6 +260,26 @@ fun AppNavigation(
                     }
                 },
                 tokenManager = tokenManager
+            )
+        }
+
+        // 1.5 Onboarding Screen
+        composable(AuthRoutes.ONBOARDING) {
+            val context = LocalContext.current
+            val tokenManager = remember { TokenManager(context) }
+
+            OnboardingScreen(
+                tokenManager = tokenManager,
+                onNavigateToLogin = {
+                    navController.navigate(AuthRoutes.LOGIN) {
+                        popUpTo(AuthRoutes.ONBOARDING) { inclusive = true }
+                    }
+                },
+                onNavigateToSignup = {
+                    navController.navigate(AuthRoutes.SIGNUP) {
+                        popUpTo(AuthRoutes.ONBOARDING) { inclusive = true }
+                    }
+                }
             )
         }
 
@@ -798,6 +824,23 @@ fun AppNavigation(
                         postsApiService = PostsRetrofitClient.postsApiService
                     )
                 )
+            )
+        }
+
+        // Professional Order Tracking (Pro-side view of customer location)
+        composable(
+            route = "pro_order_tracking/{orderId}/{professionalId}",
+            arguments = listOf(
+                navArgument("orderId") { type = NavType.StringType },
+                navArgument("professionalId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: ""
+            ProfessionalOrderTrackingScreen(
+                navController = navController,
+                orderId = orderId,
+                professionalId = professionalId
             )
         }
 

@@ -43,6 +43,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 
 private val PrimaryColor = Color(0xFFFFC107)
 private val BackgroundLight = Color(0xFFF9FAFB)
@@ -67,6 +74,25 @@ fun OrderDetailsScreen(
     val locationViewModel: LocationTrackingViewModel = viewModel()
     val locationState by locationViewModel.state.collectAsState()
     
+    // Context for permissions and toasts
+    val context = LocalContext.current
+    
+    // Permission launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            locationViewModel.startSharingLocation()
+            android.widget.Toast.makeText(context, "Location sharing started", android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            android.widget.Toast.makeText(
+                context,
+                "Location permission is required for tracking",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+    
     // Load orders when screen opens
     LaunchedEffect(userId) {
         orderViewModel.loadOrdersByUser(userId)
@@ -77,14 +103,40 @@ fun OrderDetailsScreen(
     }
     
     // Connect to location tracking if order is PENDING/CONFIRMED and EAT_IN/TAKEAWAY
-    LaunchedEffect(order) {
+    LaunchedEffect(order, userId) {
         order?.let { ord ->
             if ((ord.status == com.example.damprojectfinal.core.dto.order.OrderStatus.PENDING || 
                  ord.status == com.example.damprojectfinal.core.dto.order.OrderStatus.CONFIRMED) &&
                 (ord.orderType == com.example.damprojectfinal.core.dto.order.OrderType.EAT_IN ||
                  ord.orderType == com.example.damprojectfinal.core.dto.order.OrderType.TAKEAWAY)) {
                 // Connect to order tracking WebSocket
+                android.util.Log.d("OrderDetailsScreen", "📱 Connecting to order tracking...")
+                android.util.Log.d("OrderDetailsScreen", "  Order ID: ${ord._id}")
+                android.util.Log.d("OrderDetailsScreen", "  User ID: $userId")
+                android.util.Log.d("OrderDetailsScreen", "  Order Type: ${ord.orderType}")
                 locationViewModel.connectToOrder(ord._id, userId, "user")
+            }
+        }
+    }
+    
+    // Auto-request permission when WebSocket connects (optional - for better UX)
+    var hasRequestedPermission by remember { mutableStateOf(false) }
+    LaunchedEffect(locationState.isConnected) {
+        if (locationState.isConnected && !hasRequestedPermission && !locationState.isSharing) {
+            hasRequestedPermission = true
+            android.util.Log.d("OrderDetailsScreen", "🔐 WebSocket connected. Checking location permission...")
+            
+            // Check if we already have permission
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED) {
+                android.util.Log.d("OrderDetailsScreen", "✅ Permission already granted - auto-starting location sharing")
+                // Permission already granted - auto-start sharing
+                locationViewModel.startSharingLocation()
+            } else {
+                android.util.Log.d("OrderDetailsScreen", "⚠️ Permission not granted - will show prompt to user")
+                // Permission not granted - prompt will show via UI card
             }
         }
     }
@@ -229,38 +281,128 @@ fun OrderDetailsScreen(
                                         .height(400.dp)
                                 )
                                 
-                                // Tracking info
-                                if (locationState.isSharing) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = "📍 Sharing your location",
-                                            fontSize = 14.sp,
-                                            color = Color(0xFF10B981),
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        TextButton(
-                                            onClick = { locationViewModel.stopSharingLocation() }
-                                        ) {
-                                            Text("Stop Sharing", color = Color(0xFFEF4444))
+                                // Tracking info with better UX
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                ) {
+                                    when {
+                                        locationState.isSharing -> {
+                                            // Currently sharing
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(10.dp)
+                                                            .clip(CircleShape)
+                                                            .background(Color(0xFF10B981))
+                                                    )
+                                                    Text(
+                                                        text = "Sharing your location",
+                                                        fontSize = 14.sp,
+                                                        color = Color(0xFF10B981),
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                }
+                                                OutlinedButton(
+                                                    onClick = { locationViewModel.stopSharingLocation() },
+                                                    colors = ButtonDefaults.outlinedButtonColors(
+                                                        contentColor = Color(0xFFEF4444)
+                                                    )
+                                                ) {
+                                                    Text("Stop")
+                                                }
+                                            }
+                                        }
+                                        locationState.isConnected && locationState.currentLocation == null -> {
+                                            // Connected but not sharing
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = Color(0xFFFFF9E6)
+                                                ),
+                                                shape = RoundedCornerShape(8.dp)
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(12.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "🗺️ Share your live location",
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = DarkText
+                                                    )
+                                                    Text(
+                                                        text = "Allow the restaurant to track your location for faster service",
+                                                        fontSize = 12.sp,
+                                                        color = LightGrayText
+                                                    )
+                                                    Button(
+                                                        onClick = {
+                                                            // Check permission first
+                                                            val hasPermission = ContextCompat.checkSelfPermission(
+                                                                context,
+                                                                Manifest.permission.ACCESS_FINE_LOCATION
+                                                            ) == PackageManager.PERMISSION_GRANTED
+                                                            
+                                                            if (hasPermission) {
+                                                                locationViewModel.startSharingLocation()
+                                                            } else {
+                                                                locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                                                            }
+                                                        },
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = PrimaryColor
+                                                        )
+                                                    ) {
+                                                        Text(
+                                                            "Start Sharing Location",
+                                                            color = DarkText,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        !locationState.isConnected -> {
+                                            // Not connected
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.Center,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = PrimaryColor
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Text(
+                                                    "Connecting to tracking server...",
+                                                    fontSize = 14.sp,
+                                                    color = LightGrayText
+                                                )
+                                            }
                                         }
                                     }
-                                } else if (locationState.isConnected) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        TextButton(
-                                            onClick = { locationViewModel.startSharingLocation() }
-                                        ) {
-                                            Text("Start Sharing Location", color = PrimaryColor)
-                                        }
+                                    
+                                    // Show error if any
+                                    locationState.error?.let { error ->
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(
+                                            text = "⚠️ $error",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFEF4444)
+                                        )
                                     }
                                 }
                             }

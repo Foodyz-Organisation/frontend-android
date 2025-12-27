@@ -171,21 +171,42 @@ class LocationTracker(private val context: Context) {
         }
 
         try {
-            val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            for (provider in providers) {
-                if (locationManager?.isProviderEnabled(provider) == true) {
-                    locationManager?.requestLocationUpdates(
-                        provider,
-                        minTime,
-                        minDistance,
-                        locationListener!!
+        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+        
+        // 1. Try to get last known location immediately for instant UI feedback
+        for (provider in providers) {
+            try {
+                val lastKnown = locationManager?.getLastKnownLocation(provider)
+                if (lastKnown != null) {
+                    val locationData = LocationData(
+                        latitude = lastKnown.latitude,
+                        longitude = lastKnown.longitude,
+                        accuracy = lastKnown.accuracy
                     )
-                    isTracking = true
-                    Log.d(TAG, "Started tracking with provider: $provider")
-                    break
+                    onLocationUpdate(locationData)
+                    Log.d(TAG, "📍 Initial location (Last Known): ${locationData.latitude}, ${locationData.longitude}")
+                    break // Found a location, no need to check other provider for last known
                 }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to get last known location from $provider: ${e.message}")
             }
-        } catch (e: SecurityException) {
+        }
+
+        // 2. Start continuous updates
+        for (provider in providers) {
+            if (locationManager?.isProviderEnabled(provider) == true) {
+                locationManager?.requestLocationUpdates(
+                    provider,
+                    minTime,
+                    minDistance,
+                    locationListener!!
+                )
+                isTracking = true
+                Log.d(TAG, "✅ Started tracking with provider: $provider")
+                break
+            }
+        }
+    } catch (e: SecurityException) {
             onError("Location permission denied: ${e.message}")
         } catch (e: Exception) {
             onError("Failed to start tracking: ${e.message}")

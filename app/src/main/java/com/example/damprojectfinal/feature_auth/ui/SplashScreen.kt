@@ -52,7 +52,7 @@ fun SplashScreen(
     tokenManager: TokenManager,
     // Callback to inform the navigator about the authentication result.
     onAuthCheckComplete: (userId: String?, userRole: String?) -> Unit,
-    title: String = "Foodies",
+    title: String = "Foodyz",
     subtitle: String = "Discover & Order",
     logoBackgroundColor: Color = Color.White,
     logoTint: Color = Color(0xFFF59E0B),
@@ -73,7 +73,15 @@ fun SplashScreen(
     )
 
     LaunchedEffect(Unit) {
-        // Animation logic
+        // 1. CHECK ONBOARDING FIRST (FAST TRACK)
+        // If onboarding is NOT incomplete, we want to show it immediately without splash delay
+        val isOnboardingCompleted = tokenManager.isOnboardingCompleted().first()
+        if (!isOnboardingCompleted) {
+            onAuthCheckComplete(null, "onboarding")
+            return@LaunchedEffect
+        }
+
+        // 2. Normal Splash Animation & Auth Check
         val cycleDuration = 600L
         val totalCycles = (durationMs.toDouble() / cycleDuration).toInt()
 
@@ -110,7 +118,7 @@ fun SplashScreen(
                 }
             }
         } else {
-            // No token: user is logged out
+            // No token: user is logged out -> Go to Login
             onAuthCheckComplete(null, null)
         }
     }

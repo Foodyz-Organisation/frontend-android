@@ -82,14 +82,23 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
                 
                 // Setup callbacks
                 socketManager?.setOnConnectionChange { isConnected ->
+                    Log.d(TAG, "📡 Connection state changed: $isConnected")
                     _state.value = _state.value.copy(isConnected = isConnected)
                     if (isConnected) {
-                        Log.d(TAG, "✅ Connected to order tracking")
+                        Log.d(TAG, "✅ Connected to order tracking WebSocket")
+                        Log.d(TAG, "🔗 Joining order room: $orderId as $userType")
                         socketManager?.joinOrder(orderId, userType)
+                    } else {
+                        Log.w(TAG, "❌ Disconnected from order tracking")
                     }
                 }
                 
                 socketManager?.setOnRestaurantLocation { restaurantLoc ->
+                    Log.d(TAG, "🏪 Restaurant location received:")
+                    Log.d(TAG, "  📍 Lat/Lng: ${restaurantLoc.lat}, ${restaurantLoc.lon}")
+                    Log.d(TAG, "  🏷️ Name: ${restaurantLoc.name}")
+                    Log.d(TAG, "  📬 Address: ${restaurantLoc.address}")
+                    
                     _state.value = _state.value.copy(
                         restaurantLocation = RestaurantLocationData(
                             lat = restaurantLoc.lat,
@@ -98,7 +107,6 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
                             address = restaurantLoc.address
                         )
                     )
-                    Log.d(TAG, "📍 Restaurant location received: ${restaurantLoc.lat}, ${restaurantLoc.lon}")
                 }
 
                 socketManager?.setOnLocationUpdate { update ->
@@ -173,6 +181,9 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
             }
             
             // Notify server that sharing has started
+            Log.d(TAG, "📤 Notifying server: Starting location sharing")
+            Log.d(TAG, "  Order ID: $orderId")
+            Log.d(TAG, "  User ID: $userId")
             socketManager?.startSharing(orderId, userId)
             _state.value = _state.value.copy(isSharing = true, error = null)
             
@@ -191,6 +202,7 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
                     )
                     
                     // Update local state
+                    Log.d(TAG, "📍 GPS Update: ${locationData.latitude}, ${locationData.longitude} (±${locationData.accuracy}m)")
                     _state.value = _state.value.copy(
                         currentLocation = LocationData(
                             lat = locationData.latitude,

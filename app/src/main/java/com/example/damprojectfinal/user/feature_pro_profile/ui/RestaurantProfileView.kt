@@ -306,14 +306,45 @@ fun RestaurantProfileView(
                             }
                         }
 
-                        // Address
-                        if (!profile?.address.isNullOrBlank()) {
+                        // Locations (multiple supported)
+                        // Debug logging with SideEffect to ensure it runs on every composition
+                        SideEffect {
+                            android.util.Log.d("RestaurantProfile", "=== LOCATIONS DEBUG (SideEffect) ===")
+                            android.util.Log.d("RestaurantProfile", "Profile: ${profile?.fullName}")
+                            android.util.Log.d("RestaurantProfile", "Locations: ${profile?.locations}")
+                            android.util.Log.d("RestaurantProfile", "Locations count: ${profile?.locations?.size}")
+                            android.util.Log.d("RestaurantProfile", "Is null or empty: ${profile?.locations.isNullOrEmpty()}")
+                        }
+                        
+                        if (!profile?.locations.isNullOrEmpty()) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                profile?.locations?.forEachIndexed { index, location ->
+                                    android.util.Log.d("RestaurantProfile", "Rendering location $index: name=${location.name}, address=${location.address}")
+                                    
+                                    // The backend stores address in the "name" field
+                                    val displayText = location.name 
+                                        ?: location.address 
+                                        ?: "Lat: ${location.lat}, Lng: ${location.lon}"
+                                    
+                                    UserViewInfoRow(
+                                        icon = Icons.Filled.LocationOn,
+                                        text = displayText,
+                                        iconColor = ProfessionalYellow
+                                    )
+                                }
+                            }
+                        } else if (!profile?.address.isNullOrBlank()) {
+                            // Fallback to old single address field if locations array is empty
+                            android.util.Log.d("RestaurantProfile", "Using fallback address: ${profile?.address}")
                             UserViewInfoRow(
                                 icon = Icons.Filled.LocationOn,
                                 text = profile?.address ?: "",
                                 iconColor = ProfessionalYellow
                             )
                         } else {
+                            android.util.Log.w("RestaurantProfile", "No locations or address found - showing 'No address provided'")
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
