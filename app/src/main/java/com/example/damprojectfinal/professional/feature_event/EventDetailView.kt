@@ -21,15 +21,20 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.graphics.vector.ImageVector // ✅ Import ajouté
+import androidx.compose.ui.graphics.vector.ImageVector 
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.foundation.shape.CircleShape
 import coil.compose.AsyncImage
 import android.util.Log
 import android.util.Base64
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.damprojectfinal.feature_event.BrandColors
 import com.example.damprojectfinal.feature_event.Event
 import com.example.damprojectfinal.feature_event.EventStatus
@@ -46,18 +51,51 @@ fun EventDetailScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Détails de l'événement", color = BrandColors.TextPrimary) },
+            CenterAlignedTopAppBar(
+                title = { 
+                    Text(
+                        "Détails de l'événement", 
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = BrandColors.TextPrimary
+                    ) 
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(
+                        onClick = onBackClick,
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .background(Color(0xFFF3F4F6), CircleShape)
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.ArrowBack,
                             contentDescription = "Retour",
-                            tint = BrandColors.TextPrimary
+                            tint = BrandColors.TextPrimary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                actions = {
+                    IconButton(
+                        onClick = { /* Share action */ },
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .background(Color(0xFFF3F4F6), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Share,
+                            contentDescription = "Partager",
+                            tint = BrandColors.TextPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.White,
+                    scrolledContainerColor = Color.White
+                )
             )
         },
         containerColor = Color.White
@@ -68,87 +106,42 @@ fun EventDetailScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // Image d'en-tête
-            if (!event.image.isNullOrEmpty()) {
-                // Vérifier si c'est une image Base64
-                val isBase64 = event.image.startsWith("data:image") || 
-                               (event.image.length > 100 && !event.image.startsWith("http"))
-                
-                if (isBase64) {
-                    // Convertir Base64 en ImageBitmap
-                    val base64String = if (event.image.startsWith("data:image")) {
-                        event.image.substringAfter(",")
-                    } else {
-                        event.image
-                    }
+            // Image d'en-tête avec ombre et coins arrondis en bas
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(280.dp)
+                    .padding(16.dp)
+                    .shadow(8.dp, RoundedCornerShape(24.dp))
+                    .clip(RoundedCornerShape(24.dp))
+            ) {
+                if (!event.image.isNullOrEmpty()) {
+                    val isBase64 = event.image.startsWith("data:image") || 
+                                   (event.image.length > 100 && !event.image.startsWith("http"))
                     
-                    val imageBitmap = remember(base64String) {
-                        try {
-                            Log.d("EventDetailScreen", "🖼️ Décodage Base64 (${base64String.length} caractères)")
-                            val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
-                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                            if (bitmap != null) {
-                                Log.d("EventDetailScreen", "✅ Bitmap décodé: ${bitmap.width}x${bitmap.height}")
+                    if (isBase64) {
+                        val base64String = if (event.image.startsWith("data:image")) {
+                            event.image.substringAfter(",")
+                        } else {
+                            event.image
+                        }
+                        
+                        val imageBitmap = remember(base64String) {
+                            try {
+                                val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
+                                val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                                bitmap?.asImageBitmap()
+                            } catch (e: Exception) {
+                                null
                             }
-                            bitmap?.asImageBitmap()
-                        } catch (e: Exception) {
-                            Log.e("EventDetailScreen", "❌ Erreur décodage Base64: ${e.message}", e)
-                            null
                         }
-                    }
-                    
-                    if (imageBitmap != null) {
-                        Image(
-                            bitmap = imageBitmap,
-                            contentDescription = event.nom,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(250.dp)
-                                .clip(MaterialTheme.shapes.medium),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        // Placeholder si erreur de décodage
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(250.dp)
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(BrandColors.Yellow, BrandColors.YellowPressed)
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Image,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(60.dp)
-                            )
-                        }
-                    }
-                } else {
-                    // C'est une URL, utiliser AsyncImage
-                    var imageLoadError by remember { mutableStateOf(false) }
-                    
-                    if (imageLoadError) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(250.dp)
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(BrandColors.Yellow, BrandColors.YellowPressed)
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Image,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(60.dp)
+                        
+                        if (imageBitmap != null) {
+                            Image(
+                                bitmap = imageBitmap,
+                                contentDescription = event.nom,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
                             )
                         }
                     } else {
@@ -156,99 +149,138 @@ fun EventDetailScreen(
                             model = event.image,
                             contentDescription = event.nom,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(250.dp)
-                                .clip(MaterialTheme.shapes.medium),
-                            onError = { errorState ->
-                                Log.e("EventDetailScreen", "❌ Erreur chargement image URL: ${errorState.result.throwable?.message}")
-                                imageLoadError = true
-                            },
-                            onSuccess = {
-                                Log.d("EventDetailScreen", "✅ Image URL chargée avec succès")
-                            }
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(BrandColors.Yellow, BrandColors.YellowPressed)
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CalendarToday,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(80.dp)
                         )
                     }
                 }
-            } else {
+                
+                // Overlay gradient sur l'image
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(250.dp)
+                        .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(BrandColors.Yellow, BrandColors.YellowPressed)
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.3f)),
+                                startY = 150f
                             )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CalendarToday,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(80.dp)
-                    )
-                }
+                        )
+                )
             }
 
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
                     .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                StatusBadge(status = event.statut)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StatusBadge(status = event.statut)
+                    
+                    Surface(
+                        color = Color(0xFFF3F4F6),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Person,
+                                contentDescription = null,
+                                tint = BrandColors.TextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Pro",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandColors.TextSecondary
+                            )
+                        }
+                    }
+                }
 
                 Text(
                     text = event.nom,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.5).sp
+                    ),
                     color = BrandColors.TextPrimary
                 )
 
                 Text(
                     text = event.description,
-                    fontSize = 16.sp,
-                    color = BrandColors.TextSecondary,
-                    lineHeight = 24.sp
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        lineHeight = 26.sp,
+                        color = Color(0xFF4B5563)
+                    )
                 )
 
-                Divider(color = BrandColors.Cream200)
+                Spacer(modifier = Modifier.height(8.dp))
+                Divider(color = Color(0xFFF3F4F6), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(8.dp))
 
                 val context = LocalContext.current
 
                 DetailInfoCard(
-                    Icons.Filled.CalendarToday,
-                    "Date de début",
-                    formatEventDate(event.date_debut)
+                    icon = Icons.Filled.Event,
+                    iconBg = Color(0xFFEFF6FF),
+                    iconColor = Color(0xFF3B82F6),
+                    title = "Date de début",
+                    value = formatEventDate(event.date_debut)
                 )
+                
                 DetailInfoCard(
-                    Icons.Filled.CalendarToday,
-                    "Date de fin",
-                    formatEventDate(event.date_fin)
+                    icon = Icons.Filled.EventAvailable,
+                    iconBg = Color(0xFFFFF7ED),
+                    iconColor = Color(0xFFF97316),
+                    title = "Date de fin",
+                    value = formatEventDate(event.date_fin)
                 )
 
-                // ✅ Carte Lieu cliquable pour itinéraire
                 DetailInfoCard(
                     icon = Icons.Filled.LocationOn,
+                    iconBg = Color(0xFFF0FDF4),
+                    iconColor = Color(0xFF22C55E),
                     title = "Lieu (Cliquez pour l'itinéraire)",
                     value = event.lieu,
-                    onClick = {
-                        launchMapIntent(context, event.lieu)
-                    }
+                    isClickable = true,
+                    onClick = { launchMapIntent(context, event.lieu) }
                 )
 
-                DetailInfoCard(Icons.Filled.Star, "Catégorie", event.categorie)
                 DetailInfoCard(
-                    Icons.Filled.Info,
-                    "Statut",
-                    when(event.statut) {
-                        EventStatus.A_VENIR -> "À venir"
-                        EventStatus.EN_COURS -> "En cours"
-                        EventStatus.TERMINE -> "Terminé"
-                        else -> "Inconnu"
-                    }
+                    icon = Icons.Filled.Category,
+                    iconBg = Color(0xFFFAF5FF),
+                    iconColor = Color(0xFFA855F7),
+                    title = "Catégorie",
+                    value = event.categorie
                 )
+                
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
@@ -301,41 +333,48 @@ private fun launchMapIntent(context: android.content.Context, location: String) 
 
 @Composable
 fun StatusBadge(status: EventStatus) {
-    val color = when(status) {
-        EventStatus.A_VENIR -> Color(0xFF4CAF50)  // vert
-        EventStatus.EN_COURS -> Color(0xFFFFC107) // jaune
-        EventStatus.TERMINE -> Color(0xFFF44336)  // rouge
-        else -> Color.Gray
+    val (color, backgroundColor) = when(status) {
+        EventStatus.A_VENIR -> Color(0xFF10B981) to Color(0xFFECFDF5)  // Green
+        EventStatus.EN_COURS -> Color(0xFFF59E0B) to Color(0xFFFFFBEB) // Yellow/Amber
+        EventStatus.TERMINE -> Color(0xFFEF4444) to Color(0xFFFEF2F2)  // Red
+        else -> Color.Gray to Color(0xFFF3F4F6)
     }
 
-    Text(
-        text = when(status) {
-            EventStatus.A_VENIR -> "À venir"
-            EventStatus.EN_COURS -> "En cours"
-            EventStatus.TERMINE -> "Terminé"
-            else -> "Inconnu"
-        },
-        color = Color.White,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier
-            .background(color = color, shape = MaterialTheme.shapes.small)
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-    )
+    Surface(
+        color = backgroundColor,
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Text(
+            text = when(status) {
+                EventStatus.A_VENIR -> "À venir"
+                EventStatus.EN_COURS -> "En cours"
+                EventStatus.TERMINE -> "Terminé"
+                else -> "Inconnu"
+            },
+            color = color,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        )
+    }
 }
 
 @Composable
 fun DetailInfoCard(
     icon: ImageVector,
+    iconBg: Color,
+    iconColor: Color,
     title: String,
     value: String,
-    onClick: (() -> Unit)? = null // 🆕 Paramètre optionnel pour le click
+    isClickable: Boolean = false,
+    onClick: (() -> Unit)? = null
 ) {
     Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = BrandColors.Cream100,
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFFF9FAFB),
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier) // ✅ Correction ici
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
     ) {
         Row(
             modifier = Modifier
@@ -344,34 +383,45 @@ fun DetailInfoCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = BrandColors.Yellow,
-                modifier = Modifier.size(24.dp)
-            )
-            Column {
+            // Icon container with circle background
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(iconBg, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = BrandColors.TextSecondary
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        color = Color(0xFF6B7280),
+                        fontWeight = FontWeight.Medium
+                    )
                 )
                 Text(
                     text = value,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (onClick != null) Color.Blue else BrandColors.TextPrimary // 🔵 Bleu si cliquable
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        color = if (isClickable) Color(0xFF2563EB) else Color(0xFF111827),
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
-            // 🆕 Indicateur visuel si cliquable
-            if (onClick != null) {
-                Spacer(Modifier.weight(1f))
+            if (isClickable) {
                 Icon(
-                    imageVector = Icons.Filled.ArrowForward, // Ou autre icône pertinente
+                    imageVector = Icons.Filled.ChevronRight,
                     contentDescription = "Ouvrir",
-                    tint = BrandColors.TextSecondary,
+                    tint = Color(0xFFD1D5DB),
                     modifier = Modifier.size(20.dp)
                 )
             }

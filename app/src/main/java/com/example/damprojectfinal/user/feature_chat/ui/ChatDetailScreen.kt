@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,12 +47,16 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.ui.viewinterop.AndroidView
@@ -73,6 +78,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -92,7 +98,10 @@ data class Message(
     val id: Int,
     val text: String?,
     val isOutgoing: Boolean,
-    val timestamp: String? = ""
+    val timestamp: String? = "",
+    val sharedPostId: String? = null,
+    val sharedPostCaption: String? = null,
+    val sharedPostImage: String? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -255,14 +264,135 @@ fun ChatDetailScreen(
         }
     }
 
-    val messages: List<Message> = remember(httpMessages, currentUserId) {
+    // State to hold fetched post details for messages without metadata
+    var postsCache by remember { mutableStateOf<Map<String, com.example.damprojectfinal.core.dto.posts.PostResponse>>(emptyMap()) }
+    
+    val messages: List<Message> = remember(httpMessages, currentUserId, postsCache) {
         httpMessages.mapIndexed { index, dto ->
+            // Check if message has shared post metadata
+            var sharedPostId: String? = null
+            var sharedPostCaption: String? = null
+            var sharedPostImage: String? = null
+            var isSharedPost = false
+            
+            // Safely extract meta data
+            try {
+                android.util.Log.d("ChatDetailScreen", "Processing message ${dto.id}: type=${dto.type}, content=${dto.content}, meta=${dto.meta}")
+                
+                when (val meta = dto.meta) {
+                    is Map<*, *> -> {
+                        android.util.Log.d("ChatDetailScreen", "Meta is Map with keys: ${meta.keys}")
+                        sharedPostId = meta["sharedPostId"] as? String
+                        sharedPostCaption = meta["sharedPostCaption"] as? String
+                        sharedPostImage = meta["sharedPostImage"] as? String
+                        android.util.Log.d("ChatDetailScreen", "Extracted: postId=$sharedPostId, caption=$sharedPostCaption, image=$sharedPostImage")
+                    }
+                    is String -> {
+                        // Try to parse as JSON string
+                        android.util.Log.d("ChatDetailScreen", "Meta is String: $meta")
+                        try {
+                            val jsonObject = org.json.JSONObject(meta)
+                            sharedPostId = jsonObject.optString("sharedPostId").takeIf { it.isNotEmpty() }
+                            sharedPostCaption = jsonObject.optString("sharedPostCaption").takeIf { it.isNotEmpty() }
+                            sharedPostImage = jsonObject.optString("sharedPostImage").takeIf { it.isNotEmpty() }
+                        } catch (e: Exception) {
+                            android.util.Log.e("ChatDetailScreen", "Failed to parse meta as JSON: ${e.message}")
+                        }
+                    }
+                    else -> {
+                        android.util.Log.w("ChatDetailScreen", "Meta is ${meta?.javaClass?.simpleName ?: "null"}")
+                    }
+                }
+                
+                // AGGRESSIVE DETECTION: Check if this is a shared post message
+                val isSharedPostByContent = dto.content?.contains("Shared a post", ignoreCase = true) == true
+                val isSharedPostByType = dto.type == "shared_post" || dto.type == "post"
+                
+                if (isSharedPostByContent || isSharedPostByType) {
+                    isSharedPost = true
+                    android.util.Log.d("ChatDetailScreen", "Detected shared post message!")
+                    
+                    // If no metadata, try to extract from content or use cached data
+                    if (sharedPostId == null) {
+                        // Try to extract post ID from content patterns
+                        dto.content?.let { content ->
+                            val postIdPattern = "postId:([a-zA-Z0-9]+)".toRegex()
+                            val match = postIdPattern.find(content)
+                            if (match != null) {
+                                sharedPostId = match.groupValues[1]
+                                android.util.Log.d("ChatDetailScreen", "Extracted postId from content: $sharedPostId")
+                            }
+                        }
+                        
+                        // Check if we have cached post data for this message
+                        dto.id?.let { messageId ->
+                            postsCache[messageId]?.let { cachedPost ->
+                                sharedPostId = cachedPost._id
+                                sharedPostCaption = cachedPost.caption
+                                sharedPostImage = if (cachedPost.mediaType == "reel" && cachedPost.thumbnailUrl != null) {
+                                    cachedPost.thumbnailUrl
+                                } else {
+                                    cachedPost.mediaUrls.firstOrNull()
+                                }
+                                android.util.Log.d("ChatDetailScreen", "Using cached post data for message $messageId")
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ChatDetailScreen", "Error parsing meta: ${e.message}", e)
+            }
+            
             Message(
                 id = index,
-                text = dto.content,
+                text = if (isSharedPost) null else dto.content, // Hide text for shared posts
                 isOutgoing = currentUserId != null && dto.senderId == currentUserId,
-                timestamp = dto.createdAt
+                timestamp = dto.createdAt,
+                sharedPostId = sharedPostId,
+                sharedPostCaption = sharedPostCaption,
+                sharedPostImage = sharedPostImage
             )
+        }
+    }
+    
+    // Fetch post details for shared post messages that don't have metadata
+    LaunchedEffect(httpMessages) {
+        val messagesToFetch = httpMessages.mapNotNull { dto ->
+            val isSharedPost = dto.content?.contains("Shared a post", ignoreCase = true) == true || 
+                               dto.type == "shared_post" || 
+                               dto.type == "post"
+            val hasNoMetadata = (dto.meta as? Map<*, *>)?.get("sharedPostId") == null
+            
+            if (isSharedPost && hasNoMetadata && dto.id != null) {
+                // Try to extract post ID from content
+                dto.content?.let { content ->
+                    val postIdPattern = "postId:([a-zA-Z0-9]+)".toRegex()
+                    val match = postIdPattern.find(content)
+                    if (match != null) {
+                        val extractedPostId = match.groupValues[1]
+                        Pair(dto.id!!, extractedPostId)
+                    } else null
+                } ?: null
+            } else null
+        }
+        
+        if (messagesToFetch.isNotEmpty()) {
+            android.util.Log.d("ChatDetailScreen", "Found ${messagesToFetch.size} shared post messages to fetch")
+            
+            // Fetch post details for each message
+            messagesToFetch.forEach { (messageId, postId) ->
+                try {
+                    android.util.Log.d("ChatDetailScreen", "Fetching post $postId for message $messageId")
+                    val postsApi = com.example.damprojectfinal.core.retro.RetrofitClient.postsApiService
+                    val post = postsApi.getPostById(postId)
+                    
+                    // Cache the post data
+                    postsCache = postsCache + (messageId to post)
+                    android.util.Log.d("ChatDetailScreen", "Successfully fetched and cached post $postId")
+                } catch (e: Exception) {
+                    android.util.Log.e("ChatDetailScreen", "Failed to fetch post $postId: ${e.message}")
+                }
+            }
         }
     }
 
@@ -473,21 +603,52 @@ fun ChatDetailScreen(
                         reverseLayout = false
                     ) {
                         items(messages) { message ->
-                            if (message.isOutgoing) {
-                                OutgoingMessage(
-                                    text = message.text,
-                                    timestamp = message.timestamp,
-                                    isSmallScreen = isSmallScreen,
-                                    isTablet = isTablet
-                                )
-                            } else {
-                                IncomingMessage(
-                                    text = message.text,
-                                    timestamp = message.timestamp,
-                                    isSmallScreen = isSmallScreen,
-                                    isTablet = isTablet
-                                )
+                            if (message.sharedPostId != null) {
+                                // Shared post message with metadata - show image card
+                                if (message.isOutgoing) {
+                                    OutgoingSharedPostMessage(
+                                        sharedPostId = message.sharedPostId!!,
+                                        postCaption = message.sharedPostCaption,
+                                        postImageUrl = message.sharedPostImage,
+                                        timestamp = message.timestamp,
+                                        isSmallScreen = isSmallScreen,
+                                        isTablet = isTablet,
+                                        onPostClick = {
+                                            navController.navigate("${com.example.damprojectfinal.UserRoutes.POST_DETAILS_SCREEN}/${message.sharedPostId}")
+                                        }
+                                    )
+                                } else {
+                                    IncomingSharedPostMessage(
+                                        sharedPostId = message.sharedPostId!!,
+                                        postCaption = message.sharedPostCaption,
+                                        postImageUrl = message.sharedPostImage,
+                                        timestamp = message.timestamp,
+                                        isSmallScreen = isSmallScreen,
+                                        isTablet = isTablet,
+                                        onPostClick = {
+                                            navController.navigate("${com.example.damprojectfinal.UserRoutes.POST_DETAILS_SCREEN}/${message.sharedPostId}")
+                                        }
+                                    )
+                                }
+                            } else if (message.text != null) {
+                                // Regular text message (excluding hidden shared post texts)
+                                if (message.isOutgoing) {
+                                    OutgoingMessage(
+                                        text = message.text,
+                                        timestamp = message.timestamp,
+                                        isSmallScreen = isSmallScreen,
+                                        isTablet = isTablet
+                                    )
+                                } else {
+                                    IncomingMessage(
+                                        text = message.text,
+                                        timestamp = message.timestamp,
+                                        isSmallScreen = isSmallScreen,
+                                        isTablet = isTablet
+                                    )
+                                }
                             }
+                            // If message has no text and no sharedPostId, it's filtered out (hidden)
                         }
                     }
                 }
@@ -953,6 +1114,323 @@ fun formatMessageTime(timestamp: String?): String {
         }
     } catch (e: Exception) {
         timestamp
+    }
+}
+
+@Composable
+fun IncomingSharedPostMessage(
+    sharedPostId: String,
+    postCaption: String?,
+    postImageUrl: String?,
+    timestamp: String?,
+    isSmallScreen: Boolean = false,
+    isTablet: Boolean = false,
+    onPostClick: () -> Unit
+) {
+    val maxWidth = if (isTablet) 0.65f else 0.75f
+    val timestampSize = if (isSmallScreen) 11.sp else if (isTablet) 14.sp else 12.sp
+    val cardHeight = if (isSmallScreen) 280.dp else if (isTablet) 400.dp else 320.dp
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = if (isSmallScreen) 2.dp else 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Start
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(maxWidth)
+                    .height(cardHeight)
+                    .clickable(onClick = onPostClick),
+                shape = RoundedCornerShape(if (isTablet) 20.dp else 16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Post Image/Video thumbnail as background
+                    if (!postImageUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = BaseUrlProvider.getFullImageUrl(postImageUrl),
+                            contentDescription = "Shared Post",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        
+                        // Dark gradient overlay for text readability
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            Color.Black.copy(alpha = 0.7f)
+                                        ),
+                                        startY = 100f
+                                    )
+                                )
+                        )
+                    } else {
+                        // Fallback gray background if no image
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF2A2A2A)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "📷",
+                                fontSize = 48.sp
+                            )
+                        }
+                    }
+                    
+                    // Content overlay at bottom
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .padding(if (isSmallScreen) 12.dp else if (isTablet) 18.dp else 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(if (isSmallScreen) 6.dp else 8.dp)
+                    ) {
+                        // "Reel" or "Post" label
+                        Surface(
+                            color = Color.White.copy(alpha = 0.9f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "Post",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = if (isSmallScreen) 10.sp else 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1F2937)
+                                ),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                        
+                        // Caption
+                        if (!postCaption.isNullOrBlank()) {
+                            Text(
+                                text = postCaption.take(120),
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = if (isSmallScreen) 13.sp else if (isTablet) 16.sp else 14.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium,
+                                    shadow = androidx.compose.ui.graphics.Shadow(
+                                        color = Color.Black.copy(alpha = 0.5f),
+                                        offset = androidx.compose.ui.geometry.Offset(0f, 1f),
+                                        blurRadius = 2f
+                                    )
+                                ),
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        
+                        // "Tap to view" hint
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "👆",
+                                fontSize = if (isSmallScreen) 12.sp else 14.sp
+                            )
+                            Text(
+                                text = "Tap to view full post",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = if (isSmallScreen) 11.sp else if (isTablet) 13.sp else 12.sp,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontWeight = FontWeight.Medium,
+                                    shadow = androidx.compose.ui.graphics.Shadow(
+                                        color = Color.Black.copy(alpha = 0.5f),
+                                        offset = androidx.compose.ui.geometry.Offset(0f, 1f),
+                                        blurRadius = 2f
+                                    )
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Timestamp
+        if (timestamp != null) {
+            Text(
+                text = formatMessageTime(timestamp),
+                fontSize = timestampSize,
+                color = Color(0xFF9CA3AF),
+                modifier = Modifier.padding(
+                    start = if (isSmallScreen) 10.dp else 12.dp,
+                    top = if (isSmallScreen) 1.dp else 2.dp
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun OutgoingSharedPostMessage(
+    sharedPostId: String,
+    postCaption: String?,
+    postImageUrl: String?,
+    timestamp: String?,
+    isSmallScreen: Boolean = false,
+    isTablet: Boolean = false,
+    onPostClick: () -> Unit
+) {
+    val maxWidth = if (isTablet) 0.65f else 0.75f
+    val timestampSize = if (isSmallScreen) 11.sp else if (isTablet) 14.sp else 12.sp
+    val cardHeight = if (isSmallScreen) 280.dp else if (isTablet) 400.dp else 320.dp
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = if (isSmallScreen) 2.dp else 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(maxWidth)
+                    .height(cardHeight)
+                    .clickable(onClick = onPostClick),
+                shape = RoundedCornerShape(if (isTablet) 20.dp else 16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Post Image/Video thumbnail as background
+                    if (!postImageUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = BaseUrlProvider.getFullImageUrl(postImageUrl),
+                            contentDescription = "Shared Post",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        
+                        // Dark gradient overlay for text readability
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            Color.Black.copy(alpha = 0.7f)
+                                        ),
+                                        startY = 100f
+                                    )
+                                )
+                        )
+                    } else {
+                        // Fallback gray background if no image
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF2A2A2A)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "📷",
+                                fontSize = 48.sp
+                            )
+                        }
+                    }
+                    
+                    // Content overlay at bottom
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .padding(if (isSmallScreen) 12.dp else if (isTablet) 18.dp else 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(if (isSmallScreen) 6.dp else 8.dp)
+                    ) {
+                        // "Reel" or "Post" label
+                        Surface(
+                            color = Color(0xFFFFC107).copy(alpha = 0.95f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "Post",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = if (isSmallScreen) 10.sp else 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                ),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                        
+                        // Caption
+                        if (!postCaption.isNullOrBlank()) {
+                            Text(
+                                text = postCaption.take(120),
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = if (isSmallScreen) 13.sp else if (isTablet) 16.sp else 14.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium,
+                                    shadow = androidx.compose.ui.graphics.Shadow(
+                                        color = Color.Black.copy(alpha = 0.5f),
+                                        offset = androidx.compose.ui.geometry.Offset(0f, 1f),
+                                        blurRadius = 2f
+                                    )
+                                ),
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        
+                        // "Tap to view" hint
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "👆",
+                                fontSize = if (isSmallScreen) 12.sp else 14.sp
+                            )
+                            Text(
+                                text = "Tap to view full post",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = if (isSmallScreen) 11.sp else if (isTablet) 13.sp else 12.sp,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontWeight = FontWeight.Medium,
+                                    shadow = androidx.compose.ui.graphics.Shadow(
+                                        color = Color.Black.copy(alpha = 0.5f),
+                                        offset = androidx.compose.ui.geometry.Offset(0f, 1f),
+                                        blurRadius = 2f
+                                    )
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Timestamp
+        if (timestamp != null) {
+            Text(
+                text = formatMessageTime(timestamp),
+                fontSize = timestampSize,
+                color = Color(0xFF9CA3AF),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        end = if (isSmallScreen) 10.dp else 12.dp,
+                        top = if (isSmallScreen) 1.dp else 2.dp
+                    ),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End
+            )
+        }
     }
 }
 

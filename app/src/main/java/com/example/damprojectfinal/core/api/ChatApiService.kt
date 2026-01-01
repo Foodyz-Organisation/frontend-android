@@ -16,7 +16,7 @@ data class ConversationDto(
     val kind: String? = null,
     val participants: List<String> = emptyList(),
     val title: String? = null,
-    val meta: Map<String, String>? = null,
+    val meta: Any? = null, // Changed to Any to handle different formats
     val createdAt: String? = null,
     val updatedAt: String? = null,
     val lastMessage: MessageDto? = null,
@@ -31,7 +31,7 @@ data class MessageDto(
     val type: String = "text",
     val createdAt: String? = null,
     val updatedAt: String? = null,
-    val meta: Map<String, String>? = null
+    val meta: Any? = null // Changed from Map<String, String> to Any to handle different formats
 )
 
 data class CreateConversationDto(

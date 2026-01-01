@@ -61,6 +61,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
+import com.example.damprojectfinal.user.common._component.AnimatedFlipHeader
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -198,7 +199,8 @@ fun HomeScreen(
             ) {
                 // Top Delivery Location Bar
                 DeliveryLocationBar(
-                    onMenuClick = { isDrawerOpen = true }
+                    onMenuClick = { isDrawerOpen = true },
+                    navController = navController
                 )
                 
                 // Search Bar
@@ -317,7 +319,8 @@ fun HomeScreen(
 
 @Composable
 fun DeliveryLocationBar(
-    onMenuClick: () -> Unit
+    onMenuClick: () -> Unit,
+    navController: NavHostController
 ) {
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
@@ -342,15 +345,11 @@ fun DeliveryLocationBar(
                 }
             )
     ) {
-        // App Signature
-        Text(
-            text = "foodyz",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
-                fontWeight = FontWeight.Bold,
-                fontSize = 38.sp,
-                color = Color(0xFFFBBF24) 
-            ),
+        // App Signature with Animated Flip Header
+        AnimatedFlipHeader(
+            onEventsClick = {
+                navController.navigate(UserRoutes.EVENT_LIST_REMOTE)
+            },
             modifier = Modifier.align(Alignment.Center)
         )
 

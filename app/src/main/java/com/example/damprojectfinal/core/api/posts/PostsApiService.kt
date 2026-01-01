@@ -95,4 +95,20 @@ interface PostsApiService {
     // Note: preferFoodType endpoint removed - preferences are now learned automatically from user interactions
     // (like, save, comment, view actions automatically update preferences)
 
+    // --- NEW: Endpoint for sharing a post (POST /posts/:id/share) ---
+    data class SharePostRequest(
+        val recipientId: String,
+        val message: String = "Shared a post with you"
+    )
+    data class SharePostResponse(
+        val success: Boolean, 
+        val message: Any? = null // Changed to Any to handle object or string
+    )
+    
+    @POST("posts/{postId}/share")
+    suspend fun sharePost(
+        @Path("postId") postId: String,
+        @Body sharePostRequest: SharePostRequest
+    ): SharePostResponse
+
 }

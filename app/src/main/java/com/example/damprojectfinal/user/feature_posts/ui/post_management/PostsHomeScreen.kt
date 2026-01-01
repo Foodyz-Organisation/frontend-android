@@ -49,6 +49,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material.icons.filled.Close
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import com.example.damprojectfinal.user.common._component.SharePostDialog
+import kotlinx.coroutines.launch
 
 // Helper to format large numbers (e.g., 52200 -> "52.2K")
 fun formatCount(count: Int): String {
@@ -76,6 +78,10 @@ fun PostsScreen(
     var selectedPostIdForComments by remember { mutableStateOf<String?>(null) }
     val activeComments by postsViewModel.activeComments.collectAsState()
     val isCommentsLoading by postsViewModel.areCommentsLoading.collectAsState()
+
+    // --- NEW: Share Dialog State ---
+    var showShareDialog by remember { mutableStateOf(false) }
+    var selectedPostIdForSharing by remember { mutableStateOf<String?>(null) }
 
     val swipeRefreshState = rememberSwipeRefreshState(isRefreshing = isLoading)
     val snackbarHostState = remember { SnackbarHostState() }
@@ -177,7 +183,10 @@ fun PostsScreen(
                                     postsViewModel.loadComments(postId)
                                     showCommentsSheet = true
                                 },
-                                onShareClick = { /* TODO: Implement share functionality */ },
+                                onShareClick = { postId ->
+                                    selectedPostIdForSharing = postId
+                                    showShareDialog = true
+                                },
                                 onBookmarkClick = { postId ->
                                     // Handled internally in RecipeCard now
                                 },
@@ -232,6 +241,23 @@ fun PostsScreen(
                     showCommentsSheet = false
                     selectedPostIdForComments = null
                     postsViewModel.clearActiveComments()
+                }
+            )
+        }
+
+        // --- NEW: Share Dialog ---
+        if (showShareDialog && selectedPostIdForSharing != null) {
+            SharePostDialog(
+                postId = selectedPostIdForSharing!!,
+                onDismiss = {
+                    showShareDialog = false
+                    selectedPostIdForSharing = null
+                },
+                onShareSuccess = {
+                    // Optionally show a success message
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        snackbarHostState.showSnackbar("Post shared successfully!")
+                    }
                 }
             )
         }
@@ -299,7 +325,7 @@ fun RecipeCard(
     onPostClick: (postId: String) -> Unit,
     onFavoriteClick: (postId: String) -> Unit,
     onCommentClick: (postId: String) -> Unit,
-    onShareClick: () -> Unit,
+    onShareClick: (postId: String) -> Unit,
     onBookmarkClick: (postId: String) -> Unit,
     onEditClicked: (postId: String) -> Unit,
     onDeleteClicked: (postId: String) -> Unit,
@@ -455,7 +481,9 @@ fun RecipeCard(
                             imageVector = Icons.Outlined.Share,
                             contentDescription = "Share",
                             tint = Color(0xFF1F2937),
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clickable { onShareClick(post._id) }
                         )
                     }
                     

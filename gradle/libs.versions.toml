@@ -16,6 +16,8 @@ roomKtx = "2.8.3"
 litertSupportApi = "1.4.0"
 composeMaterial3 = "1.5.6"
 composeMaterial3Version = "1.5.6"
+foundationVersion = "1.10.0"
+uiText = "1.10.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,6 +42,8 @@ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = 
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-foundation = { group = "androidx.compose.foundation", name = "foundation"}
 litert-support-api = { group = "com.google.ai.edge.litert", name = "litert-support-api", version.ref = "litertSupportApi" }
+foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundationVersion" }
+androidx-compose-ui-text = { group = "androidx.compose.ui", name = "ui-text", version.ref = "uiText" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

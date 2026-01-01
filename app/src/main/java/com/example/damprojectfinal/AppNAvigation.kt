@@ -172,6 +172,7 @@ object UserRoutes {
     const val ORDERS_SCREEN = "orders"
     const val ORDERS_ROUTE = "orders_history_route"
     const val NOTIFICATIONS_SCREEN = "notifications_screen"
+    const val EVENT_LIST_REMOTE = "event_list_remote"
 }
 
 object ProRoutes {

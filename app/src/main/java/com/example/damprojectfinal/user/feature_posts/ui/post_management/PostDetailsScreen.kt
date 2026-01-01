@@ -80,7 +80,7 @@ fun PostDetailsScreen(
     var isSubmittingComment by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    
+
     // State for fullscreen image viewer
     var showFullscreenImage by remember { mutableStateOf(false) }
     var initialImageIndex by remember { mutableStateOf(0) }
@@ -140,18 +140,18 @@ fun PostDetailsScreen(
     val MediumGray = Color(0xFF6B7280)
     val LightGray = Color(0xFFF3F4F6)
     val CardBackground = Color(0xFFFFFFFF)
-    
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
                         "Post Details",
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp,
                         color = DarkText
-                    ) 
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
@@ -190,7 +190,7 @@ fun PostDetailsScreen(
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
                 val currentPost = post!!
-                
+
                 // 1. Enhanced Profile Header Section
                 item {
                     Card(
@@ -235,9 +235,9 @@ fun PostDetailsScreen(
                                     )
                                 }
                             }
-                            
+
                             Spacer(modifier = Modifier.width(16.dp))
-                            
+
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = currentPost.ownerId?.fullName ?: "Unknown",
@@ -252,7 +252,7 @@ fun PostDetailsScreen(
                                     color = MediumGray
                                 )
                             }
-                            
+
                             // Enhanced Rating Badge
                             Card(
                                 shape = RoundedCornerShape(12.dp),
@@ -304,7 +304,7 @@ fun PostDetailsScreen(
                             )
                         } else {
                             val isCarousel = currentPost.mediaType == "carousel" && currentPost.mediaUrls.size > 1
-                            
+
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -321,7 +321,7 @@ fun PostDetailsScreen(
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
                                 )
-                                
+
                                 if (isCarousel) {
                                     Surface(
                                         modifier = Modifier
@@ -374,9 +374,9 @@ fun PostDetailsScreen(
                                 color = DarkText,
                                 lineHeight = 32.sp
                             )
-                            
+
                             Spacer(modifier = Modifier.height(16.dp))
-                            
+
                             // Price and Rating Row
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -404,7 +404,7 @@ fun PostDetailsScreen(
                                 } else {
                                     Spacer(modifier = Modifier.width(1.dp))
                                 }
-                                
+
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -428,7 +428,7 @@ fun PostDetailsScreen(
                                     )
                                 }
                             }
-                            
+
                             // Preparation Time
                             currentPost.preparationTime?.let { prepTime ->
                                 Spacer(modifier = Modifier.height(12.dp))
@@ -606,7 +606,7 @@ fun PostDetailsScreen(
                                     }
                                 }
                             }
-                            
+
                             Spacer(modifier = Modifier.height(16.dp))
 
                             // Comments List
@@ -675,7 +675,7 @@ fun PostDetailsScreen(
                                     EnhancedCommentItem(comment = comment)
                                 }
                             }
-                            
+
                             Spacer(modifier = Modifier.height(20.dp))
 
                             // Enhanced Comment Input
@@ -758,7 +758,7 @@ fun PostDetailsScreen(
                 }
             }
         }
-        
+
         // Fullscreen Image Viewer Dialog
         if (showFullscreenImage) {
             val currentPostForViewer = post // Local variable to avoid smart cast issue
@@ -783,7 +783,7 @@ fun PostVideoPlayer(
 ) {
     val context = LocalContext.current
     var showFullscreen by remember { mutableStateOf(false) }
-    
+
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(videoUrl))
@@ -793,14 +793,14 @@ fun PostVideoPlayer(
             repeatMode = ExoPlayer.REPEAT_MODE_ONE
         }
     }
-    
+
     // Clean up player when composable is disposed
     DisposableEffect(Unit) {
         onDispose {
             exoPlayer.release()
         }
     }
-    
+
     Box(modifier = modifier) {
         // Video player
         AndroidView(
@@ -816,7 +816,7 @@ fun PostVideoPlayer(
                 .clickable { showFullscreen = true }
         )
     }
-    
+
     // Fullscreen video dialog
     if (showFullscreen) {
         FullscreenVideoPlayer(
@@ -855,7 +855,7 @@ fun FullscreenVideoPlayer(
                 },
                 modifier = Modifier.fillMaxSize()
             )
-            
+
             // Close button
             IconButton(
                 onClick = onDismiss,
@@ -887,7 +887,7 @@ fun FullscreenImageViewer(
         initialPage = if (imageUrls.isNotEmpty()) initialIndex.coerceIn(0, imageUrls.size - 1) else 0,
         pageCount = { imageUrls.size }
     )
-    
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -923,7 +923,7 @@ fun FullscreenImageViewer(
                         modifier = Modifier.fillMaxSize()
                     )
                 }
-                
+
                 // Page indicator for carousel
                 if (imageUrls.size > 1) {
                     Row(
@@ -945,7 +945,7 @@ fun FullscreenImageViewer(
                     }
                 }
             }
-            
+
             // Close button
             IconButton(
                 onClick = onDismiss,
@@ -961,7 +961,7 @@ fun FullscreenImageViewer(
                     modifier = Modifier.size(32.dp)
                 )
             }
-            
+
             // Navigation dots for carousel (bottom center)
             if (imageUrls.size > 1) {
                 Row(
@@ -995,12 +995,12 @@ fun formatTimeAgo(createdAt: String): String {
         val date = sdf.parse(createdAt)
         val now = Date()
         val diff = now.time - (date?.time ?: 0)
-        
+
         val seconds = TimeUnit.MILLISECONDS.toSeconds(diff)
         val minutes = TimeUnit.MILLISECONDS.toMinutes(diff)
         val hours = TimeUnit.MILLISECONDS.toHours(diff)
         val days = TimeUnit.MILLISECONDS.toDays(diff)
-        
+
         when {
             seconds < 60 -> "${seconds}s ago"
             minutes < 60 -> "${minutes}m ago"
@@ -1021,7 +1021,7 @@ fun formatTimeAgo(createdAt: String): String {
 fun EnhancedCommentItem(comment: CommentResponse) {
     val DarkText = Color(0xFF1F2937)
     val MediumGray = Color(0xFF6B7280)
-    
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),

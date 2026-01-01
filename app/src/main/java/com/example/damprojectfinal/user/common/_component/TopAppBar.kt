@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -43,7 +44,10 @@ import com.example.damprojectfinal.core.repository.ProfessionalRepository
 import com.example.damprojectfinal.user.common.viewmodel.SearchViewModel
 import io.ktor.client.HttpClient
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import coil.request.ImageRequest
+import androidx.compose.ui.draw.rotate
+import kotlinx.coroutines.delay
 
 // --- Design Colors/Constants ---
 private val PrimaryDark = Color(0xFF1F2A37) // Dark Gray for text/icons
@@ -79,6 +83,207 @@ fun NotificationIconWithDot(
                     .align(Alignment.TopEnd)
                     .offset(x = (-8).dp, y = 4.dp)
             )
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// ANIMATED FLIP HEADER COMPONENT
+// -----------------------------------------------------------------------------
+@Composable
+fun AnimatedFlipHeader(
+    onEventsClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showEvents by remember { mutableStateOf(false) }
+    var rotationY by remember { mutableStateOf(0f) }
+    var emojiOffsetFraction by remember { mutableStateOf(0f) }
+    var showEmoji by remember { mutableStateOf(false) }
+    var sweepDirection by remember { mutableStateOf(false) } // Start false, toggles to true first (left to right)
+    
+    // Animate rotation
+    val animatedRotation by animateFloatAsState(
+        targetValue = rotationY,
+        animationSpec = tween(
+            durationMillis = 600,
+            easing = FastOutSlowInEasing
+        ),
+        label = "rotation"
+    )
+    
+    // Animate emoji position as a fraction (0 to 1)
+    val animatedEmojiOffsetFraction by animateFloatAsState(
+        targetValue = emojiOffsetFraction,
+        animationSpec = tween(
+            durationMillis = 1200,
+            easing = FastOutSlowInEasing
+        ),
+        label = "emojiOffset"
+    )
+    
+    // Auto-flip between Foodyz and Events with single emoji sweep animation
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(3000) // Show current text for 3 seconds
+            
+            // Alternate sweep direction
+            sweepDirection = !sweepDirection
+            
+            if (sweepDirection) {
+                // LEFT to RIGHT: foodyz → Events
+                // Set initial position
+                emojiOffsetFraction = 0f
+                delay(100) // Wait for position to initialize
+                
+                // Show emoji and start animation
+                showEmoji = true
+                delay(50)
+                emojiOffsetFraction = 1f
+                
+                // Wait for emoji to reach center (600ms = 50% of 1200ms)
+                delay(600)
+                
+                // Trigger flip animation exactly when emoji is at center
+                rotationY = rotationY + 180f
+                
+                // Change text at midpoint of flip: foodyz → Events
+                delay(300)
+                showEvents = true
+                
+                // Wait for emoji to complete journey (300ms remaining of 1200ms total)
+                delay(300)
+                
+            } else {
+                // RIGHT to LEFT: Events → foodyz
+                // Set initial position
+                emojiOffsetFraction = 1f
+                delay(100) // Wait for position to initialize
+                
+                // Show emoji and start animation
+                showEmoji = true
+                delay(50)
+                emojiOffsetFraction = 0f
+                
+                // Wait for emoji to reach center (600ms = 50% of 1200ms)
+                delay(600)
+                
+                // Trigger flip animation exactly when emoji is at center
+                rotationY = rotationY + 180f
+                
+                // Change text at midpoint of flip: Events → foodyz
+                delay(300)
+                showEvents = false
+                
+                // Wait for emoji to complete journey (300ms remaining of 1200ms total)
+                delay(300)
+            }
+            
+            // Hide emoji
+            showEmoji = false
+            delay(100)
+        }
+    }
+    
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .wrapContentHeight(),
+        contentAlignment = Alignment.Center
+    ) {
+        val density = LocalDensity.current
+        val maxWidthPx: Float = with(density) {
+            maxWidth.toPx()
+        }
+        
+        // Calculate emoji position based on container width
+        // Works for both directions because:
+        // - LEFT to RIGHT: emojiOffsetFraction goes 0→1 (left edge to right edge)
+        // - RIGHT to LEFT: emojiOffsetFraction goes 1→0 (right edge to left edge)
+        val totalWidth: Float = maxWidthPx.plus(100f)
+        val position: Float = animatedEmojiOffsetFraction.times(totalWidth)
+        val emojiXOffset: Float = position.minus(100f)
+        
+        // Single emoji sweeping across the screen
+        if (showEmoji) {
+            Text(
+                text = "🎊",
+                fontSize = 32.sp,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .offset { androidx.compose.ui.unit.IntOffset(emojiXOffset.toInt(), 0) }
+            )
+        }
+        
+        // Center text with flip animation
+        Box(
+            modifier = Modifier
+                .clickable(enabled = showEvents) {
+                    if (showEvents) {
+                        onEventsClick()
+                    }
+                }
+                .graphicsLayer {
+                    this.rotationY = animatedRotation
+                    cameraDistance = 12f * density.density
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            // Show the appropriate text based on rotation
+            val isFlipped = (animatedRotation % 360) >= 90 && (animatedRotation % 360) < 270
+            
+            if (isFlipped) {
+                // Show flipped content (Events or Foodyz depending on state)
+                Box(
+                    modifier = Modifier.graphicsLayer {
+                        this.rotationY = 180f
+                    }
+                ) {
+                    if (showEvents) {
+                        Text(
+                            text = " Events ",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 36.sp,
+                                color = Color(0xFFFBBF24)
+                            )
+                        )
+                    } else {
+                        Text(
+                            text = "foodyz",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 36.sp,
+                                color = Color(0xFFFBBF24)
+                            )
+                        )
+                    }
+                }
+            } else {
+                // Show normal content (not flipped)
+                if (showEvents) {
+                    Text(
+                        text = " Events",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 36.sp,
+                            color = Color(0xFFFBBF24)
+                        )
+                    )
+                } else {
+                    Text(
+                        text = "foodyz",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 36.sp,
+                            color = Color(0xFFFBBF24)
+                        )
+                    )
+                }
+            }
         }
     }
 }
@@ -139,15 +344,11 @@ fun TopAppBar(
                 )
             }
 
-            // App title (Center)
-            Text(
-                text = "foodyz",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 38.sp,
-                    color = Color(0xFFFBBF24)
-                ),
+            // App title (Center) - Animated Flip Header
+            AnimatedFlipHeader(
+                onEventsClick = {
+                    navController.navigate(UserRoutes.EVENT_LIST_REMOTE)
+                },
                 modifier = Modifier.align(Alignment.Center)
             )
 
