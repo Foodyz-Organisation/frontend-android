@@ -121,6 +121,9 @@ class ChatViewModel(
 
     private var pendingOffer: org.json.JSONObject? = null
     private var callerSocketId: String? = null
+    
+    // Buffer for ICE candidates generated before we know the peer's socket ID (for the caller)
+    private val pendingIceCandidates = mutableListOf<org.json.JSONObject>()
     private var currentCallConversationId: String? = null
 
     // =======================
@@ -406,6 +409,22 @@ class ChatViewModel(
 
             setOnAnswerMade { data ->
                 val answerJson = data.optJSONObject("answer")
+                // Capture the socket ID of the person checking the call (callee)
+                val answererSocketId = data.optString("socket")
+                if (answererSocketId.isNotBlank()) {
+                    callerSocketId = answererSocketId
+                    Log.d("ChatViewModel", "✅ Captured answerer socket ID: $callerSocketId")
+                    
+                    // Flush pending ICE candidates
+                    if (pendingIceCandidates.isNotEmpty()) {
+                        Log.d("ChatViewModel", "🚀 Flushing ${pendingIceCandidates.size} pending ICE candidates")
+                        pendingIceCandidates.forEach { candidate ->
+                            socketManager?.emitIceCandidate(callerSocketId!!, candidate)
+                        }
+                        pendingIceCandidates.clear()
+                    }
+                }
+                
                 answerJson?.let {
                     val sdp = org.webrtc.SessionDescription(
                         org.webrtc.SessionDescription.Type.ANSWER,
@@ -456,7 +475,7 @@ class ChatViewModel(
 
         socket.sendMessage(
             conversationId = conversationId,
-            content = text,
+            content = com.example.damprojectfinal.core.utils.BadWordsFilter.moderate(text),
             type = type
         )
     }
@@ -529,7 +548,9 @@ class ChatViewModel(
             _isSendingMessage.value = true
             _errorMessage.value = null
             try {
-                val payload = SendMessageDto(content = trimmed, type = "text")
+                // Filter bad words on the client side before sending
+                val moderatedText = com.example.damprojectfinal.core.utils.BadWordsFilter.moderate(trimmed)
+                val payload = SendMessageDto(content = moderatedText, type = "text")
                 val sentMessage = chatApiService.sendMessage(
                     bearerToken = "Bearer $authToken",
                     conversationId = conversationId,
@@ -826,14 +847,33 @@ class ChatViewModel(
         android.util.Log.d("ChatViewModel", "Creating peer connection")
         webRtcClient?.createPeerConnection(object : org.webrtc.PeerConnection.Observer {
             override fun onSignalingChange(p0: org.webrtc.PeerConnection.SignalingState?) {}
-            override fun onIceConnectionChange(p0: org.webrtc.PeerConnection.IceConnectionState?) {}
+            override fun onIceConnectionChange(p0: org.webrtc.PeerConnection.IceConnectionState?) {
+                p0?.let { Log.d("ChatViewModel", "❄️ ICE Connection State Change: $it") }
+            }
             override fun onIceConnectionReceivingChange(p0: Boolean) {}
             override fun onIceGatheringChange(p0: org.webrtc.PeerConnection.IceGatheringState?) {}
-            override fun onIceCandidate(p0: org.webrtc.IceCandidate?) {}
+            override fun onIceCandidate(p0: org.webrtc.IceCandidate?) {
+                p0?.let { candidate ->
+                    val json = org.json.JSONObject().apply {
+                        put("sdpMid", candidate.sdpMid)
+                        put("sdpMLineIndex", candidate.sdpMLineIndex)
+                        put("candidate", candidate.sdp)
+                    }
+                    
+                    if (callerSocketId != null) {
+                        Log.d("ChatViewModel", "📤 Sending ICE candidate immediately")
+                        socketManager?.emitIceCandidate(callerSocketId!!, json)
+                    } else {
+                        Log.d("ChatViewModel", "⏳ Buffering ICE candidate (no peer socket ID yet)")
+                        pendingIceCandidates.add(json)
+                    }
+                }
+            }
             override fun onIceCandidatesRemoved(p0: Array<out org.webrtc.IceCandidate>?) {}
             override fun onAddStream(p0: org.webrtc.MediaStream?) {
                 // Handle remote stream
                 p0?.let { stream ->
+                    Log.d("ChatViewModel", "🎥 onAddStream: Remote stream received. Video tracks: ${stream.videoTracks.size}")
                     if (stream.videoTracks.isNotEmpty()) {
                         // Notify UI to attach renderer
                         _remoteVideoTrackStream.value = stream
@@ -865,13 +905,30 @@ class ChatViewModel(
 
         webRtcClient?.createPeerConnection(object : org.webrtc.PeerConnection.Observer {
             override fun onSignalingChange(p0: org.webrtc.PeerConnection.SignalingState?) {}
-            override fun onIceConnectionChange(p0: org.webrtc.PeerConnection.IceConnectionState?) {}
+            override fun onIceConnectionChange(p0: org.webrtc.PeerConnection.IceConnectionState?) {
+                p0?.let { Log.d("ChatViewModel", "❄️ (Callee) ICE Connection State Change: $it") }
+            }
             override fun onIceConnectionReceivingChange(p0: Boolean) {}
             override fun onIceGatheringChange(p0: org.webrtc.PeerConnection.IceGatheringState?) {}
-            override fun onIceCandidate(p0: org.webrtc.IceCandidate?) {}
+            override fun onIceCandidate(p0: org.webrtc.IceCandidate?) {
+                p0?.let { candidate ->
+                    val json = org.json.JSONObject().apply {
+                        put("sdpMid", candidate.sdpMid)
+                        put("sdpMLineIndex", candidate.sdpMLineIndex)
+                        put("candidate", candidate.sdp)
+                    }
+                    if (callerSocketId != null) {
+                        Log.d("ChatViewModel", "📤 (Callee) Sending ICE candidate")
+                        socketManager?.emitIceCandidate(callerSocketId!!, json)
+                    } else {
+                        Log.e("ChatViewModel", "❌ (Callee) Cannot send ICE candidate: callerSocketId is null!")
+                    }
+                }
+            }
             override fun onIceCandidatesRemoved(p0: Array<out org.webrtc.IceCandidate>?) {}
             override fun onAddStream(p0: org.webrtc.MediaStream?) {
                 p0?.let { stream ->
+                    Log.d("ChatViewModel", "🎥 (Callee) onAddStream: Remote stream received. Video tracks: ${stream.videoTracks.size}")
                     if (stream.videoTracks.isNotEmpty()) {
                         _remoteVideoTrackStream.value = stream
                     }

@@ -40,6 +40,10 @@ data class MenuItemResponseDto(
     @SerializedName("image")
     val image: String,
 
+    // Preparation time in minutes (base time for this dish)
+    @SerializedName("preparationTimeMinutes")
+    val preparationTimeMinutes: Int = 15,
+
     @SerializedName("_id")
     val id: String,
 

@@ -26,6 +26,10 @@ data class UpdateMenuItemDto(
     @SerializedName("options")
     val options: List<OptionDto>? = null,
 
+    // Preparation time in minutes (base time for this dish)
+    @SerializedName("preparationTimeMinutes")
+    val preparationTimeMinutes: Int? = null,
+
     // If you update the image without a multipart form, you could potentially send
     // a new image URL/path, but typically image updates require a new multipart request.
     @SerializedName("image")

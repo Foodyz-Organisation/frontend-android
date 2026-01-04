@@ -185,4 +185,33 @@ class MenuItemRepository(
             Result.failure(e)
         }
     }
+    
+    // --------------------------------------------------
+    // 5. GET AI SUGGESTIONS
+    // --------------------------------------------------
+    /**
+     * Fetches AI-generated suggestions for a menu item.
+     * Endpoint: GET /menu-items/:id/suggestions
+     */
+    suspend fun getMenuItemSuggestions(
+        id: String,
+        authToken: String
+    ): Result<com.example.damprojectfinal.core.dto.menu.MenuSuggestionsDto> {
+        return try {
+            android.util.Log.d("MenuItemRepository", "🤖 Fetching AI suggestions for item: $id")
+            val response = api.getMenuItemSuggestions(id, formatToken(authToken))
+            
+            if (response.isSuccessful && response.body() != null) {
+                android.util.Log.d("MenuItemRepository", "✅ AI suggestions received")
+                Result.success(response.body()!!)
+            } else {
+                val errorBody = response.errorBody()?.string() ?: "Failed to fetch suggestions"
+                android.util.Log.e("MenuItemRepository", "❌ Failed to fetch suggestions: $errorBody")
+                Result.failure(Exception(errorBody))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MenuItemRepository", "❌ Exception fetching suggestions: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
 }

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -56,6 +54,7 @@ import com.example.damprojectfinal.user.feature_menu.viewmodel.DynamicMenuViewMo
 import com.example.damprojectfinal.user.feature_menu.viewmodel.DynamicMenuViewModelFactory
 import com.google.gson.Gson
 import com.example.damprojectfinal.core.api.BaseUrlProvider
+import kotlinx.coroutines.launch
 
 // -----------------------------------------------------------------------------
 // --- DATA MODELS ---
@@ -82,7 +81,10 @@ data class MenuItem(
     // 🎯 Deal-related fields
     val discountedPrice: Float? = null, // Discounted price (if deal is active)
     val activeDealId: String? = null, // Active deal ID
-    val discountPercentage: Int? = null // Discount percentage (0-100)
+    val discountPercentage: Int? = null, // Discount percentage (0-100)
+
+    // ⏱️ Preparation time field
+    val preparationTimeMinutes: Int = 15 // Default to 15 mins if not set
 )
 
 // Category UI Model
@@ -144,7 +146,10 @@ private fun MenuItemResponseDto.toUiModel(): MenuItem {
         // 🎯 Deal-related fields
         discountedPrice = this.discountedPrice?.toFloat(),
         activeDealId = this.activeDealId,
-        discountPercentage = this.discountPercentage
+        discountPercentage = this.discountPercentage,
+        
+        // ⏱️ Preparation time field
+        preparationTimeMinutes = this.preparationTimeMinutes
     )
 }
 
@@ -633,11 +638,57 @@ fun ItemCustomizationOverlay(
     var selectedOptions by remember { mutableStateOf(setOf<Option>()) }
     // Track intensity values for each ingredient (ingredient name -> intensity value)
     var ingredientIntensities by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
+    
+    // AI Suggestions state
+    var showAISuggestions by remember { mutableStateOf(false) }
+    var aiSuggestions by remember { mutableStateOf<com.example.damprojectfinal.core.dto.menu.MenuSuggestionsDto?>(null) }
+    var isLoadingSuggestions by remember { mutableStateOf(false) }
+    var suggestionsError by remember { mutableStateOf<String?>(null) }
 
     // Calculate final total (for display only)
     val finalTotal = remember(item.priceDT, quantity, selectedOptions) {
         val optionsPrice = selectedOptions.sumOf { it.price.toDouble() }.toFloat()
         (item.priceDT + optionsPrice) * quantity
+    }
+    
+    // Function to fetch AI suggestions
+    val fetchAISuggestions: () -> Unit = {
+        showAISuggestions = true
+        isLoadingSuggestions = true
+        suggestionsError = null
+        aiSuggestions = null
+        
+        // Launch coroutine to fetch suggestions
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val gson = com.google.gson.Gson()
+                val repository = MenuItemRepository(
+                    RetrofitClient.menuItemApi,
+                    gson
+                )
+                val authToken = "YOUR_REAL_TOKEN" // TODO: Get from TokenManager
+                
+                val result = repository.getMenuItemSuggestions(item.id, authToken)
+                
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    result.fold(
+                        onSuccess = { suggestions ->
+                            aiSuggestions = suggestions
+                            isLoadingSuggestions = false
+                        },
+                        onFailure = { error ->
+                            suggestionsError = error.message ?: "Failed to load suggestions"
+                            isLoadingSuggestions = false
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    suggestionsError = e.message ?: "An error occurred"
+                    isLoadingSuggestions = false
+                }
+            }
+        }
     }
 
     androidx.compose.ui.window.Dialog(
@@ -740,8 +791,32 @@ fun ItemCustomizationOverlay(
                             fontSize = 13.sp,
                             color = Color.Gray,
                             lineHeight = 18.sp,
-                            modifier = Modifier.padding(bottom = 20.dp)
+                            modifier = Modifier.padding(bottom = 12.dp)
                         )
+                        
+                        // ✨ AI Suggestions Button
+                        Button(
+                            onClick = fetchAISuggestions,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 20.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFF6B35)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "AI",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Ask AI for Suggestions",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                         
                         // 1. Ingredients (Removal) - Main focus
                         IngredientsCustomizer(
@@ -787,6 +862,16 @@ fun ItemCustomizationOverlay(
                 }
             )
         }
+    }
+    
+    // AI Suggestions Dialog
+    if (showAISuggestions) {
+        AISuggestionsDialog(
+            suggestions = aiSuggestions,
+            isLoading = isLoadingSuggestions,
+            error = suggestionsError,
+            onDismiss = { showAISuggestions = false }
+        )
     }
 }
 
@@ -1663,6 +1748,34 @@ fun MenuItemCard(
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
+                    }
+                }
+                
+                // Preparation Time Badge (top-right)
+                if (item.preparationTimeMinutes > 0) {
+                    Surface(
+                        color = Color(0xFF4CAF50).copy(alpha = 0.9f),
+                        shape = RoundedCornerShape(bottomStart = 12.dp),
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = "Prep time",
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "${item.preparationTimeMinutes} min",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 }
             }

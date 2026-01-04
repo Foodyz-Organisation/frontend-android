@@ -25,10 +25,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.damprojectfinal.core.dto.cart.CartItemResponse
 import com.example.damprojectfinal.user.feature_cart_item.viewmodel.CartUiState
@@ -37,7 +41,6 @@ import com.airbnb.lottie.compose.*
 import com.example.damprojectfinal.R
 import com.google.gson.Gson
 import coil.compose.AsyncImage
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
@@ -777,6 +780,7 @@ fun ShoppingCartScreen(
                             onDetailsClick = onDetailsClick
                         )
                     }
+                    
                     item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
             }
@@ -876,3 +880,5 @@ fun ShoppingCartScreen(
         }
     }
 }
+
+

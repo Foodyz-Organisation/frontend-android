@@ -248,7 +248,11 @@ class WebRtcClient(
     }
     
     fun attachRemoteVideo(stream: MediaStream, renderer: SurfaceViewRenderer) {
-        renderer.init(eglBaseContext, null)
+        try {
+            renderer.init(eglBaseContext, null)
+        } catch (e: Exception) {
+            Log.w(TAG, "Renderer already initialized: ${e.message}")
+        }
         renderer.setMirror(false)
         renderer.setEnableHardwareScaler(true)
         

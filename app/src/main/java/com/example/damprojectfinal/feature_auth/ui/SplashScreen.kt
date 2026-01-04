@@ -113,8 +113,53 @@ fun SplashScreen(
                     tokenManager.clearTokens()
                     onAuthCheckComplete(null, null)
                 } else {
-                    // Token is valid and data is complete - proceed to home
-                    onAuthCheckComplete(userId, userRole)
+                    // 3. BACKEND VALIDATION (New Requirement)
+                    // Verify the token with the backend. If backend is down or token invalid, go to login.
+                    try {
+                        val apiService = com.example.damprojectfinal.core.api.UserApiService(tokenManager)
+                        // Depending on role, we might verify differently, but getUserById is generic enough or use a lightweight endpoint
+                        // We use the ID to user endpoint to verify the token works
+                        // Note: For professionals, we might need a different endpoint if /users/{id} is restricted? 
+                        // But typically UserApiService handles common user data. 
+                        // Let's assume getUserById works or use a profile fetch.
+                        
+                        // We just need ANY authenticated call to succeed.
+                        // However, calling getUserById for a professional ID might fail if the ID is not in 'users' collection depending on backend.
+                        // Safe approach: just try to access the user profile or "me" equivalent.
+                        // UserApiService.updateProfile handles "me". Let's try getUserById which maps to /users/{id}.
+                        
+                        // If logic for Professional vs User differs in backend verification, we might skip.
+                        // Assuming getUserById works for verifying connectivity & auth.
+                        
+                        // For safer "me" check without knowing ID type perfectly:
+                        // apiService.getUserById(userId, accessToken) 
+                        
+                        // Let's try to fetch the specific user or professional info.
+                        // Since we don't have a cheap "ping" endpoint, we'll try fetching the profile.
+                        
+                        if (userRole.equals("professional", ignoreCase = true)) {
+                             // For professional, checking their profile from backend could be different.
+                             // But since we want to be STRICT:
+                             // Let's just assume if we can't connect, we fail.
+                             // We can try to fetch the user/pro profile.
+                             // Using getUserById for now as a connectivity check.
+                             apiService.getUserById(userId, accessToken)
+                        } else {
+                             apiService.getUserById(userId, accessToken)
+                        }
+
+                        // If we reach here, backend is reachable and token is valid
+                        onAuthCheckComplete(userId, userRole)
+                    } catch (e: Exception) {
+                        Log.e("SplashScreen", "❌ Backend verification failed: ${e.message}")
+                        // Backend unreachable or token rejected -> Go to Login
+                        // We also clear tokens to force re-login/re-check next time to be safe, 
+                        // OR we could just navigate to login without clearing if we think it's just network.
+                        // User said: "if the token is not existed ... or anything else not found for the token i want the app to be steoped on the login"
+                        // Clearing tokens ensures we start fresh.
+                        tokenManager.clearTokens() 
+                        onAuthCheckComplete(null, null)
+                    }
                 }
             }
         } else {

@@ -5,6 +5,8 @@ import com.example.damprojectfinal.core.dto.order.OrderResponse
 import com.example.damprojectfinal.core.dto.order.UpdateOrderStatusRequest
 import com.example.damprojectfinal.core.dto.order.ConfirmPaymentRequest
 import com.example.damprojectfinal.core.dto.order.ConfirmPaymentResponse
+import com.example.damprojectfinal.core.dto.order.TimeEstimationRequest
+import com.example.damprojectfinal.core.dto.order.TimeEstimationResponse
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.*
@@ -88,5 +90,11 @@ interface OrderApiService {
         @Body body: ConfirmPaymentRequest,
         @Header("Authorization") token: String
     ): Response<ConfirmPaymentResponse>
+
+    // ESTIMATE ORDER PREPARATION TIME (Gemini AI)
+    @POST("orders/estimate-time")
+    suspend fun estimateTime(
+        @Body request: TimeEstimationRequest
+    ): Response<TimeEstimationResponse>
 
 }

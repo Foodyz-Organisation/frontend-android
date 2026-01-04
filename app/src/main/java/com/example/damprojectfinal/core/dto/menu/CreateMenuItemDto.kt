@@ -22,7 +22,11 @@ data class CreateMenuItemDto(
     val ingredients: List<IngredientDto>, // Nested DTO list
 
     @SerializedName("options")
-    val options: List<OptionDto> // Nested DTO list
+    val options: List<OptionDto>, // Nested DTO list
+
+    // Preparation time in minutes (base time for this dish)
+    @SerializedName("preparationTimeMinutes")
+    val preparationTimeMinutes: Int = 15
 
     // NOTE: The 'image' field is NOT included here as it is sent as a separate MultipartBody.Part (the File)
     // The server handles attaching the path to the DTO after serialization.

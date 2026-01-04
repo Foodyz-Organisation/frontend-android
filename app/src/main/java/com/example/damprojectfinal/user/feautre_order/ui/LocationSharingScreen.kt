@@ -30,18 +30,30 @@ fun LocationSharingScreen(
     onSkip: () -> Unit
 ) {
     val context = LocalContext.current
-    var isLocationSharingEnabled by remember { mutableStateOf(false) }
+    var permissionGranted by remember { mutableStateOf(false) }
+    var shouldProceed by remember { mutableStateOf(false) }
 
-    // Permission launcher
+    // Permission launcher - only updates permission state
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            isLocationSharingEnabled = true
+            permissionGranted = true
+            shouldProceed = true
             Toast.makeText(context, "Permission de localisation accordée", Toast.LENGTH_SHORT).show()
         } else {
-            isLocationSharingEnabled = false
+            permissionGranted = false
             Toast.makeText(context, "Permission de localisation refusée", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    // Auto-proceed after permission is granted
+    LaunchedEffect(shouldProceed) {
+        if (shouldProceed) {
+            shouldProceed = false
+            // Small delay to let composition complete before navigation
+            kotlinx.coroutines.delay(100)
+            onShareLocation()
         }
     }
 
@@ -106,7 +118,6 @@ fun LocationSharingScreen(
                     ) == PackageManager.PERMISSION_GRANTED
 
                     if (hasPermission) {
-                        isLocationSharingEnabled = true
                         onShareLocation()
                     } else {
                         // Request permission

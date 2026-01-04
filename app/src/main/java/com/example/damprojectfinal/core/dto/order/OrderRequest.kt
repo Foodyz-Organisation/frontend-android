@@ -15,6 +15,7 @@ data class CreateOrderRequest(
     @SerializedName("totalPrice") val totalPrice: Double,
     @SerializedName("deliveryAddress") val deliveryAddress: String? = null,
     @SerializedName("notes") val notes: String? = null,
+    @SerializedName("comment") val comment: String? = null, // Special requests/comments
     @SerializedName("paymentMethod") val paymentMethod: String // "CASH" or "CARD"
 )
 
@@ -88,6 +89,13 @@ data class OrderResponse(
     @SerializedName("status") val status: OrderStatus,
     @SerializedName("paymentMethod") val paymentMethod: String? = null,  // "CASH" or "CARD"
     @SerializedName("paymentId") val paymentId: String? = null,  // Payment ID for CARD payments
+    
+    // ===== NEW: Time Estimation Fields (Gemini AI) =====
+    @SerializedName("comment") val comment: String? = null,
+    @SerializedName("basePreparationMinutes") val basePreparationMinutes: Int? = null,
+    @SerializedName("estimatedPreparationMinutes") val estimatedPreparationMinutes: Int? = null,
+    @SerializedName("queuePosition") val queuePosition: Int? = null,
+    
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("updatedAt") val updatedAt: String
 ) {

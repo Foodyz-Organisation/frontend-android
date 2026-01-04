@@ -163,6 +163,7 @@ fun CreateMenuItemScreen(
     var description by rememberSaveable { mutableStateOf("") }
     var priceText by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf("") }
+    var preparationTimeText by rememberSaveable { mutableStateOf("15") } // Default 15 minutes
 
     val ingredients = remember { mutableStateListOf<CreateIngredientUi>() }
     val options = remember { mutableStateListOf<CreateOptionUi>() }
@@ -269,6 +270,7 @@ fun CreateMenuItemScreen(
 
                             val mainPrice = priceText.toDoubleOrNull()
                             val selectedCategory = Category.values().find { it.name == category.uppercase() }
+                            val prepTime = preparationTimeText.toIntOrNull()
 
                             if (name.isBlank() || category.isBlank()) {
                                 localError = "Please add a name and category"
@@ -276,6 +278,10 @@ fun CreateMenuItemScreen(
                             }
                             if (mainPrice == null || mainPrice < 0.0) {
                                 localError = "Price must be valid"
+                                return@Button
+                            }
+                            if (prepTime == null || prepTime < 1) {
+                                localError = "Preparation time must be at least 1 minute"
                                 return@Button
                             }
 
@@ -308,7 +314,8 @@ fun CreateMenuItemScreen(
                                     val price = it.priceStr.toDoubleOrNull()
                                     if (it.name.isBlank() || price == null) null
                                     else OptionDto(it.name.trim(), price)
-                                }
+                                },
+                                preparationTimeMinutes = prepTime!!
                             )
 
                             viewModel.createMenuItem(dto, fileWithMime, "YOUR_JWT_TOKEN_HERE")
@@ -476,6 +483,18 @@ fun CreateMenuItemScreen(
                                 }
                             }
                         }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // Preparation Time Input
+                        FoodAppTextField(
+                            value = preparationTimeText,
+                            onValueChange = { preparationTimeText = it.filter { c -> c.isDigit() } },
+                            placeholder = "15",
+                            label = "Average Preparation Time (minutes)",
+                            bgColor = InputBackground,
+                            keyboardType = KeyboardType.Number
+                        )
 
                         Spacer(Modifier.height(16.dp))
 

@@ -28,6 +28,7 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Schedule
 
 // ----------- COLORS -----------
 private val BackgroundLight = Color(0xFFF9FAFB)
@@ -278,6 +279,30 @@ fun OrderItemCard(
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
+
+                    // Time Estimation Badge (for active orders)
+                    if (order.estimatedPreparationMinutes != null && order.estimatedPreparationMinutes > 0 &&
+                        (order.status == com.example.damprojectfinal.core.dto.order.OrderStatus.PENDING || 
+                         order.status == com.example.damprojectfinal.core.dto.order.OrderStatus.CONFIRMED)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = Color(0xFFE6A23C), // Warning/Orange color
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "~${order.estimatedPreparationMinutes} min",
+                                fontSize = 12.sp,
+                                color = Color(0xFFE6A23C),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
 
                     // Show order type badge
                     Surface(

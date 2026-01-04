@@ -21,7 +21,7 @@ class OrderRepository(
     // Returns OrderResponse for CASH, CreateOrderWithPaymentResponse for CARD
     // -----------------------------------------------------
     suspend fun createOrder(request: CreateOrderRequest): OrderResponse? {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             android.util.Log.e("OrderRepository", "❌ createOrder() - No token available")
             return null
         }
@@ -68,7 +68,7 @@ class OrderRepository(
     // CREATE ORDER WITH PAYMENT (returns payment info for CARD)
     // -----------------------------------------------------
     suspend fun createOrderWithPayment(request: CreateOrderRequest): CreateOrderWithPaymentResponse? {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             android.util.Log.e("OrderRepository", "❌ createOrderWithPayment() - No token available")
             return null
         }
@@ -185,7 +185,7 @@ class OrderRepository(
         paymentIntentId: String,
         paymentMethodId: String
     ): ConfirmPaymentResponse? {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             android.util.Log.e("OrderRepository", "❌ confirmPaymentWithPaymentMethod() - No token available")
             return null
         }
@@ -273,7 +273,7 @@ class OrderRepository(
         cvv: String,
         cardholderName: String
     ): ConfirmPaymentResponse? {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             android.util.Log.e("OrderRepository", "❌ confirmPaymentWithCardDetails() - No token available")
             return null
         }
@@ -310,7 +310,7 @@ class OrderRepository(
     // GET ORDERS BY USER
     // -----------------------------------------------------
     suspend fun getOrdersByUser(userId: String): List<OrderResponse>? {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             println("DEBUG: getOrdersByUser() - No token available")
             return null
         }
@@ -330,7 +330,7 @@ class OrderRepository(
     // GET ORDERS BY PROFESSIONAL
     // -----------------------------------------------------
     suspend fun getOrdersByProfessional(professionalId: String): List<OrderResponse>? {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             println("DEBUG: getOrdersByProfessional() - No token available")
             return null
         }
@@ -350,7 +350,7 @@ class OrderRepository(
     // UPDATE ORDER STATUS
     // -----------------------------------------------------
     suspend fun updateOrderStatus(orderId: String, request: UpdateOrderStatusRequest): OrderResponse? {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             println("DEBUG: updateOrderStatus() - No token available")
             return null
         }
@@ -372,7 +372,7 @@ class OrderRepository(
     // GET PENDING ORDERS
     // -----------------------------------------------------
     suspend fun getPendingOrders(professionalId: String): List<OrderResponse>? {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             println("DEBUG: getPendingOrders() - No token available")
             return null
         }
@@ -392,7 +392,7 @@ class OrderRepository(
     // GET ORDER BY ID
     // -----------------------------------------------------
     suspend fun getOrderById(orderId: String): OrderResponse? {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             println("DEBUG: getOrderById() - No token available")
             return null
         }
@@ -411,7 +411,7 @@ class OrderRepository(
     // DELETE SINGLE ORDER
     // -----------------------------------------------------
     suspend fun deleteOrder(orderId: String): Boolean {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             android.util.Log.e("OrderRepository", "❌ deleteOrder() - No token available")
             return false
         }
@@ -437,7 +437,7 @@ class OrderRepository(
     // DELETE ALL ORDERS FOR USER
     // -----------------------------------------------------
     suspend fun deleteAllOrdersByUser(userId: String): Boolean {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             android.util.Log.e("OrderRepository", "❌ deleteAllOrdersByUser() - No token available")
             return false
         }
@@ -463,7 +463,7 @@ class OrderRepository(
     // DELETE ALL ORDERS FOR PROFESSIONAL
     // -----------------------------------------------------
     suspend fun deleteAllOrdersByProfessional(professionalId: String): Boolean {
-        val token = tokenManager.getAccessTokenBlocking() ?: run {
+        val token = tokenManager.getAccessTokenAsync() ?: run {
             android.util.Log.e("OrderRepository", "❌ deleteAllOrdersByProfessional() - No token available")
             return false
         }
@@ -483,5 +483,35 @@ class OrderRepository(
             android.util.Log.e("OrderRepository", "  Error body: $errorBody")
             return false
         }
+    }
+
+    // -----------------------------------------------------
+    // ESTIMATE ORDER PREPARATION TIME (Gemini AI)
+    // -----------------------------------------------------
+    suspend fun estimateTime(request: com.example.damprojectfinal.core.dto.order.TimeEstimationRequest): com.example.damprojectfinal.core.dto.order.TimeEstimationResponse? {
+        android.util.Log.d("OrderRepository", "⏱️ Estimating preparation time for ${request.items.size} items")
+
+        val response = api.estimateTime(request)
+
+        android.util.Log.d("OrderRepository", "📥 Time estimation response code: ${response.code()}")
+
+        if (response.isSuccessful) {
+            val estimation = response.body()
+            if (estimation != null) {
+                android.util.Log.d("OrderRepository", "✅ Time estimation successful")
+                android.util.Log.d("OrderRepository", "  Estimated: ${estimation.estimatedMinutes} minutes")
+                android.util.Log.d("OrderRepository", "  Base time: ${estimation.baseMinutes} minutes")
+                android.util.Log.d("OrderRepository", "  Queue position: ${estimation.queuePosition}")
+                android.util.Log.d("OrderRepository", "  Queue size: ${estimation.currentQueueSize}")
+                return estimation
+            } else {
+                android.util.Log.e("OrderRepository", "❌ Time estimation response body is null")
+            }
+        } else {
+            val errorBody = response.errorBody()?.string()
+            android.util.Log.e("OrderRepository", "❌ Time estimation failed: ${response.code()}")
+            android.util.Log.e("OrderRepository", "  Error body: $errorBody")
+        }
+        return null
     }
 }

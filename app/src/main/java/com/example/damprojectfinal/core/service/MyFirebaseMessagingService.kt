@@ -41,7 +41,17 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         // Check if message contains a data payload.
         if (remoteMessage.data.isNotEmpty()) {
             Log.d(TAG, "Message data payload: ${remoteMessage.data}")
-            // Handle data payload here if needed
+            // Check for call payload
+            val type = remoteMessage.data["type"]
+            if (type == "call") {
+                val conversationId = remoteMessage.data["conversationId"]
+                val callerName = remoteMessage.data["callerName"]
+                val isVideo = remoteMessage.data["isVideo"]?.toBoolean() ?: false
+                
+                if (conversationId != null) {
+                    showIncomingCallNotification(conversationId, callerName, isVideo)
+                }
+            }
         }
 
         // Check if message contains a notification payload.
@@ -95,7 +105,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val channelId = getString(R.string.default_notification_channel_id)
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.ic_launcher_foreground) // Ensure this resource exists or use default
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title ?: "Foodyz Notification")
             .setContentText(messageBody)
             .setAutoCancel(true)
@@ -104,7 +114,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Since android Oreo notification channel is needed.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
@@ -114,6 +123,62 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             notificationManager.createNotificationChannel(channel)
         }
 
-        notificationManager.notify(0 /* ID of notification */, notificationBuilder.build())
+        notificationManager.notify(0, notificationBuilder.build())
+    }
+
+    private fun showIncomingCallNotification(conversationId: String, callerName: String?, isVideo: Boolean) {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            action = "ACTION_INCOMING_CALL"
+            putExtra("conversationId", conversationId)
+            putExtra("callerName", callerName)
+            putExtra("isVideo", isVideo)
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            this, 
+            conversationId.hashCode(), // Unique RequestCode
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val channelId = "incoming_call_channel"
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        // Create High Priority Channel for Calls
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Incoming Calls",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications for incoming video/audio calls"
+                enableVibration(true)
+                setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE), null)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val title = "Incoming ${if(isVideo) "Video" else "Audio"} Call"
+        val body = "${callerName ?: "Unknown"} is calling you..."
+
+        val notificationBuilder = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setAutoCancel(true)
+            .setOngoing(true)
+            .setFullScreenIntent(pendingIntent, true) // Heads-up notification
+            .setContentIntent(pendingIntent)
+            .addAction(
+                android.R.drawable.ic_menu_call, 
+                "Answer", 
+                pendingIntent
+            )
+
+        notificationManager.notify(conversationId.hashCode(), notificationBuilder.build())
     }
 }

@@ -41,6 +41,13 @@ class CartViewModel(
     private val _uiState = MutableStateFlow<CartUiState>(CartUiState.Loading)
     val uiState: StateFlow<CartUiState> = _uiState.asStateFlow()
 
+    // Time Estimation State
+    private val _timeEstimation = MutableStateFlow<TimeEstimationResponse?>(null)
+    val timeEstimation: StateFlow<TimeEstimationResponse?> = _timeEstimation.asStateFlow()
+
+    private val _isLoadingEstimate = MutableStateFlow(false)
+    val isLoadingEstimate: StateFlow<Boolean> = _isLoadingEstimate.asStateFlow()
+
     // -----------------------------
     // Load Cart
     // -----------------------------
@@ -171,6 +178,43 @@ class CartViewModel(
     }
 
     // -----------------------------
+    // Fetch Time Estimation (Gemini AI)
+    // -----------------------------
+    fun fetchTimeEstimation(professionalId: String) {
+        viewModelScope.launch {
+            val currentState = _uiState.value
+            if (currentState !is CartUiState.Success || currentState.cart.items.isEmpty()) {
+                _timeEstimation.value = null
+                return@launch
+            }
+
+            _isLoadingEstimate.value = true
+
+            try {
+                val items = currentState.cart.items.map { cartItem ->
+                    TimeEstimationRequest.EstimateItem(
+                        menuItemId = cartItem.menuItemId,
+                        quantity = cartItem.quantity
+                    )
+                }
+
+                val request = TimeEstimationRequest(
+                    professionalId = professionalId,
+                    items = items
+                )
+
+                val estimation = orderRepository.estimateTime(request)
+                _timeEstimation.value = estimation
+            } catch (e: Exception) {
+                android.util.Log.e("CartViewModel", "Failed to fetch time estimation: ${e.message}")
+                _timeEstimation.value = null
+            } finally {
+                _isLoadingEstimate.value = false
+            }
+        }
+    }
+
+    // -----------------------------
     // Checkout - Convert Cart to Order
     // -----------------------------
     fun checkout(
@@ -179,6 +223,7 @@ class CartViewModel(
         paymentMethod: String, // "CASH" or "CARD"
         deliveryAddress: String? = null,
         notes: String? = null,
+        comment: String? = null, // Added comment parameter
         scheduledTime: String? = null,
         onSuccess: (OrderResponse) -> Unit,
         onError: (String) -> Unit
@@ -189,6 +234,7 @@ class CartViewModel(
             paymentMethod = paymentMethod,
             deliveryAddress = deliveryAddress,
             notes = notes,
+            comment = comment,
             scheduledTime = scheduledTime,
             onSuccess = { orderResponse, _ -> onSuccess(orderResponse) },
             onError = onError
@@ -204,6 +250,7 @@ class CartViewModel(
         paymentMethod: String, // "CASH" or "CARD"
         deliveryAddress: String? = null,
         notes: String? = null,
+        comment: String? = null, // Added comment parameter
         scheduledTime: String? = null,
         onSuccess: (OrderResponse, String?) -> Unit, // OrderResponse and paymentIntentId (null for CASH)
         onError: (String) -> Unit
@@ -288,6 +335,7 @@ class CartViewModel(
                 totalPrice = totalPrice,
                 deliveryAddress = deliveryAddress,
                 notes = notes,
+                comment = comment,
                 paymentMethod = paymentMethod
             )
 

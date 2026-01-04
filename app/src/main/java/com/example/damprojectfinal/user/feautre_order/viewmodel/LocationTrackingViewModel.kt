@@ -61,12 +61,12 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
      * Connect to order tracking WebSocket and join order room
      */
     fun connectToOrder(orderId: String, userId: String, userType: String = "user") {
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 currentOrderId = orderId
                 currentUserId = userId
                 
-                val token = tokenManager.getAccessTokenBlocking()
+                val token = tokenManager.getAccessTokenAsync()
                 if (token == null) {
                     _state.value = _state.value.copy(error = "No authentication token")
                     Log.e(TAG, "❌ No token available")
@@ -162,12 +162,27 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
      */
     fun startSharingLocation() {
         viewModelScope.launch {
+            if (_state.value.isSharing) {
+                Log.w(TAG, "⚠️ Already sharing location, ignoring start request")
+                return@launch
+            }
+
             val orderId = currentOrderId
             val userId = currentUserId
             
             if (orderId == null || userId == null) {
                 _state.value = _state.value.copy(error = "Order ID or User ID not set")
+                Log.e(TAG, "❌ Cannot start sharing: OrderId=$orderId, UserId=$userId")
                 return@launch
+            }
+            
+            // socketManager might be null if not connected yet
+            if (socketManager == null || socketManager?.isConnected() == false) {
+                 Log.w(TAG, "⚠️ Socket not connected yet, waiting...")
+                 // Optional: Wait or just fail? For now, we fail and let retry happen if needed
+                 // But actually, we should probably just return as we cannot share without socket
+                 _state.value = _state.value.copy(error = "Socket not connected")
+                 return@launch
             }
             
             if (!locationTracker.hasLocationPermission()) {
@@ -188,36 +203,40 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
             _state.value = _state.value.copy(isSharing = true, error = null)
             
             // Start continuous location tracking
-            locationTracker.startTracking(
-                minTime = 5000, // Update every 5 seconds
-                minDistance = 10f, // Or 10 meters
-                onLocationUpdate = { locationData ->
-                    // Send location update via WebSocket
-                    socketManager?.sendLocationUpdate(
-                        orderId = orderId,
-                        userId = userId,
-                        lat = locationData.latitude,
-                        lng = locationData.longitude,
-                        accuracy = locationData.accuracy?.toDouble()
-                    )
-                    
-                    // Update local state
-                    Log.d(TAG, "📍 GPS Update: ${locationData.latitude}, ${locationData.longitude} (±${locationData.accuracy}m)")
-                    _state.value = _state.value.copy(
-                        currentLocation = LocationData(
+            try {
+                locationTracker.startTracking(
+                    minTime = 5000, // Update every 5 seconds
+                    minDistance = 10f, // Or 10 meters
+                    onLocationUpdate = { locationData ->
+                        // Send location update via WebSocket
+                        socketManager?.sendLocationUpdate(
+                            orderId = orderId,
+                            userId = userId,
                             lat = locationData.latitude,
                             lng = locationData.longitude,
-                            accuracy = locationData.accuracy
+                            accuracy = locationData.accuracy?.toDouble()
                         )
-                    )
-                },
-                onError = { error ->
-                    _state.value = _state.value.copy(error = error)
-                    Log.e(TAG, "❌ Location tracking error: $error")
-                }
-            )
-            
-            Log.d(TAG, "✅ Started sharing location for order: $orderId")
+                        
+                        // Update local state
+                        Log.d(TAG, "📍 GPS Update: ${locationData.latitude}, ${locationData.longitude}")
+                        _state.value = _state.value.copy(
+                            currentLocation = LocationData(
+                                lat = locationData.latitude,
+                                lng = locationData.longitude,
+                                accuracy = locationData.accuracy
+                            )
+                        )
+                    },
+                    onError = { error ->
+                        _state.value = _state.value.copy(error = error)
+                        Log.e(TAG, "❌ Location tracking error: $error")
+                    }
+                )
+                Log.d(TAG, "✅ Started sharing location for order: $orderId")
+            } catch (e: Exception) {
+                 Log.e(TAG, "❌ Exception starting tracker: ${e.message}")
+                 _state.value = _state.value.copy(error = "Tracker error: ${e.message}")
+            }
         }
     }
     

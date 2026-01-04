@@ -370,10 +370,8 @@ fun HomeScreenPro(
                                                 order.id,
                                                 UpdateOrderStatusRequest(newStatus)
                                             )
-                                            // Wait briefly for update to complete
-                                            delay(300)
-                                            // Reload orders
-                                            orderViewModel.loadOrdersByProfessional(professionalId)
+                                            // UI update is handled by ViewModel reactive state now
+                                            
                                             Toast.makeText(
                                                 context,
                                                 "Order #${order.id.takeLast(6)} updated to ${getStatusDisplayName(newStatus)}",

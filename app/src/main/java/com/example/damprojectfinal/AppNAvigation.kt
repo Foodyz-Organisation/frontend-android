@@ -200,7 +200,8 @@ object ProfileRoutes {
 @Composable
 fun AppNavigation(
     modifier: Modifier = Modifier,
-    initialDeepLinkToken: String? = null
+    initialDeepLinkToken: String? = null,
+    initialCallData: Map<String, Any?>? = null
 ) {
     val navController = rememberNavController()
     val authApiService = AuthApiService()
@@ -223,6 +224,21 @@ fun AppNavigation(
     val ServiceLocator = KtorClient
     val postsApiService = remember { PostsRetrofitClient.postsApiService }
     val startDestination = AuthRoutes.SPLASH
+
+    // Handle Incoming Call Navigation
+    LaunchedEffect(initialCallData) {
+        if (initialCallData != null) {
+            val conversationId = initialCallData["conversationId"] as? String
+            val callerName = initialCallData["callerName"] as? String ?: "Unknown"
+            // We need currentUserId to navigate to chatDetail
+            val currentUserId = tokenManager.getUserId() ?: "unknown_user"
+            
+            if (!conversationId.isNullOrBlank()) {
+                Log.d("AppNavigation", "🚀 Navigating to call: id=$conversationId, caller=$callerName")
+                navController.navigate("chatDetail/$conversationId/$callerName/$currentUserId")
+            }
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -1754,7 +1770,11 @@ fun AppNavigation(
             
             val context = LocalContext.current
             val tokenManager = remember { TokenManager(context) }
-            val professionalId = remember { tokenManager.getUserIdBlocking() ?: "" }
+            var professionalId by remember { mutableStateOf("") }
+            
+            LaunchedEffect(Unit) {
+                professionalId = tokenManager.getUserIdAsync() ?: ""
+            }
 
             AddEditDealScreen(
                 dealId = null,
@@ -1781,30 +1801,44 @@ fun AppNavigation(
             val context = LocalContext.current
 
             val tokenManager = remember { TokenManager(context) }
-            val userId = remember { tokenManager.getUserIdBlocking() ?: "" }
+            var userId by remember { mutableStateOf<String?>(null) }
+            
+            LaunchedEffect(Unit) {
+                userId = tokenManager.getUserIdAsync()
+            }
 
             val cartApiService = remember { RetrofitClient.cartApi }
             val cartRepository = remember { CartRepository(cartApiService, tokenManager) }
             val orderApiService = remember { RetrofitClient.orderApi }
             val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
-
             val menuItemRepository = remember { MenuItemRepository(RetrofitClient.menuItemApi, Gson()) }
 
-            val cartViewModel: CartViewModel = viewModel(
-                factory = CartViewModelFactory(cartRepository, orderRepository, menuItemRepository, tokenManager, userId)
-            )
+            // Only show RestaurantMenuScreen when userId is loaded
+            if (userId != null) {
+                val cartViewModel: CartViewModel = viewModel(
+                    factory = CartViewModelFactory(cartRepository, orderRepository, menuItemRepository, tokenManager, userId!!)
+                )
 
-            RestaurantMenuScreen(
-                restaurantId = professionalId,
-                highlightCategory = highlightCategory,
-                onBackClick = { navController.popBackStack() },
-                onViewCartClick = { navController.navigate("shopping_cart_route/$professionalId") },
-                onConfirmOrderClick = {
-                    navController.navigate("order_confirmation_route/$professionalId")
-                },
-                cartViewModel = cartViewModel,
-                userId = userId
-            )
+                RestaurantMenuScreen(
+                    restaurantId = professionalId,
+                    highlightCategory = highlightCategory,
+                    onBackClick = { navController.popBackStack() },
+                    onViewCartClick = { navController.navigate("shopping_cart_route/$professionalId") },
+                    onConfirmOrderClick = {
+                        navController.navigate("order_confirmation_route/$professionalId")
+                    },
+                    cartViewModel = cartViewModel,
+                    userId = userId!!
+                )
+            } else {
+                // Show loading indicator while userId is being fetched
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
         }
 
         composable(
@@ -1892,37 +1926,55 @@ fun AppNavigation(
             val professionalId = backStackEntry.arguments?.getString("professionalId") ?: ""
             val context = LocalContext.current
             val tokenManager = remember { TokenManager(context) }
-            val userId = remember { tokenManager.getUserIdBlocking() ?: "" }
+            var userId by remember { mutableStateOf<String?>(null) }
+            
+            LaunchedEffect(Unit) {
+                userId = tokenManager.getUserIdAsync()
+            }
 
             // Repositories
             val cartApiService = remember { RetrofitClient.cartApi }
             val cartRepository = remember { CartRepository(cartApiService, tokenManager) }
             val orderApiService = remember { RetrofitClient.orderApi }
             val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
-
-            // CartViewModel (for checkout)
             val menuItemRepository = remember { MenuItemRepository(RetrofitClient.menuItemApi, Gson()) }
-            val cartVMFactory = remember { CartViewModelFactory(cartRepository, orderRepository, menuItemRepository, tokenManager, userId) }
-            val cartViewModel: CartViewModel = viewModel(factory = cartVMFactory)
 
-            OrderConfirmationScreen(
-                cartViewModel = cartViewModel,
-                professionalId = professionalId,
-                onBackClick = { navController.popBackStack() },
-                onOrderSuccess = {
-                    navController.navigate(UserRoutes.ORDERS_ROUTE) {
-                        popUpTo("menu_order_route/$professionalId") { inclusive = true }
-                        launchSingleTop = true
-                    }
+            // Only show OrderConfirmationScreen when userId is loaded
+            if (userId != null) {
+                // CartViewModel (for checkout) - created AFTER userId is loaded
+                val cartVMFactory = remember { 
+                    CartViewModelFactory(cartRepository, orderRepository, menuItemRepository, tokenManager, userId!!) 
                 }
-            )
+                val cartViewModel: CartViewModel = viewModel(factory = cartVMFactory)
+
+                OrderConfirmationScreen(
+                    cartViewModel = cartViewModel,
+                    professionalId = professionalId,
+                    onBackClick = { navController.popBackStack() },
+                    onOrderSuccess = { orderId, startSharing ->
+                        navController.navigate("order_details/$orderId?startSharing=$startSharing")
+                    }
+                )
+            } else {
+                // Show loading indicator while userId is being fetched
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
         }
 
         // 🧭 NEW ROUTE: Order History
         composable(UserRoutes.ORDERS_ROUTE) {
             val context = LocalContext.current
             val tokenManager = remember { TokenManager(context) }
-            val userId = remember { tokenManager.getUserIdBlocking() ?: "" }
+            var userId by remember { mutableStateOf("") }
+            
+            LaunchedEffect(Unit) {
+                userId = tokenManager.getUserIdAsync() ?: ""
+            }
 
             val orderApiService = remember { RetrofitClient.orderApi }
             val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
@@ -1948,25 +2000,51 @@ fun AppNavigation(
         }
 
         composable(
-            route = "order_details/{orderId}",
-            arguments = listOf(navArgument("orderId") { type = NavType.StringType })
+            route = "order_details/{orderId}?startSharing={startSharing}",
+            arguments = listOf(
+                navArgument("orderId") { type = NavType.StringType },
+                navArgument("startSharing") { 
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
         ) { backStackEntry ->
             val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+            val startSharing = backStackEntry.arguments?.getBoolean("startSharing") ?: false
             val context = LocalContext.current
             val tokenManager = remember { TokenManager(context) }
-            val userId = remember { tokenManager.getUserIdBlocking() ?: "" }
+            
+            // Use non-blocking suspend function to get userId
+            var userId by remember { mutableStateOf<String?>(null) }
+            
+            LaunchedEffect(Unit) {
+                userId = tokenManager.getUserIdAsync()
+            }
+            
             val orderApiService = remember { RetrofitClient.orderApi }
             val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
             val orderViewModel: OrderViewModel = viewModel(
                 factory = OrderViewModel.Factory(orderRepository)
             )
 
-            OrderDetailsScreen(
-                orderId = orderId,
-                navController = navController,
-                orderViewModel = orderViewModel,
-                userId = userId
-            )
+            // Only show OrderDetailsScreen when userId is loaded
+            if (userId != null) {
+                OrderDetailsScreen(
+                    orderId = orderId,
+                    navController = navController,
+                    orderViewModel = orderViewModel,
+                    userId = userId!!,
+                    startSharing = startSharing
+                )
+            } else {
+                // Show loading indicator while userId is being fetched
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
         }
 
         // Professional Order Details Route
@@ -1999,7 +2077,11 @@ fun AppNavigation(
             val professionalId = backStackEntry.arguments?.getString("professionalId") ?: ""
             val context = LocalContext.current
             val tokenManager = remember { TokenManager(context) }
-            val userId = remember { tokenManager.getUserIdBlocking() ?: "" }
+            var userId by remember { mutableStateOf<String?>(null) }
+            
+            LaunchedEffect(Unit) {
+                userId = tokenManager.getUserIdAsync()
+            }
 
             val cartApiService = remember { RetrofitClient.cartApi }
 
@@ -2007,17 +2089,30 @@ fun AppNavigation(
             val cartRepository = remember { CartRepository(cartApiService, tokenManager) }
             val orderApiService = remember { RetrofitClient.orderApi }
             val orderRepository = remember { OrderRepository(orderApiService, tokenManager) }
-
-            // ViewModel with userId and orderRepository
             val menuItemRepository = remember { MenuItemRepository(RetrofitClient.menuItemApi, Gson()) }
-            val cartVMFactory = remember { CartViewModelFactory(cartRepository, orderRepository, menuItemRepository, tokenManager, userId) }
-            val cartVM: CartViewModel = viewModel(factory = cartVMFactory)
 
-            ShoppingCartScreen(
-                navController = navController,
-                cartVM = cartVM,
-                professionalId = professionalId
-            )
+            // Only show ShoppingCartScreen when userId is loaded
+            if (userId != null) {
+                // ViewModel with userId and orderRepository
+                val cartVMFactory = remember { 
+                    CartViewModelFactory(cartRepository, orderRepository, menuItemRepository, tokenManager, userId!!) 
+                }
+                val cartVM: CartViewModel = viewModel(factory = cartVMFactory)
+
+                ShoppingCartScreen(
+                    navController = navController,
+                    cartVM = cartVM,
+                    professionalId = professionalId
+                )
+            } else {
+                // Show loading indicator while userId is being fetched
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
         }
 
 
@@ -2033,7 +2128,11 @@ fun AppNavigation(
             
             val context = LocalContext.current
             val tokenManager = remember { TokenManager(context) }
-            val professionalId = remember { tokenManager.getUserIdBlocking() ?: "" }
+            var professionalId by remember { mutableStateOf("") }
+            
+            LaunchedEffect(Unit) {
+                professionalId = tokenManager.getUserIdAsync() ?: ""
+            }
 
             AddEditDealScreen(
                 dealId = dealId,

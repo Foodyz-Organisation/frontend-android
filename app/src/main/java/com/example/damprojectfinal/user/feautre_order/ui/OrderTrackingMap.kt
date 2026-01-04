@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -129,125 +130,137 @@ fun OrderTrackingMap(
         }
     }
 
+    // Markers - Create them once to avoid bitmap recreation on every update
+    // context is already defined at top of function
+    val restaurantMarkerIcon = remember { createPinMarkerIcon(context, Color(0xFFEF4444).toArgb()) }
+    val userMarkerIcon = remember { createPinMarkerIcon(context, Color(0xFF3B82F6).toArgb()) }
+    // Route color
+    val routeColor = remember { Color(0xFF3B82F6).toArgb() }
+
     Box(modifier = modifier) {
-        // OSM Map
-        AndroidView(
-            factory = { ctx ->
-                MapView(ctx).apply {
-                    setTileSource(TileSourceFactory.MAPNIK)
-                    setMultiTouchControls(true)
-                    controller.setZoom(zoomLevel)
-                    controller.setCenter(centerPoint)
 
-                    // Restaurant marker (Red)
-                    restaurantLocation?.let { location ->
-                        val restaurantMarker = Marker(this)
-                        restaurantMarker.position = GeoPoint(location.lat, location.lng)
-                        restaurantMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        restaurantMarker.title = location.name ?: "Restaurant"
-                        restaurantMarker.setIcon(android.graphics.drawable.BitmapDrawable(
-                            ctx.resources,
-                            createMarkerIcon(ctx, Color(0xFFEF4444).hashCode())
-                        ))
-                        overlays.add(restaurantMarker)
+                AndroidView(
+                    factory = { ctx ->
+                        MapView(ctx).apply {
+                            setTileSource(TileSourceFactory.MAPNIK)
+                            setMultiTouchControls(true)
+                            controller.setZoom(zoomLevel)
+                            controller.setCenter(centerPoint)
+                            
+                            // Removed clipToOutline = true as it can cause crashes on some devices/views
+                            
+                            // Fix: Allow map interaction inside LazyColumn
+                            setOnTouchListener { v, event ->
+                                when (event.action) {
+                                    android.view.MotionEvent.ACTION_DOWN,
+                                    android.view.MotionEvent.ACTION_MOVE -> {
+                                        v.parent.requestDisallowInterceptTouchEvent(true)
+                                        false
+                                    }
+                                    android.view.MotionEvent.ACTION_UP,
+                                    android.view.MotionEvent.ACTION_CANCEL -> {
+                                        v.parent.requestDisallowInterceptTouchEvent(false)
+                                        false
+                                    }
+                                    else -> false
+                                }
+                            }
+
+                            // Restaurant marker (Red)
+                            restaurantLocation?.let { location ->
+                                val restaurantMarker = Marker(this)
+                                restaurantMarker.position = GeoPoint(location.lat, location.lng)
+                                restaurantMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                restaurantMarker.title = location.name ?: "Restaurant"
+                                restaurantMarker.icon = android.graphics.drawable.BitmapDrawable(ctx.resources, restaurantMarkerIcon)
+                                overlays.add(restaurantMarker)
+                            }
+
+                            // User marker (Blue)
+                            userLocation?.let { location ->
+                                val userMarker = Marker(this)
+                                userMarker.position = GeoPoint(location.lat, location.lng)
+                                userMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                userMarker.title = "Your Location"
+                                userMarker.icon = android.graphics.drawable.BitmapDrawable(ctx.resources, userMarkerIcon)
+                                overlays.add(userMarker)
+                            }
+
+                            mapViewRef = this
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
+                    update = { mapView ->
+                        // Update markers
+                        mapView.overlays.clear()
+                        
+                        restaurantLocation?.let { location ->
+                            val restaurantMarker = Marker(mapView)
+                            restaurantMarker.position = GeoPoint(location.lat, location.lng)
+                            restaurantMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            restaurantMarker.title = location.name ?: "Restaurant"
+                            restaurantMarker.icon = android.graphics.drawable.BitmapDrawable(context.resources, restaurantMarkerIcon)
+                            mapView.overlays.add(restaurantMarker)
+                        }
+
+                        userLocation?.let { location ->
+                            val userMarker = Marker(mapView)
+                            userMarker.position = GeoPoint(location.lat, location.lng)
+                            userMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            userMarker.title = "Your Location"
+                            userMarker.icon = android.graphics.drawable.BitmapDrawable(context.resources, userMarkerIcon)
+                            mapView.overlays.add(userMarker)
+                        }
+
+                        // Update route polyline
+                        if (routePoints.isNotEmpty()) {
+                            mapView.overlays.removeAll { it is Polyline }
+                            
+                            val routePolyline = Polyline()
+                            routePolyline.setPoints(routePoints)
+                            routePolyline.setColor(routeColor)
+                            routePolyline.setWidth(10f)
+                            mapView.overlays.add(routePolyline)
+                        } else if (restaurantLocation != null && userLocation != null) {
+                            mapView.overlays.removeAll { it is Polyline }
+                            val polyline = Polyline()
+                            polyline.setPoints(
+                                listOf(
+                                    GeoPoint(userLocation.lat, userLocation.lng),
+                                    GeoPoint(restaurantLocation.lat, restaurantLocation.lng)
+                                )
+                            )
+                            polyline.setColor(routeColor)
+                            polyline.setWidth(8f)
+                            mapView.overlays.add(polyline)
+                        }
+
+                        // Update camera
+                        if (restaurantLocation != null && userLocation != null) {
+                            val allPoints = mutableListOf<GeoPoint>()
+                            allPoints.add(GeoPoint(restaurantLocation.lat, restaurantLocation.lng))
+                            allPoints.add(GeoPoint(userLocation.lat, userLocation.lng))
+                            if (routePoints.isNotEmpty()) {
+                                allPoints.addAll(routePoints)
+                            }
+                            
+                            val bounds = org.osmdroid.util.BoundingBox.fromGeoPoints(allPoints)
+                            mapView.zoomToBoundingBox(bounds, true, 50)
+                        } else {
+                            val point = when {
+                                userLocation != null -> GeoPoint(userLocation.lat, userLocation.lng)
+                                restaurantLocation != null -> GeoPoint(restaurantLocation.lat, restaurantLocation.lng)
+                                else -> centerPoint
+                            }
+                            mapView.controller.setCenter(point)
+                            mapView.controller.setZoom(zoomLevel)
+                        }
+
+                        mapView.invalidate()
                     }
+                )
 
-                    // User marker (Blue)
-                    userLocation?.let { location ->
-                        val userMarker = Marker(this)
-                        userMarker.position = GeoPoint(location.lat, location.lng)
-                        userMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        userMarker.title = "Your Location"
-                        userMarker.setIcon(android.graphics.drawable.BitmapDrawable(
-                            ctx.resources,
-                            createMarkerIcon(ctx, Color(0xFF3B82F6).hashCode())
-                        ))
-                        overlays.add(userMarker)
-                    }
-
-                    mapViewRef = this
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-            update = { mapView ->
-                // Update markers when locations change
-                mapView.overlays.clear()
-                
-                restaurantLocation?.let { location ->
-                    val restaurantMarker = Marker(mapView)
-                    restaurantMarker.position = GeoPoint(location.lat, location.lng)
-                    restaurantMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    restaurantMarker.title = location.name ?: "Restaurant"
-                    restaurantMarker.setIcon(android.graphics.drawable.BitmapDrawable(
-                        context.resources,
-                        createMarkerIcon(context, Color(0xFFEF4444).hashCode())
-                    ))
-                    mapView.overlays.add(restaurantMarker)
-                }
-
-                userLocation?.let { location ->
-                    val userMarker = Marker(mapView)
-                    userMarker.position = GeoPoint(location.lat, location.lng)
-                    userMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    userMarker.title = "Your Location"
-                    userMarker.setIcon(android.graphics.drawable.BitmapDrawable(
-                        context.resources,
-                        createMarkerIcon(context, Color(0xFF3B82F6).hashCode())
-                    ))
-                    mapView.overlays.add(userMarker)
-                }
-
-                // Update route polyline
-                if (routePoints.isNotEmpty()) {
-                    mapView.overlays.removeAll { it is Polyline }
-                    
-                    val routePolyline = Polyline()
-                    routePolyline.setPoints(routePoints)
-                    routePolyline.setColor(Color(0xFF3B82F6).hashCode())
-                    routePolyline.setWidth(10f)
-                    mapView.overlays.add(routePolyline)
-                } else if (restaurantLocation != null && userLocation != null) {
-                    // Fallback: straight line if route calculation fails
-                    mapView.overlays.removeAll { it is Polyline }
-                    val polyline = Polyline()
-                    polyline.setPoints(
-                        listOf(
-                            GeoPoint(userLocation.lat, userLocation.lng),
-                            GeoPoint(restaurantLocation.lat, restaurantLocation.lng)
-                        )
-                    )
-                    polyline.setColor(Color(0xFF3B82F6).hashCode())
-                    polyline.setWidth(8f)
-                    mapView.overlays.add(polyline)
-                }
-
-                // Update camera to show both markers
-                if (restaurantLocation != null && userLocation != null) {
-                    val allPoints = mutableListOf<GeoPoint>()
-                    allPoints.add(GeoPoint(restaurantLocation.lat, restaurantLocation.lng))
-                    allPoints.add(GeoPoint(userLocation.lat, userLocation.lng))
-                    if (routePoints.isNotEmpty()) {
-                        allPoints.addAll(routePoints)
-                    }
-                    
-                    val bounds = org.osmdroid.util.BoundingBox.fromGeoPoints(allPoints)
-                    mapView.zoomToBoundingBox(bounds, true, 50)
-                } else {
-                    // Center on available location
-                    val point = when {
-                        userLocation != null -> GeoPoint(userLocation.lat, userLocation.lng)
-                        restaurantLocation != null -> GeoPoint(restaurantLocation.lat, restaurantLocation.lng)
-                        else -> centerPoint
-                    }
-                    mapView.controller.setCenter(point)
-                    mapView.controller.setZoom(zoomLevel)
-                }
-
-                mapView.invalidate()
-            }
-        )
-
-        // Restaurant Address Card (Top Left)
+                // Restaurant Address Card (Top Left)
         if (restaurantLocation != null && restaurantLocation.name != null) {
             Card(
                 modifier = Modifier
@@ -323,7 +336,7 @@ fun OrderTrackingMap(
             }
         }
 
-        // Status indicator (if no user location or calculating route)
+        // Status indicator
         if (userLocation == null || isCalculatingRoute) {
             Card(
                 modifier = Modifier
@@ -357,15 +370,13 @@ fun OrderTrackingMap(
                 }
             }
         }
-
-
     }
 }
 
 /**
- * Create a colored marker icon
+ * Create a PIN/Teardrop marker icon (Safe drawing)
  */
-private fun createMarkerIcon(context: Context, colorValue: Int): android.graphics.Bitmap {
+private fun createPinMarkerIcon(context: Context, colorValue: Int): android.graphics.Bitmap {
     val size = (48 * context.resources.displayMetrics.density).toInt()
     val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bitmap)
@@ -373,19 +384,39 @@ private fun createMarkerIcon(context: Context, colorValue: Int): android.graphic
     val paint = Paint().apply {
         isAntiAlias = true
         color = colorValue
+        style = Paint.Style.FILL
     }
     
-    // Draw circle
-    canvas.drawCircle(size / 2f, size / 2f, size / 2.5f, paint)
+    // Draw Pin Shape (Teardrop)
+    val cx = size / 2f
+    val cy = size / 2.6f
+    val radius = size / 2.8f
     
-    // Draw white border
-    val borderPaint = Paint().apply {
+    // 1. Draw Shadow
+    val shadowPaint = Paint().apply {
         isAntiAlias = true
-        style = Paint.Style.STROKE
-        strokeWidth = 4f
+        color = android.graphics.Color.BLACK
+        alpha = 50
+    }
+    canvas.drawCircle(cx, size - 4f, 6f, shadowPaint)
+    
+    // 2. Draw Triangle (Bottom)
+    val trianglePath = android.graphics.Path()
+    trianglePath.moveTo(cx - radius * 0.9f, cy + radius * 0.1f) // Overlap slightly
+    trianglePath.lineTo(cx + radius * 0.9f, cy + radius * 0.1f)
+    trianglePath.lineTo(cx, size.toFloat())
+    trianglePath.close()
+    canvas.drawPath(trianglePath, paint)
+    
+    // 3. Draw Circle (Top)
+    canvas.drawCircle(cx, cy, radius, paint)
+    
+    // 4. Draw White Hole
+    val holePaint = Paint().apply {
+        isAntiAlias = true
         color = android.graphics.Color.WHITE
     }
-    canvas.drawCircle(size / 2f, size / 2f, size / 2.5f, borderPaint)
+    canvas.drawCircle(cx, cy, radius * 0.4f, holePaint)
     
     return bitmap
 }

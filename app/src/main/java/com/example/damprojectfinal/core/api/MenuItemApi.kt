@@ -63,6 +63,13 @@ interface MenuItemApi {
     suspend fun getIntensityTypesConfig(
         @Header("Authorization") token: String
     ): Response<Map<String, IntensityTypeConfig>>
+    
+    // GET: AI Suggestions for Menu Item
+    @GET("menu-items/{id}/suggestions")
+    suspend fun getMenuItemSuggestions(
+        @Path("id") id: String,
+        @Header("Authorization") token: String
+    ): Response<com.example.damprojectfinal.core.dto.menu.MenuSuggestionsDto>
 }
 
 // Data class for intensity type configuration from backend

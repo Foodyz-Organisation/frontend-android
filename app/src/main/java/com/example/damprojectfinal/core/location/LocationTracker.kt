@@ -171,42 +171,90 @@ class LocationTracker(private val context: Context) {
         }
 
         try {
-        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-        
-        // 1. Try to get last known location immediately for instant UI feedback
-        for (provider in providers) {
+            // 1. Try to get LAST KNOWN LOCATION first for immediate UI feedback
+            // We do this safely by checking Network first (faster, less blocking risk usually)
+            var initialLocationFound = false
+            
             try {
-                val lastKnown = locationManager?.getLastKnownLocation(provider)
-                if (lastKnown != null) {
-                    val locationData = LocationData(
-                        latitude = lastKnown.latitude,
-                        longitude = lastKnown.longitude,
-                        accuracy = lastKnown.accuracy
-                    )
-                    onLocationUpdate(locationData)
-                    Log.d(TAG, "📍 Initial location (Last Known): ${locationData.latitude}, ${locationData.longitude}")
-                    break // Found a location, no need to check other provider for last known
-                }
+                // Try Network first
+                 if (locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true) {
+                     val lastNetwork = locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                     if (lastNetwork != null) {
+                         val locationData = LocationData(
+                            latitude = lastNetwork.latitude,
+                            longitude = lastNetwork.longitude,
+                            accuracy = lastNetwork.accuracy
+                        )
+                        onLocationUpdate(locationData)
+                        initialLocationFound = true
+                        Log.d(TAG, "📍 Initial location (Network Last Known): ${locationData.latitude}, ${locationData.longitude}")
+                     }
+                 }
+                 
+                 // Try GPS if Network failed
+                 if (!initialLocationFound && locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true) {
+                     val lastGps = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                     if (lastGps != null) {
+                        val locationData = LocationData(
+                            latitude = lastGps.latitude,
+                            longitude = lastGps.longitude,
+                            accuracy = lastGps.accuracy
+                        )
+                        onLocationUpdate(locationData)
+                        Log.d(TAG, "📍 Initial location (GPS Last Known): ${locationData.latitude}, ${locationData.longitude}")
+                     }
+                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to get last known location from $provider: ${e.message}")
+                Log.w(TAG, "⚠️ Failed to get last known location: ${e.message}")
             }
-        }
 
-        // 2. Start continuous updates
-        for (provider in providers) {
-            if (locationManager?.isProviderEnabled(provider) == true) {
-                locationManager?.requestLocationUpdates(
-                    provider,
-                    minTime,
-                    minDistance,
-                    locationListener!!
-                )
-                isTracking = true
-                Log.d(TAG, "✅ Started tracking with provider: $provider")
-                break
+            // 2. Request CONTINUOUS UPDATES from available providers
+            // We prioritize NETWORK for speed/indoors, but also request GPS for accuracy if available
+            // We do NOT break after one; we can request from multiple if needed, or just pick the best strategy.
+            // Strategy: Try Network first. If available, use it. Also try GPS.
+            
+            var started = false
+            
+            // Request Network Updates (Fast, Indoors)
+            if (locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true) {
+                 try {
+                     locationManager?.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        minTime,
+                        minDistance,
+                        locationListener!!
+                    )
+                    started = true
+                    Log.d(TAG, "✅ Started tracking with NETWORK_PROVIDER")
+                 } catch (e: Exception) {
+                     Log.e(TAG, "Failed Network provider: ${e.message}")
+                 }
             }
-        }
-    } catch (e: SecurityException) {
+            
+            // Request GPS Updates (Accurate, Outdoors)
+            // Even if Network started, GPS is better for moving vehicles/delivery
+            if (locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true) {
+                try {
+                    locationManager?.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        minTime,
+                        minDistance,
+                        locationListener!!
+                    )
+                    started = true
+                    Log.d(TAG, "✅ Started tracking with GPS_PROVIDER")
+                } catch (e: Exception) {
+                     Log.e(TAG, "Failed GPS provider: ${e.message}")
+                }
+            }
+            
+            if (started) {
+                isTracking = true
+            } else {
+                onError("No suitable location provider enabled (Network or GPS)")
+            }
+            
+        } catch (e: SecurityException) {
             onError("Location permission denied: ${e.message}")
         } catch (e: Exception) {
             onError("Failed to start tracking: ${e.message}")

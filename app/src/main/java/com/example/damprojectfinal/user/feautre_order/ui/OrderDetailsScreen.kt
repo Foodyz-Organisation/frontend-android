@@ -48,6 +48,7 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.People
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 
@@ -63,7 +64,8 @@ fun OrderDetailsScreen(
     orderId: String,
     navController: NavController,
     orderViewModel: OrderViewModel,
-    userId: String  // Add userId parameter
+    userId: String,  // Add userId parameter
+    startSharing: Boolean = false // New parameter to control auto-sharing
 ) {
     val ordersState by orderViewModel.orders.collectAsState()
     val isLoading by orderViewModel.loading.collectAsState()
@@ -97,48 +99,32 @@ fun OrderDetailsScreen(
     LaunchedEffect(userId) {
         orderViewModel.loadOrdersByUser(userId)
     }
+
+    // Connect to WebSocket for tracking
+    LaunchedEffect(orderId) {
+        locationViewModel.connectToOrder(orderId, userId, "user")
+    }
+
+    // Auto-start sharing if requested from confirmation screen
+    var hasAutoStartedSharing by remember { mutableStateOf(false) }
+    
+    // Use a separate LaunchedEffect for auto-starting to ensure it only happens when connected
+    LaunchedEffect(startSharing, locationState.isConnected) {
+        if (startSharing && locationState.isConnected && !hasAutoStartedSharing && !locationState.isSharing) {
+             android.util.Log.d("OrderDetailsScreen", "🚀 Auto-starting location sharing as requested")
+             hasAutoStartedSharing = true
+             
+             // Check permission (should be granted from previous screen, but safety check)
+             if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                 locationViewModel.startSharingLocation()
+             } else {
+                 android.util.Log.w("OrderDetailsScreen", "⚠️ Cannot auto-start: Permission missing")
+             }
+        }
+    }
     
     val order = remember(ordersState, orderId) {
         ordersState?.find { it._id == orderId }
-    }
-    
-    // Connect to location tracking if order is PENDING/CONFIRMED and EAT_IN/TAKEAWAY
-    LaunchedEffect(order, userId) {
-        order?.let { ord ->
-            if ((ord.status == com.example.damprojectfinal.core.dto.order.OrderStatus.PENDING || 
-                 ord.status == com.example.damprojectfinal.core.dto.order.OrderStatus.CONFIRMED) &&
-                (ord.orderType == com.example.damprojectfinal.core.dto.order.OrderType.EAT_IN ||
-                 ord.orderType == com.example.damprojectfinal.core.dto.order.OrderType.TAKEAWAY)) {
-                // Connect to order tracking WebSocket
-                android.util.Log.d("OrderDetailsScreen", "📱 Connecting to order tracking...")
-                android.util.Log.d("OrderDetailsScreen", "  Order ID: ${ord._id}")
-                android.util.Log.d("OrderDetailsScreen", "  User ID: $userId")
-                android.util.Log.d("OrderDetailsScreen", "  Order Type: ${ord.orderType}")
-                locationViewModel.connectToOrder(ord._id, userId, "user")
-            }
-        }
-    }
-    
-    // Auto-request permission when WebSocket connects (optional - for better UX)
-    var hasRequestedPermission by remember { mutableStateOf(false) }
-    LaunchedEffect(locationState.isConnected) {
-        if (locationState.isConnected && !hasRequestedPermission && !locationState.isSharing) {
-            hasRequestedPermission = true
-            android.util.Log.d("OrderDetailsScreen", "🔐 WebSocket connected. Checking location permission...")
-            
-            // Check if we already have permission
-            if (ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED) {
-                android.util.Log.d("OrderDetailsScreen", "✅ Permission already granted - auto-starting location sharing")
-                // Permission already granted - auto-start sharing
-                locationViewModel.startSharingLocation()
-            } else {
-                android.util.Log.d("OrderDetailsScreen", "⚠️ Permission not granted - will show prompt to user")
-                // Permission not granted - prompt will show via UI card
-            }
-        }
     }
     
     // Cleanup on screen exit
@@ -258,28 +244,30 @@ fun OrderDetailsScreen(
                                     }
                                 }
                                 
-                                // Map
-                                OrderTrackingMap(
-                                    restaurantLocation = locationState.restaurantLocation?.let {
-                                        RestaurantLocation(
-                                            lat = it.lat,
-                                            lng = it.lng,
-                                            name = it.name ?: it.address,
-                                            address = it.address
-                                        )
-                                    },
-                                    userLocation = locationState.currentLocation?.let {
-                                        UserLocation(
-                                            lat = it.lat,
-                                            lng = it.lng,
-                                            accuracy = it.accuracy
-                                        )
-                                    },
-                                    distanceFormatted = locationState.distanceFormatted,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(400.dp)
-                                )
+                                // Map (Only visible when sharing)
+                                if (locationState.isSharing) {
+                                    OrderTrackingMap(
+                                        restaurantLocation = locationState.restaurantLocation?.let {
+                                            RestaurantLocation(
+                                                lat = it.lat,
+                                                lng = it.lng,
+                                                name = it.name ?: it.address,
+                                                address = it.address
+                                            )
+                                        },
+                                        userLocation = locationState.currentLocation?.let {
+                                            UserLocation(
+                                                lat = it.lat,
+                                                lng = it.lng,
+                                                accuracy = it.accuracy
+                                            )
+                                        },
+                                        distanceFormatted = locationState.distanceFormatted,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(400.dp)
+                                    )
+                                }
                                 
                                 // Tracking info with better UX
                                 Column(
@@ -398,13 +386,68 @@ fun OrderDetailsScreen(
                                     // Show error if any
                                     locationState.error?.let { error ->
                                         Spacer(Modifier.height(8.dp))
-                                        Text(
-                                            text = "⚠️ $error",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFFEF4444)
-                                        )
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                                            Text(
+                                                text = "⚠️ $error",
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFEF4444)
+                                            )
+                                            
+                                            // Provide specific action for disabled location services
+                                            if (error.contains("Location services are disabled")) {
+                                                Spacer(Modifier.height(8.dp))
+                                                Button(
+                                                    onClick = {
+                                                        try {
+                                                            val intent = android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                                                            context.startActivity(intent)
+                                                        } catch (e: Exception) {
+                                                            android.widget.Toast.makeText(context, "Could not open settings", android.widget.Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0xFFEF4444), // Red to match error
+                                                        contentColor = Color.White
+                                                    ),
+                                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                                    shape = RoundedCornerShape(20.dp)
+                                                ) {
+                                                    Text("Open Location Settings", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // Special Instructions (Comment)
+                if (!order.comment.isNullOrEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)), // Light Yellow
+                            elevation = CardDefaults.cardElevation(1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("📝 ", fontSize = 16.sp)
+                                    Text(
+                                        "Special Instructions",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = DarkText
+                                    )
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = order.comment,
+                                    fontSize = 14.sp,
+                                    color = DarkText,
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                )
                             }
                         }
                     }
@@ -562,6 +605,65 @@ fun OrderHeaderCard(order: OrderResponse) {
                     color = LightGrayText,
                     fontSize = 14.sp
                 )
+            }
+            
+            // Estimated Time & Queue (New)
+            if (order.estimatedPreparationMinutes != null && order.estimatedPreparationMinutes > 0) {
+                Spacer(Modifier.height(12.dp))
+                Divider(color = Color.LightGray.copy(alpha = 0.3f))
+                Spacer(Modifier.height(12.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Estimated Time",
+                            fontSize = 12.sp,
+                            color = LightGrayText
+                        )
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                text = "~${order.estimatedPreparationMinutes}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = DarkText
+                            )
+                            Text(
+                                text = " min",
+                                fontSize = 14.sp,
+                                color = DarkText,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            )
+                        }
+                    }
+                    
+                    if (order.queuePosition != null && order.queuePosition > 0) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "Queue Position",
+                                fontSize = 12.sp,
+                                color = LightGrayText
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.People,
+                                    contentDescription = null,
+                                    tint = PrimaryColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = "${order.queuePosition} ahead",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = PrimaryColor
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

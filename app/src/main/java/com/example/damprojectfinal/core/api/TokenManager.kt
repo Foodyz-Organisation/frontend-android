@@ -218,15 +218,21 @@ class TokenManager(private val context: Context) {
     }
 
     suspend fun clearTokens() {
-        Log.d(TAG, "🗑️ Clearing all tokens...")
+        Log.d(TAG, "🗑️ Clearing tokens (keeping onboarding status)...")
         try {
-            context.dataStore.edit { it.clear() }
-            Log.d(TAG, "✅ Tokens cleared successfully")
+            context.dataStore.edit { prefs ->
+                prefs.remove(ACCESS_TOKEN_KEY)
+                prefs.remove(REFRESH_TOKEN_KEY)
+                prefs.remove(USER_ID_KEY)
+                prefs.remove(USER_ROLE_KEY)
+                // Do NOT call clear() - we want to keep ONBOARDING_COMPLETED_KEY
+            }
+            Log.d(TAG, "✅ Auth tokens cleared successfully")
 
             // Vérification
             val token = context.dataStore.data.map { it[ACCESS_TOKEN_KEY] }.first()
             if (token == null) {
-                Log.d(TAG, "✅ Verification: DataStore is empty")
+                Log.d(TAG, "✅ Verification: Access token is null")
             } else {
                 Log.w(TAG, "⚠️ Warning: Token still exists after clear!")
             }

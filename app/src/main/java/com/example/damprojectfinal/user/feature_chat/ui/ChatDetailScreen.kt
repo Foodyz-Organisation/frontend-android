@@ -132,6 +132,9 @@ fun ChatDetailScreen(
     val isMicMuted by vm.isMicMuted.collectAsState()
     val isVideoMuted by vm.isVideoMuted.collectAsState()
     val isSpeakerOn by vm.isSpeakerOn.collectAsState()
+    
+    // Remote video stream for updates
+    val remoteVideoTrackStream by vm.remoteVideoTrackStream.collectAsState()
 
     // Get profile picture URL - use state to update when peers are loaded
     var profilePictureUrl by remember { mutableStateOf<String?>(null) }
@@ -477,7 +480,9 @@ fun ChatDetailScreen(
             onToggleSpeaker = { vm.toggleSpeaker(context) },
             onEndCall = { vm.endCall() },
             onAttachLocalVideo = { renderer -> vm.attachLocalVideo(renderer) },
-            onAttachRemoteVideo = { renderer -> vm.attachRemoteVideo(renderer) }
+
+            onAttachRemoteVideo = { renderer -> vm.attachRemoteVideo(renderer) },
+            remoteVideoTrackStream = remoteVideoTrackStream
         )
         return // Don't show chat UI during call
     }
@@ -1509,7 +1514,9 @@ fun ActiveCallScreen(
     onToggleSpeaker: () -> Unit,
     onEndCall: () -> Unit,
     onAttachLocalVideo: (org.webrtc.SurfaceViewRenderer) -> Unit,
-    onAttachRemoteVideo: (org.webrtc.SurfaceViewRenderer) -> Unit
+
+    onAttachRemoteVideo: (org.webrtc.SurfaceViewRenderer) -> Unit,
+    remoteVideoTrackStream: org.webrtc.MediaStream? = null
 ) {
     Box(
         modifier = Modifier
@@ -1525,7 +1532,14 @@ fun ActiveCallScreen(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
+                        setScalingType(org.webrtc.RendererCommon.ScalingType.SCALE_ASPECT_FILL)
                         onAttachRemoteVideo(this)
+                    }
+                },
+                update = { renderer ->
+                    // Re-attach when stream changes or view updates
+                    if (remoteVideoTrackStream != null) {
+                        onAttachRemoteVideo(renderer)
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -1535,9 +1549,10 @@ fun ActiveCallScreen(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(16.dp)
+                    .padding(top = 48.dp, end = 16.dp) // Add top padding to avoid status bar/cutout
                     .size(120.dp, 160.dp)
                     .clip(RoundedCornerShape(12.dp))
+                    .border(2.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                     .background(Color.Black)
             ) {
                 AndroidView(
@@ -1547,6 +1562,8 @@ fun ActiveCallScreen(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
+                            setScalingType(org.webrtc.RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+                            setZOrderMediaOverlay(true) // Crucial: Draw on top of surface view
                             onAttachLocalVideo(this)
                         }
                     },

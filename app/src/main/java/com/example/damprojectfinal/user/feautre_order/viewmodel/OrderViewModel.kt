@@ -101,18 +101,25 @@ class OrderViewModel(
     // ---------------------------------------------------------
     fun updateOrderStatus(orderId: String, request: UpdateOrderStatusRequest) {
         viewModelScope.launch {
-            _loading.value = true
+            // Don't set global loading to true to avoid full screen flicker
+            // just perform the update quietly or let specific UI handle local loading
             _error.value = null
 
             val result = repository.updateOrderStatus(orderId, request)
 
             if (result != null) {
                 _singleOrder.value = result
+                
+                // Update the order in the list locally to avoid full reload
+                val currentOrders = _orders.value.orEmpty().toMutableList()
+                val index = currentOrders.indexOfFirst { it._id == orderId }
+                if (index != -1) {
+                    currentOrders[index] = result
+                    _orders.value = currentOrders
+                }
             } else {
                 _error.value = "Failed to update order status"
             }
-
-            _loading.value = false
         }
     }
 

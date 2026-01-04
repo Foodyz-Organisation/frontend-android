@@ -62,15 +62,58 @@ class MainActivity : ComponentActivity() {
             }
         }
         
+        
+        
         deepLinkToken = extractTokenFromIntent(intent)
+        
+        // Handle incoming call from notification
+        val startDestination = if (intent.action == "ACTION_INCOMING_CALL") {
+            val conversationId = intent.getStringExtra("conversationId")
+            val isVideo = intent.getBooleanExtra("isVideo", false)
+            val callerName = intent.getStringExtra("callerName")
+            Log.d("MainActivity", "📞 Call intent received: id=$conversationId, isVideo=$isVideo")
+            // Configure AppNavigation to start in call or handle deep link
+            // For now we will rely on AppNavigation to use this info, 
+            // but since AppNavigation takes initialDeepLinkToken, we might need a separate mechanism 
+            // or just pass it as a special deep link like "foodyz://call/{id}"
+            
+            // Simpler approach: construct a deep link url for the call and pass it as token/path
+            // But AppNavigation expects a token. Let's create a temporary state for call.
+            null // Default start for now, we will handle in onNewIntent/onCreate better below
+        } else {
+            null
+        }
 
         enableEdgeToEdge() // Keep your edge-to-edge setup
 
         setContent {
             DamProjectFinalTheme {
-                AppNavigation(initialDeepLinkToken = deepLinkToken)
+                val callData = rememberIncomingCall(intent)
+                AppNavigation(
+                    initialDeepLinkToken = deepLinkToken,
+                    initialCallData = callData
+                )
             }
         }
+    }
+    
+    @androidx.compose.runtime.Composable
+    private fun rememberIncomingCall(intent: Intent): Map<String, Any?>? {
+        var callData by androidx.compose.runtime.remember { mutableStateOf<Map<String, Any?>?>(null) }
+        
+        androidx.compose.runtime.LaunchedEffect(intent) {
+            if (intent.action == "ACTION_INCOMING_CALL") {
+                val conversationId = intent.getStringExtra("conversationId")
+                if (conversationId != null) {
+                    callData = mapOf(
+                        "conversationId" to conversationId,
+                        "callerName" to intent.getStringExtra("callerName"),
+                        "isVideo" to intent.getBooleanExtra("isVideo", false)
+                    )
+                }
+            }
+        }
+        return callData
     }
 
     override fun onNewIntent(intent: Intent) {

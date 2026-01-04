@@ -55,10 +55,12 @@ fun OrderConfirmationScreen(
     cartViewModel: CartViewModel,
     professionalId: String,
     onBackClick: () -> Unit,
-    onOrderSuccess: () -> Unit
+    onOrderSuccess: (String, Boolean) -> Unit
 ) {
     // State for command type selection
     var selectedCommand by remember { mutableStateOf<OrderType?>(null) }
+    // State for order comment
+    var userComment by remember { mutableStateOf("") }
     val context = LocalContext.current
 
     // Payment flow state
@@ -87,7 +89,12 @@ fun OrderConfirmationScreen(
 
     // Token manager for user ID
     val tokenManager = remember { TokenManager(context) }
-    val userId = remember { tokenManager.getUserId() ?: "" }
+    var userId by remember { mutableStateOf("") }
+    
+    // Load userId asynchronously to avoid blocking main thread
+    LaunchedEffect(Unit) {
+        userId = tokenManager.getUserIdAsync() ?: ""
+    }
 
     // Permission launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -107,19 +114,13 @@ fun OrderConfirmationScreen(
     }
 
     // Load cart state from ViewModel
-    val cartState by cartViewModel.uiState.collectAsState()
+    val cartState by cartViewModel.uiState.collectAsState(
+
+)
     
-    // Load cart only when screen first appears (not when navigating between payment states)
+    // Load cart only when screen first appears
     LaunchedEffect(Unit) {
         cartViewModel.loadCart()
-    }
-    
-    // Reload cart only when returning to order details from other screens
-    LaunchedEffect(paymentFlowState) {
-        if (paymentFlowState == PaymentFlowState.OrderDetails) {
-            // Only reload if we're coming back to order details
-            cartViewModel.loadCart()
-        }
     }
 
     // Get cart items from state
@@ -170,6 +171,12 @@ fun OrderConfirmationScreen(
                     onCancel = onBackClick,
                     onConfirm = {
                         selectedCommand?.let { orderType ->
+                            // Validate userId is loaded
+                            if (userId.isEmpty()) {
+                                Toast.makeText(context, "Loading user data, please wait...", Toast.LENGTH_SHORT).show()
+                                return@let
+                            }
+                            
                             // Validate cart has items before proceeding
                             when (currentCartState) {
                                 is CartUiState.Success -> {
@@ -193,7 +200,7 @@ fun OrderConfirmationScreen(
                             }
                         }
                     },
-                    isConfirmEnabled = selectedCommand != null && hasItems
+                    isConfirmEnabled = selectedCommand != null && hasItems && userId.isNotEmpty()
                 )
             }
         },
@@ -286,6 +293,7 @@ fun OrderConfirmationScreen(
                                     professionalId = professionalId,
                                     orderType = orderType,
                                     paymentMethod = method.name,
+                                    comment = userComment,
                                     onSuccess = { orderResponse, paymentIntentIdFromResponse ->
                                         android.util.Log.d("OrderConfirmation", "🎉 ========== ORDER CREATION SUCCESS CALLBACK ==========")
                                         android.util.Log.d("OrderConfirmation", "✅ Order created: ${orderResponse._id}")
@@ -498,36 +506,14 @@ fun OrderConfirmationScreen(
                 // Helper function to complete order after location sharing
                 val completeOrder: () -> Unit = {
                     createdOrder?.let { order ->
-                        selectedCommand?.let { type ->
-                            // If user agreed to share location, start tracking
-                            if (isLocationSharingEnabled && (type == OrderType.EAT_IN || type == OrderType.TAKEAWAY)) {
-                                val orderId = order._id
-                                createdOrderId = orderId
-
-                                // Connect to WebSocket and start sharing
-                                locationViewModel.connectToOrder(orderId, userId, "user")
-
-                                // Check permission again before starting
-                                val hasPermission = ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.ACCESS_FINE_LOCATION
-                                ) == PackageManager.PERMISSION_GRANTED
-
-                                if (hasPermission) {
-                                    locationViewModel.startSharingLocation()
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        "Location permission required for tracking",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                        }
+                        // Location sharing initialization is now handled by the OrderDetailsScreen
+                        // via the onOrderSuccess callback parameters.
+                        // We simply pass the user's choice forward.
 
                         Toast.makeText(context, "Order placed successfully!", Toast.LENGTH_SHORT)
                             .show()
-                        onOrderSuccess()
+                        // Pass the created order ID and the sharing choice to navigation
+                        onOrderSuccess(order._id, isLocationSharingEnabled)
                     }
                 }
 
@@ -597,6 +583,33 @@ fun OrderConfirmationScreen(
                                     // Location sharing will be handled after payment confirmation
                                     isLocationSharingEnabled = false
                                 }
+                            )
+                            
+                            Spacer(Modifier.height(24.dp))
+                            
+                            // 3. Special Instructions (Comment)
+                            Text(
+                                "Special Instructions",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppDarkText
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = userComment,
+                                onValueChange = { userComment = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Add a note (optional)") },
+                                placeholder = { Text("e.g., No onions, extra napkin...") },
+                                minLines = 2,
+                                maxLines = 4,
+                                textStyle = androidx.compose.ui.text.TextStyle(color = AppDarkText),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AppCartButtonYellow,
+                                    focusedLabelColor = AppCartButtonYellow,
+                                    unfocusedBorderColor = Color.LightGray
+                                ),
+                                shape = RoundedCornerShape(12.dp)
                             )
                         }
                     }
