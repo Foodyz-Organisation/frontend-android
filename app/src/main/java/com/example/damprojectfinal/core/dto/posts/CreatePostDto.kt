@@ -50,6 +50,35 @@ data class PostResponse(
     // --- NEW FIELDS FOR FOOD TYPE, PRICE, AND PREPARATION TIME ---
     val foodType: String? = null, // Required: One of FoodType enum values
     val price: Double? = null, // Optional: Price in TND
-    val preparationTime: Int? = null // Optional: Preparation time in minutes
+    val preparationTime: Int? = null, // Optional: Preparation time in minutes
 
+    // --- NEW: Category validation result from backend ---
+    @SerializedName("categoryValidation")
+    val categoryValidation: CategoryValidationResult? = null
+
+)
+
+// Category validation data classes
+data class CategoryValidationResult(
+    @SerializedName("matchStatus")
+    val matchStatus: String, // "MATCH", "MISMATCH", "UNCERTAIN"
+    @SerializedName("userSelectedCategory")
+    val userSelectedCategory: String,
+    @SerializedName("aiPredictedCategories")
+    val aiPredictedCategories: List<PredictedCategory>,
+    @SerializedName("suggestedCategory")
+    val suggestedCategory: String?,
+    @SerializedName("confidence")
+    val confidence: Double,
+    @SerializedName("detectionMethod")
+    val detectionMethod: String
+)
+
+data class PredictedCategory(
+    @SerializedName("category")
+    val category: String,
+    @SerializedName("confidence")
+    val confidence: Double,
+    @SerializedName("matchedLabels")
+    val matchedLabels: List<String>
 )

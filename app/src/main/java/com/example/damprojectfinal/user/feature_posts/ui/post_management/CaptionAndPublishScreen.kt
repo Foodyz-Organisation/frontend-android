@@ -43,6 +43,7 @@ import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.CreatePostDto
 import com.example.damprojectfinal.core.dto.posts.FoodType
 import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.api.posts.PostsApiService
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -52,12 +53,22 @@ import retrofit2.HttpException
 import java.io.File
 import java.io.IOException
 import java.net.URLDecoder
+import java.util.Locale
+import com.example.damprojectfinal.core.dto.posts.CategoryValidationResult
+import com.example.damprojectfinal.core.dto.posts.PredictedCategory
 
 enum class AppMediaType(val value: String) {
     IMAGE("image"),
     REEL("reel"),
     CAROUSEL("carousel")
 }
+
+data class CategoryMismatchData(
+    val userSelected: String,
+    val aiSuggested: String,
+    val confidence: Double,
+    val predictedCategories: List<PredictedCategory>
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,6 +107,13 @@ fun CaptionAndPublishScreen(
     var showErrorDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var uploadProgress by remember { mutableStateOf("") }
+    
+    // Category validation state
+    var showCategoryMismatchDialog by remember { mutableStateOf(false) }
+    var categoryMismatchData by remember { 
+        mutableStateOf<CategoryMismatchData?>(null) 
+    }
+    var createdPostIdForUpdate by remember { mutableStateOf<String?>(null) }
 
     // --- Main Layout ---
     Scaffold(
@@ -137,6 +155,16 @@ fun CaptionAndPublishScreen(
                                     onError = { msg ->
                                         errorMessage = msg
                                         showErrorDialog = true
+                                    },
+                                    onCategoryMismatch = { postId, validation, suggestedCategory ->
+                                        createdPostIdForUpdate = postId
+                                        categoryMismatchData = CategoryMismatchData(
+                                            userSelected = validation.userSelectedCategory,
+                                            aiSuggested = suggestedCategory,
+                                            confidence = validation.confidence,
+                                            predictedCategories = validation.aiPredictedCategories
+                                        )
+                                        showCategoryMismatchDialog = true
                                     }
                                 )
                             }
@@ -474,6 +502,202 @@ fun CaptionAndPublishScreen(
                     shape = RoundedCornerShape(16.dp)
                 )
             }
+
+            // Category Mismatch Dialog
+            if (showCategoryMismatchDialog && categoryMismatchData != null) {
+                val data = categoryMismatchData!!
+                AlertDialog(
+                    onDismissRequest = {
+                        // Don't allow dismiss - user must choose
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Filled.Warning,
+                            contentDescription = "Category Mismatch",
+                            tint = Color(0xFFFF9800), // Orange
+                            modifier = Modifier.size(48.dp)
+                        )
+                    },
+                    title = {
+                        Text(
+                            text = "Category Mismatch Detected",
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Column {
+                            Text(
+                                text = "The AI detected a different food category in your image. Please update the category to continue:",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF1F2937)
+                            )
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            // User's selection
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFFE3F2FD) // Light blue
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp)
+                                ) {
+                                    Text(
+                                        text = "You Selected:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF1976D2)
+                                    )
+                                    Text(
+                                        text = formatFoodType(data.userSelected),
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1976D2),
+                                        fontSize = 16.sp
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            // AI suggestion
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFFFFF3E0) // Light orange
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp)
+                                ) {
+                                    Text(
+                                        text = "AI Detected:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFFFF6F00)
+                                    )
+                                    Text(
+                                        text = formatFoodType(data.aiSuggested),
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFFF6F00),
+                                        fontSize = 16.sp
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Text(
+                                text = "⚠️ You must change the category to match the AI detection or cancel the post.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFEF4444),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                // Update post with AI-suggested category
+                                coroutineScope.launch {
+                                    if (createdPostIdForUpdate != null) {
+                                        updatePostCategory(
+                                            postId = createdPostIdForUpdate!!,
+                                            newCategory = data.aiSuggested,
+                                            onSuccess = {
+                                                showCategoryMismatchDialog = false
+                                                createdPostIdForUpdate = null
+                                                showSuccessDialog = true
+                                            },
+                                            onError = { error ->
+                                                errorMessage = error
+                                                showCategoryMismatchDialog = false
+                                                createdPostIdForUpdate = null
+                                                showErrorDialog = true
+                                            }
+                                        )
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFF9800)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Use AI Suggestion")
+                        }
+                    },
+                    dismissButton = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Change Category button - goes back to edit
+                            OutlinedButton(
+                                onClick = {
+                                    // Delete the post and go back to edit
+                                    coroutineScope.launch {
+                                        if (createdPostIdForUpdate != null) {
+                                            deletePostAndGoBack(
+                                                postId = createdPostIdForUpdate!!,
+                                                onDeleted = {
+                                                    showCategoryMismatchDialog = false
+                                                    createdPostIdForUpdate = null
+                                                    // User can now change category and try again
+                                                },
+                                                onError = { error ->
+                                                    errorMessage = error
+                                                    showCategoryMismatchDialog = false
+                                                    createdPostIdForUpdate = null
+                                                    showErrorDialog = true
+                                                }
+                                            )
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color(0xFF1F2937)
+                                )
+                            ) {
+                                Text("Change Category")
+                            }
+                            
+                            // Cancel button - deletes post and goes back
+                            OutlinedButton(
+                                onClick = {
+                                    // Delete the post and go back
+                                    coroutineScope.launch {
+                                        if (createdPostIdForUpdate != null) {
+                                            deletePostAndGoBack(
+                                                postId = createdPostIdForUpdate!!,
+                                                onDeleted = {
+                                                    showCategoryMismatchDialog = false
+                                                    createdPostIdForUpdate = null
+                                                    navController.popBackStack()
+                                                },
+                                                onError = { error ->
+                                                    errorMessage = error
+                                                    showCategoryMismatchDialog = false
+                                                    createdPostIdForUpdate = null
+                                                    showErrorDialog = true
+                                                }
+                                            )
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color(0xFFEF4444)
+                                )
+                            ) {
+                                Text("Cancel")
+                            }
+                        }
+                    },
+                    containerColor = Color.White,
+                    shape = RoundedCornerShape(16.dp)
+                )
+            }
             
             // Loading Overlay
             if (isPublishing) {
@@ -588,7 +812,8 @@ private suspend fun publishPost(
     onPublishing: (Boolean) -> Unit,
     onProgress: (String) -> Unit,
     onSuccess: () -> Unit,
-    onError: (String) -> Unit
+    onError: (String) -> Unit,
+    onCategoryMismatch: (String, CategoryValidationResult, String) -> Unit
 ) {
     if (mediaUris.isEmpty()) { onError("No media selected."); return }
     if (caption.isBlank()) { onError("Where is the love? Add a caption!"); return }
@@ -646,6 +871,75 @@ private suspend fun publishPost(
         // Step 6: Create Post via API
         val createdPost = RetrofitClient.postsApiService.createPost(createPostDto = createPostDto)
 
+        // Step 6.5: Check Category Validation
+        Log.d("CategoryValidation", "=== POST CREATION RESPONSE ===")
+        Log.d("CategoryValidation", "Post created with ID: ${createdPost._id}")
+        Log.d("CategoryValidation", "Food type sent: $foodType")
+        Log.d("CategoryValidation", "Food type in response: ${createdPost.foodType}")
+        Log.d("CategoryValidation", "Category validation field: ${createdPost.categoryValidation}")
+        
+        // Log all fields to help debug
+        Log.d("CategoryValidation", "Full PostResponse fields:")
+        Log.d("CategoryValidation", "  - _id: ${createdPost._id}")
+        Log.d("CategoryValidation", "  - caption: ${createdPost.caption}")
+        Log.d("CategoryValidation", "  - foodType: ${createdPost.foodType}")
+        Log.d("CategoryValidation", "  - categoryValidation: ${createdPost.categoryValidation}")
+        
+        if (createdPost.categoryValidation != null) {
+            val validation = createdPost.categoryValidation
+            Log.d("CategoryValidation", "=== CATEGORY VALIDATION FOUND ===")
+            Log.d("CategoryValidation", "Match status: ${validation.matchStatus}")
+            Log.d("CategoryValidation", "User selected: ${validation.userSelectedCategory}")
+            Log.d("CategoryValidation", "AI suggested: ${validation.suggestedCategory}")
+            Log.d("CategoryValidation", "Confidence: ${validation.confidence}")
+            Log.d("CategoryValidation", "AI predicted categories count: ${validation.aiPredictedCategories.size}")
+            
+            // Get the suggested category - use first prediction in list if suggestedCategory is null
+            // The backend returns predictions in order of relevance, so first item is the primary suggestion
+            val suggestedCategory = validation.suggestedCategory ?: run {
+                val firstPrediction = validation.aiPredictedCategories.firstOrNull()
+                firstPrediction?.category ?: validation.userSelectedCategory
+            }
+            
+            // Check if user's selection matches the AI's first prediction (primary suggestion)
+            val firstPrediction = validation.aiPredictedCategories.firstOrNull()
+            val userSelectionMatchesTop = firstPrediction?.category?.equals(foodType, ignoreCase = true) == true
+            
+            // Always check if user's selection matches the FIRST AI prediction
+            // Even if backend says "MATCH", we need to verify it matches the primary suggestion
+            if (!userSelectionMatchesTop && firstPrediction != null) {
+                // User's selection doesn't match the first AI prediction - show dialog
+                Log.d("CategoryValidation", "⚠️ Category mismatch detected - user selected '${foodType}' but AI's first prediction is '${firstPrediction.category}'")
+                Log.d("CategoryValidation", "First AI prediction: ${firstPrediction.category} (confidence: ${firstPrediction.confidence})")
+                Log.d("CategoryValidation", "Backend matchStatus: ${validation.matchStatus} (but frontend validation shows mismatch)")
+                onCategoryMismatch(createdPost._id, validation, suggestedCategory)
+                return // Don't proceed to success yet - user must change category
+            }
+            
+            // If we reach here, user's selection matches the first AI prediction
+            when (validation.matchStatus.uppercase()) {
+                "MISMATCH", "UNCERTAIN" -> {
+                    // This shouldn't happen if userSelectionMatchesTop is true, but log it
+                    Log.d("CategoryValidation", "⚠️ Backend reports ${validation.matchStatus.lowercase()}, but user selection matches first prediction")
+                    Log.d("CategoryValidation", "Proceeding normally since user selection matches AI's primary suggestion")
+                }
+                "MATCH" -> {
+                    // Category matches, proceed normally
+                    Log.d("CategoryValidation", "✅ Category matches - user selection matches first AI prediction")
+                }
+                else -> {
+                    Log.w("CategoryValidation", "❌ Unknown match status: ${validation.matchStatus}")
+                }
+            }
+        } else {
+            Log.w("CategoryValidation", "❌ Category validation is NULL")
+            Log.w("CategoryValidation", "This indicates the backend is NOT returning categoryValidation in the response")
+            Log.w("CategoryValidation", "Backend needs to be updated to include categoryValidation in POST /posts response")
+            Log.w("CategoryValidation", "Expected structure: { categoryValidation: { matchStatus, userSelectedCategory, aiPredictedCategories, ... } }")
+            // If backend doesn't return validation, proceed normally
+            // This allows the app to work even if backend validation isn't implemented yet
+        }
+
         // Step 7: Handle Reel thumbnail if needed
         if (mediaType == AppMediaType.REEL.value && createdPost.thumbnailUrl == null) {
             kotlinx.coroutines.delay(2000)
@@ -690,6 +984,61 @@ private fun parseFoodDetectionError(errorBody: String?): String {
     } catch (e: Exception) {
         "Upload failed. Please try again."
     }
+}
+
+/**
+ * Updates post category with AI-suggested category
+ */
+private suspend fun updatePostCategory(
+    postId: String,
+    newCategory: String,
+    onSuccess: () -> Unit,
+    onError: (String) -> Unit
+) {
+    try {
+        val updateDto = PostsApiService.UpdatePostDto(
+            foodType = newCategory
+        )
+        RetrofitClient.postsApiService.updatePost(
+            postId = postId,
+            updatePostDto = updateDto
+        )
+        onSuccess()
+    } catch (e: Exception) {
+        onError(e.message ?: "Failed to update category")
+    }
+}
+
+/**
+ * Deletes a post and handles the result
+ */
+private suspend fun deletePostAndGoBack(
+    postId: String,
+    onDeleted: () -> Unit,
+    onError: (String) -> Unit
+) {
+    try {
+        RetrofitClient.postsApiService.deletePost(postId)
+        Log.d("CategoryValidation", "Post deleted successfully: $postId")
+        onDeleted()
+    } catch (e: Exception) {
+        Log.e("CategoryValidation", "Failed to delete post: ${e.message}")
+        onError(e.message ?: "Failed to delete post")
+    }
+}
+
+/**
+ * Formats food type string for display
+ */
+private fun formatFoodType(foodType: String): String {
+    return foodType
+        .split("_")
+        .joinToString(" ") { word ->
+            word.lowercase().replaceFirstChar { 
+                if (it.isLowerCase()) it.titlecase(Locale.getDefault()) 
+                else it.toString() 
+            }
+        }
 }
 
 @Preview(showBackground = true)

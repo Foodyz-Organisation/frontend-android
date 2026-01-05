@@ -47,6 +47,16 @@ interface PostsApiService {
         @Body request: UpdateCaptionRequest // Using our simple DTO
     ): PostResponse
 
+    // --- NEW: Endpoint for updating post category ---
+    data class UpdatePostDto(
+        val foodType: String? = null
+    )
+    @PATCH("posts/{postId}")
+    suspend fun updatePost(
+        @Path("postId") postId: String,
+        @Body updatePostDto: UpdatePostDto
+    ): PostResponse
+
     // --- NEW: Endpoint for deleting a post (DELETE /posts/{id}) ---
     @DELETE("posts/{id}")
     suspend fun deletePost(@Path("id") postId: String): PostResponse // Returns the deleted post
