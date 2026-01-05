@@ -196,10 +196,8 @@ fun ChatDetailScreen(
             val deniedPermissions = permissions.filter { !it.value }.keys.joinToString()
             android.util.Log.e("ChatDetailScreen", "Permissions denied: $deniedPermissions")
             
-            // Simple toast with explicit instruction + Settings Intent
             Toast.makeText(context, "Permission Denied. Please enable in Settings.", Toast.LENGTH_LONG).show()
             
-            // Allow user to open settings manually if they want
              try {
                 val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                 intent.data = android.net.Uri.fromParts("package", context.packageName, null)
@@ -214,7 +212,6 @@ fun ChatDetailScreen(
 
     LaunchedEffect(conversationId, accessToken) {
         if (conversationId != null && accessToken != null) {
-            // Initialize WebRTC
             vm.initWebRtc(context)
             
             // Load peers first to get profile pictures

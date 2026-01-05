@@ -37,6 +37,10 @@ data class PostResponse(
     val commentCount: Int,
     val saveCount: Int,
 
+    // --- USER-SPECIFIC FIELDS (returned when x-user-id header is present) ---
+    val isLiked: Boolean? = null, // Whether the current user has liked this post
+    val isSaved: Boolean? = null, // Whether the current user has saved this post
+
     // --- NEW FIELDS FOR POST DETAILS SCREEN ---
     val description: String? = null, // Optional description
     val ingredients: List<String>? = null, // Optional list of ingredients

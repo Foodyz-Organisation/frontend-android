@@ -138,7 +138,9 @@ fun AllProfilePosts(
                         PostItem(
                             post = post,
                             onLikeClick = { postId ->
-                                if (post.likeCount > 0) {
+                                // Use isLiked if available, otherwise fallback to likeCount > 0 for backward compatibility
+                                val currentlyLiked = post.isLiked ?: (post.likeCount > 0)
+                                if (currentlyLiked) {
                                     postsViewModel.decrementLikeCount(postId)
                                 } else {
                                     postsViewModel.incrementLikeCount(postId)
@@ -455,10 +457,11 @@ fun PostItem(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                          // Like Button
+                        val isLiked = post.isLiked ?: false
                         Icon(
-                            imageVector = if (post.likeCount > 0) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                             contentDescription = "Like",
-                            tint = if (post.likeCount > 0) Color(0xFFEF4444) else Color(0xFF9CA3AF),
+                            tint = if (isLiked) Color(0xFFEF4444) else Color(0xFF9CA3AF),
                             modifier = Modifier
                                 .size(24.dp) // Slightly smaller
                                 .clickable { onLikeClick(post._id) }

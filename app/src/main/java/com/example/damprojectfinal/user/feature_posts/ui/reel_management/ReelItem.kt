@@ -61,24 +61,21 @@ fun ReelItem(
     postsViewModel: PostsViewModel,
     reelsViewModel: ReelsViewModel
 ) {
-    // Track like and save state
-    // Note: For proper persistence, backend should return isLiked/isSaved flags per user
-    // For now, we track state locally and update from API response
-    var isLiked by remember(reelPost._id) { mutableStateOf(reelPost.likeCount > 0) }
-    var isSaved by remember(reelPost._id) { mutableStateOf(reelPost.saveCount > 0) }
+    // Track like and save state - use isLiked/isSaved from backend if available
+    var isLiked by remember(reelPost._id) { mutableStateOf(reelPost.isLiked ?: false) }
+    var isSaved by remember(reelPost._id) { mutableStateOf(reelPost.isSaved ?: false) }
     var likeCount by remember(reelPost._id) { mutableStateOf(reelPost.likeCount) }
     var saveCount by remember(reelPost._id) { mutableStateOf(reelPost.saveCount) }
     
     val scope = rememberCoroutineScope()
     
     // Update counts when post changes (from API updates)
-    LaunchedEffect(reelPost.likeCount, reelPost.saveCount) {
+    LaunchedEffect(reelPost.likeCount, reelPost.saveCount, reelPost.isLiked, reelPost.isSaved) {
         likeCount = reelPost.likeCount
         saveCount = reelPost.saveCount
-        // Update like/save state based on counts
-        // Note: This is not perfect - ideally backend should return user-specific flags
-        isLiked = reelPost.likeCount > 0
-        isSaved = reelPost.saveCount > 0
+        // Use backend-provided isLiked/isSaved if available, otherwise keep current state
+        reelPost.isLiked?.let { isLiked = it }
+        reelPost.isSaved?.let { isSaved = it }
     }
     val context = LocalContext.current
     // Track playback state for this specific reel

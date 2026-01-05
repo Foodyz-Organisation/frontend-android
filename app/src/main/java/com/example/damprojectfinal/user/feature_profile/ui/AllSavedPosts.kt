@@ -138,8 +138,14 @@ fun SavedPostItem(
     onCommentClick: (String) -> Unit,
     onUnsaveClick: (String) -> Unit
 ) {
-    var isLiked by remember(post._id, post.likeCount) { mutableStateOf(post.likeCount > 0) }
+    var isLiked by remember(post._id, post.likeCount, post.isLiked) { mutableStateOf(post.isLiked ?: false) }
     var likeCount by remember(post._id, post.likeCount) { mutableStateOf(post.likeCount) }
+    
+    // Update isLiked when post data changes
+    LaunchedEffect(post.isLiked, post.likeCount) {
+        post.isLiked?.let { isLiked = it }
+        likeCount = post.likeCount
+    }
 
     Card(
         modifier = Modifier

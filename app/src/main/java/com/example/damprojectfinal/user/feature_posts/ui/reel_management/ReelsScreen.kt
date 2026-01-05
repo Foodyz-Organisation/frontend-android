@@ -35,23 +35,28 @@ fun ReelsScreen(
     val infiniteReelsList by reelsViewModel.infiniteReelsList.collectAsState()
     val currentReelIndex by reelsViewModel.currentReelIndex.collectAsState()
 
+    // --- NEW: Comments Sheet State ---
     var showCommentsSheet by remember { mutableStateOf(false) }
     var selectedPostIdForComments by remember { mutableStateOf<String?>(null) }
     val activeComments by postsViewModel.activeComments.collectAsState()
     val isCommentsLoading by postsViewModel.areCommentsLoading.collectAsState()
 
+    // --- NEW: Share Dialog State ---
     var showShareDialog by remember { mutableStateOf(false) }
     var selectedPostIdForSharing by remember { mutableStateOf<String?>(null) }
 
+    // Handle back button press for navigation
     BackHandler {
         navController.popBackStack()
     }
 
+    // --- Compose UI container for Reels ---
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color.Black) // Reels typically have a black background
     ) {
+        // --- AndroidView to host ViewPager2 ---
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
@@ -60,18 +65,24 @@ fun ReelsScreen(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    orientation = ViewPager2.ORIENTATION_VERTICAL
+                    orientation = ViewPager2.ORIENTATION_VERTICAL // Set to vertical scrolling
 
+                    // --- MODIFIED: Initialize adapter correctly ---
+                    // The ReelsPagerAdapter needs a context and the onReelClick listener
                     adapter = ReelsPagerAdapter(
                         context = ctx,
                         onReelClick = { clickedReelId ->
+                            // Handle reel clicks (e.g., pause/play).
+                            // This logic will be in the ViewModel to manage playback state.
                             reelsViewModel.togglePlayback(clickedReelId)
                         },
+                        // --- NEW: Handle Comment Click ---
                         onCommentClick = { postId ->
                              selectedPostIdForComments = postId
                              postsViewModel.loadComments(postId)
                              showCommentsSheet = true
                         },
+                        // --- NEW: Handle Share Click ---
                         onShareClick = { postId ->
                             selectedPostIdForSharing = postId
                             showShareDialog = true
@@ -80,37 +91,50 @@ fun ReelsScreen(
                         postsViewModel = postsViewModel,
                         reelsViewModel = reelsViewModel
                     )
+                    // --- END MODIFIED ---
 
                     registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
                         override fun onPageSelected(position: Int) {
                             super.onPageSelected(position)
                             reelsViewModel.onReelSelected(position) // Notify ViewModel of new current reel
+                            // Also tell the adapter the new playing position for playback control
                             (adapter as? ReelsPagerAdapter)?.setCurrentlyPlayingPosition(position)
                         }
 
+                        // --- MODIFIED: Handle scroll state changes for better playback control ---
                         override fun onPageScrollStateChanged(state: Int) {
                             super.onPageScrollStateChanged(state)
                             val reelsPagerAdapter = adapter as? ReelsPagerAdapter
                             if (state == ViewPager2.SCROLL_STATE_IDLE) {
+                                // When scrolling stops, ensure the current item's player is active
                                 reelsPagerAdapter?.setCurrentlyPlayingPosition(currentItem)
                             } else {
+                                // When scrolling, pause the current item's player
+                                // Pass NO_POSITION to indicate no reel is actively playing
                                 reelsPagerAdapter?.setCurrentlyPlayingPosition(RecyclerView.NO_POSITION)
                             }
                         }
+                        // --- END MODIFIED ---
                     })
                 }
             },
             update = { viewPager ->
+                // --- MODIFIED: Use submitList for ListAdapter with infinite list ---
                 (viewPager.adapter as? ReelsPagerAdapter)?.submitList(infiniteReelsList)
 
+                // Ensure ViewPager2 scrolls to the current index (or initial position on first load)
                 if (infiniteReelsList.isNotEmpty() && viewPager.currentItem != currentReelIndex) {
                     viewPager.setCurrentItem(currentReelIndex, false) // false for no smooth scroll
                 }
+                // --- MODIFIED: Set the playing position initially and on update ---
+                // This ensures the correct reel plays if the list changes or viewPager state is restored
                 (viewPager.adapter as? ReelsPagerAdapter)?.setCurrentlyPlayingPosition(currentReelIndex)
             }
         )
 
+        // --- NEW: Comments Sheet ---
         if (showCommentsSheet && selectedPostIdForComments != null) {
+            // Find the post from the actual reels list (not infinite list)
             val selectedPost = reelsList.find { it._id == selectedPostIdForComments }
             com.example.damprojectfinal.user.feature_posts.ui.post_management.CommentsSheet(
                 post = selectedPost,
@@ -128,29 +152,12 @@ fun ReelsScreen(
                 }
             )
         }
-
-        if (showShareDialog && selectedPostIdForSharing != null) {
-            com.example.damprojectfinal.user.common._component.SharePostDialog(
-                postId = selectedPostIdForSharing!!,
-                onDismiss = {
-                    showShareDialog = false
-                    selectedPostIdForSharing = null
-                },
-                onShareSuccess = {
-                    showShareDialog = false
-                    selectedPostIdForSharing = null
-                    
-                    navController.navigate(com.example.damprojectfinal.UserRoutes.HOME_SCREEN) {
-                        popUpTo(com.example.damprojectfinal.UserRoutes.HOME_SCREEN) {
-                            inclusive = true
-                        }
-                        launchSingleTop = true
-                    }
-                }
-            )
-        }
     }
 }
+
+// ------------------------------------------------------
+// 👁️ Preview Composable
+// ------------------------------------------------------
 
 @Preview(showBackground = true, name = "Reels Screen Preview")
 @Composable

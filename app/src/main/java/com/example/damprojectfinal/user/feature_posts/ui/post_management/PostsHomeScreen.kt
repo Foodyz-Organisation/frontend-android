@@ -356,20 +356,21 @@ fun RecipeCard(
     onOrderClick: ((professionalId: String, foodType: String?) -> Unit)? = null,
     postsViewModel: PostsViewModel = viewModel()
 ) {
-    // Track state
-    var isLiked by remember(post._id) { mutableStateOf(post.likeCount > 0) }
-    var isSaved by remember(post._id) { mutableStateOf(post.saveCount > 0) }
+    // Track state - use isLiked/isSaved from backend if available, otherwise default to false
+    var isLiked by remember(post._id) { mutableStateOf(post.isLiked ?: false) }
+    var isSaved by remember(post._id) { mutableStateOf(post.isSaved ?: false) }
     var likeCount by remember(post._id) { mutableStateOf(post.likeCount) }
     var saveCount by remember(post._id) { mutableStateOf(post.saveCount) }
     
     // Track mute state for reels (false = unmuted/sound on, true = muted/sound off)
     var isMuted by remember(post._id) { mutableStateOf(false) }
 
-    LaunchedEffect(post.likeCount, post.saveCount) {
+    LaunchedEffect(post.likeCount, post.saveCount, post.isLiked, post.isSaved) {
         likeCount = post.likeCount
         saveCount = post.saveCount
-        isLiked = post.likeCount > 0
-        isSaved = post.saveCount > 0
+        // Use backend-provided isLiked/isSaved if available, otherwise keep current state
+        post.isLiked?.let { isLiked = it }
+        post.isSaved?.let { isSaved = it }
     }
 
 
