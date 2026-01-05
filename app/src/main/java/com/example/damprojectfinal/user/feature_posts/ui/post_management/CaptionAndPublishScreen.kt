@@ -413,12 +413,24 @@ fun CaptionAndPublishScreen(
                             onClick = {
                                 showSuccessDialog = false
                                 postsViewModel.fetchPosts()
-                                // Navigate to home screen
-                                navController.navigate(com.example.damprojectfinal.UserRoutes.HOME_SCREEN) {
-                                    popUpTo(com.example.damprojectfinal.UserRoutes.HOME_SCREEN) {
-                                        inclusive = true
+                                // Navigate to home screen based on user type
+                                if (currentUserType?.uppercase() == "PROFESSIONAL") {
+                                    // Navigate to professional home screen
+                                    val professionalId = currentUserId ?: ""
+                                    navController.navigate("${com.example.damprojectfinal.UserRoutes.HOME_SCREEN_PRO}/$professionalId") {
+                                        popUpTo("${com.example.damprojectfinal.UserRoutes.HOME_SCREEN_PRO}/$professionalId") {
+                                            inclusive = true
+                                        }
+                                        launchSingleTop = true
                                     }
-                                    launchSingleTop = true
+                                } else {
+                                    // Navigate to regular user home screen
+                                    navController.navigate(com.example.damprojectfinal.UserRoutes.HOME_SCREEN) {
+                                        popUpTo(com.example.damprojectfinal.UserRoutes.HOME_SCREEN) {
+                                            inclusive = true
+                                        }
+                                        launchSingleTop = true
+                                    }
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(

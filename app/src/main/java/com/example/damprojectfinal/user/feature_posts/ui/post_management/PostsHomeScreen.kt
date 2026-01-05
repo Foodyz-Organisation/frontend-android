@@ -11,14 +11,18 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,6 +60,7 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import com.example.damprojectfinal.user.common._component.SharePostDialog
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -384,6 +389,22 @@ fun RecipeCard(
     val isGlobalMuted by reelsViewModel?.isGlobalMuted?.collectAsState() ?: remember { mutableStateOf(true) }
     val isMuted = isGlobalMuted
 
+    // State to alternate between profile badge and preparation time badge
+    val hasPreparationTime = post.preparationTime != null && post.preparationTime > 0
+    var showPreparationTimeBadge by remember(post._id, hasPreparationTime) { 
+        mutableStateOf(false) 
+    }
+
+    // Alternate between profile and preparation time badge every 3 seconds
+    LaunchedEffect(post._id, hasPreparationTime) {
+        if (hasPreparationTime) {
+            while (true) {
+                delay(3000) // 3 seconds
+                showPreparationTimeBadge = !showPreparationTimeBadge
+            }
+        }
+    }
+
     LaunchedEffect(post.likeCount, post.saveCount, post.isLiked, post.isSaved) {
         likeCount = post.likeCount
         saveCount = post.saveCount
@@ -500,43 +521,78 @@ fun RecipeCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // User Pill
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = Color.White.copy(alpha = 0.9f),
-                        shadowElevation = 2.dp,
-                        modifier = Modifier.clickable { }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.LightGray)
+                    // Alternating Badge: Profile or Preparation Time with smooth transition
+                    Crossfade(
+                        targetState = if (hasPreparationTime) showPreparationTimeBadge else false,
+                        animationSpec = tween(durationMillis = 500),
+                        label = "badge_transition"
+                    ) { showTimeBadge ->
+                        if (showTimeBadge) {
+                            // Preparation Time Badge
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFF3F4F6), // Light gray background
+                                shadowElevation = 2.dp,
+                                modifier = Modifier.clickable { }
                             ) {
-                                AsyncImage(
-                                    model = BaseUrlProvider.getFullImageUrl(post.ownerId?.profilePictureUrl),
-                                    contentDescription = "Profile",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Timer,
+                                        contentDescription = "Preparation time",
+                                        tint = Color(0xFFFFB300), // Yellow-gold color
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "${post.preparationTime} minutes",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            color = Color(0xFF1F2937), // Dark gray/black
+                                            fontWeight = FontWeight.Normal
+                                        )
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = post.ownerId?.username ?: "Chef",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1F2937)
-                                ),
-                                modifier = Modifier.padding(end = 4.dp)
-                            )
+                        } else {
+                            // User Pill (Profile Badge)
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color.White.copy(alpha = 0.9f),
+                                shadowElevation = 2.dp,
+                                modifier = Modifier.clickable { }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.LightGray)
+                                    ) {
+                                        AsyncImage(
+                                            model = BaseUrlProvider.getFullImageUrl(post.ownerId?.profilePictureUrl),
+                                            contentDescription = "Profile",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = post.ownerId?.username ?: "Chef",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1F2937)
+                                        ),
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    )
+                                }
+                            }
                         }
                     }
-
-
                 }
             }
 
@@ -609,14 +665,45 @@ fun RecipeCard(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Likes Count
-                Text(
-                    text = "${formatCount(likeCount)} likes",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1F2937)
+                // Likes Count and Price Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Likes Count
+                    Text(
+                        text = "${formatCount(likeCount)} likes",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1F2937)
+                        )
                     )
-                )
+                    
+                    // Price (if available)
+                    if (post.price != null && post.price > 0) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = String.format("%.2f", post.price),
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF9CA3AF),
+                                    fontSize = 25.sp
+                                )
+                            )
+                            Text(
+                                text = "TND",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF9CA3AF)
+                                )
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(6.dp))
 

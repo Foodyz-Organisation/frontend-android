@@ -230,15 +230,15 @@ fun HomeScreen(
                             
                             Spacer(modifier = Modifier.height(28.dp))
                             
-                            // Kitchen Near You Section
-                            Text(
-                                text = "Kitchen Near You",
-                                style = MaterialTheme.typography.headlineSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1F2937)
-                                ),
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
+//                            // Kitchen Near You Section
+//                            Text(
+//                                text = "Filter your food ",
+//                                style = MaterialTheme.typography.headlineSmall.copy(
+//                                    fontWeight = FontWeight.Bold,
+//                                    color = Color(0xFF1F2937)
+//                                ),
+//                                modifier = Modifier.padding(horizontal = 16.dp)
+//                            )
                             
                             Spacer(modifier = Modifier.height(16.dp))
                             
@@ -1062,23 +1062,6 @@ fun EnhancedSectionHeader(
     }
 }
 
-fun getEmojiForFoodType(foodType: String): String {
-    return when (foodType.lowercase()) {
-        "spicy", "épicé" -> "🌶️"
-        "healthy", "sain" -> "🥗"
-        "sweet", "sucré", "dessert" -> "🍰"
-        "italian", "italien" -> "🍝"
-        "asian", "asiatique" -> "🍜"
-        "fast food" -> "🍔"
-        "vegan", "végétarien" -> "🌱"
-        "seafood", "fruits de mer" -> "🦐"
-        "breakfast", "petit-déjeuner" -> "🥐"
-        "drinks", "boissons" -> "🥤"
-        else -> "🍽️"
-    }
-}
-
-
 
 private data class HighlightCardData(
     val startColor: Color,
@@ -1089,199 +1072,6 @@ private data class HighlightCardData(
     val iconPainter: androidx.compose.ui.graphics.painter.Painter,
     val contentDescription: String
 )
-
-@Composable
-private fun HighlightCardItem(
-    modifier: Modifier = Modifier,
-    data: HighlightCardData,
-    onClick: () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        modifier = modifier
-            .aspectRatio(1.3f)
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
-            .background(Brush.linearGradient(listOf(data.startColor, data.endColor)))
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxHeight()) {
-                Icon(
-                    painter = data.iconPainter,
-                    contentDescription = data.contentDescription,
-                    tint = data.iconTint,
-                    modifier = Modifier.size(36.dp)
-                )
-                Spacer(Modifier.height(8.dp))
-
-                Column {
-                    Text(
-                        text = data.title,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = Color(0xFF1F2937)
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = data.subtitle,
-                        fontSize = 13.sp,
-                        color = Color(0xFF6B7280)
-                    )
-                }
-            }
-        }
-    }
-}
-// Keep FilterChipItem for backward compatibility if needed elsewhere
-@Composable
-fun FilterChipItem(text: String, selected: Boolean, onClick: () -> Unit = {}) {
-    EnhancedFoodCategoryChip(
-        text = text,
-        emoji = "🍽️",
-        selected = selected,
-        onClick = onClick
-    )
-}
-
-@Composable
-fun FoodCard(name: String, place: String, tags: List<String>, price: String, image: Int) {
-    Column(
-        modifier = Modifier
-            .width(270.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White)
-            .shadow(10.dp, RoundedCornerShape(24.dp))
-    ) {
-        Box {
-            // NOTE: painterResource(id = image) requires an actual resource ID (R.drawable.xxx)
-            // which is not defined here, but the composable structure is correct.
-            Image(
-                painter = painterResource(id = image),
-                contentDescription = name,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(170.dp)
-                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
-                contentScale = ContentScale.Crop
-            )
-
-            // Prep time chip
-            Box(
-                modifier = Modifier
-                    .padding(12.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.85f))
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.AccessTime,
-                        contentDescription = "Time",
-                        tint = Color(0xFFF97316),
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text = "  Prepare 8 min",
-                        fontSize = 12.sp,
-                        color = Color(0xFF1F2937)
-                    )
-                }
-            }
-
-            // Favorite button
-            IconButton(
-                onClick = { },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .background(Color.White, CircleShape)
-            ) {
-                Icon(
-                    Icons.Filled.FavoriteBorder,
-                    contentDescription = "Favorite",
-                    tint = Color(0xFF9CA3AF)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = name,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = Color(0xFF111827),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        Text(
-            text = place,
-            fontSize = 13.sp,
-            color = Color(0xFF9CA3AF),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        ) {
-            tags.forEach { TagItem(it) }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = price,
-                color = Color(0xFFF97316),
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
-
-            Button(
-                onClick = { },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFF8E1)),
-                shape = RoundedCornerShape(14.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text(text = "🛍️ Order", color = Color(0xFF1F2937), fontSize = 14.sp)
-            }
-        }
-    }
-}
-
-@Composable
-fun TagItem(text: String) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFFFFF7ED))
-            .padding(horizontal = 12.dp, vertical = 5.dp)
-    ) {
-        Text(
-            text = text,
-            fontSize = 12.sp,
-            color = Color(0xFFF97316),
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
