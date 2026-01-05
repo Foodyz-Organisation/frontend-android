@@ -284,6 +284,21 @@ fun PostsScreen(
                 }
             )
         }
+        
+        // --- NEW: Share Dialog ---
+        if (showShareDialog && selectedPostIdForSharing != null) {
+            SharePostDialog(
+                postId = selectedPostIdForSharing!!,
+                onDismiss = {
+                    showShareDialog = false
+                    selectedPostIdForSharing = null
+                },
+                onShareSuccess = {
+                    showShareDialog = false
+                    selectedPostIdForSharing = null
+                }
+            )
+        }
     }
 }
 

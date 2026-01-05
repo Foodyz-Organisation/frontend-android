@@ -152,6 +152,21 @@ fun ReelsScreen(
                 }
             )
         }
+        
+        // --- NEW: Share Dialog ---
+        if (showShareDialog && selectedPostIdForSharing != null) {
+            com.example.damprojectfinal.user.common._component.SharePostDialog(
+                postId = selectedPostIdForSharing!!,
+                onDismiss = {
+                    showShareDialog = false
+                    selectedPostIdForSharing = null
+                },
+                onShareSuccess = {
+                    showShareDialog = false
+                    selectedPostIdForSharing = null
+                }
+            )
+        }
     }
 }
 
