@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -21,6 +20,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -47,7 +47,10 @@ import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
+import org.json.JSONObject
+import retrofit2.HttpException
 import java.io.File
+import java.io.IOException
 import java.net.URLDecoder
 
 enum class AppMediaType(val value: String) {
@@ -92,6 +95,7 @@ fun CaptionAndPublishScreen(
     var showSuccessDialog by remember { mutableStateOf(false) }
     var showErrorDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
+    var uploadProgress by remember { mutableStateOf("") }
 
     // --- Main Layout ---
     Scaffold(
@@ -128,6 +132,7 @@ fun CaptionAndPublishScreen(
                                     ownerId = currentUserId,
                                     ownerType = currentUserType,
                                     onPublishing = { isPublishing = it },
+                                    onProgress = { uploadProgress = it },
                                     onSuccess = { showSuccessDialog = true },
                                     onError = { msg ->
                                         errorMessage = msg
@@ -404,34 +409,65 @@ fun CaptionAndPublishScreen(
 
             // Error Dialog
             if (showErrorDialog) {
+                val isFoodDetectionError = errorMessage.contains("does not appear to contain food", ignoreCase = true)
                 AlertDialog(
                     onDismissRequest = { showErrorDialog = false },
                     icon = {
                         Icon(
-                            Icons.Filled.Error,
-                            contentDescription = null,
-                            tint = Color(0xFFEF4444), // Red
+                            if (isFoodDetectionError) Icons.Filled.Warning else Icons.Filled.Error,
+                            contentDescription = "Error",
+                            tint = if (isFoodDetectionError) Color(0xFFFF5722) else Color(0xFFEF4444),
                             modifier = Modifier.size(48.dp)
                         )
                     },
                     title = {
                         Text(
-                            "Oops!",
+                            if (isFoodDetectionError) "Not a Food Image" else "Oops!",
                             fontWeight = FontWeight.Bold
                         )
                     },
                     text = {
-                        Text(
-                            errorMessage,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Column {
+                            Text(
+                                errorMessage,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth(),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            
+                            // Show helpful tip for food detection errors
+                            if (isFoodDetectionError) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = Color(0xFFFFF3E0) // Light orange
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp)
+                                    ) {
+                                        Text(
+                                            text = "💡 Tip:",
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFF6F00)
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Make sure your image shows food items like dishes, meals, or ingredients.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFFE65100)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     },
                     confirmButton = {
                         TextButton(
                             onClick = { showErrorDialog = false }
                         ) {
-                            Text("Try Again", color = Color(0xFFEF4444))
+                            Text("Try Again", color = if (isFoodDetectionError) Color(0xFFFF5722) else Color(0xFFEF4444))
                         }
                     },
                     containerColor = Color.White,
@@ -462,7 +498,10 @@ fun CaptionAndPublishScreen(
                                 color = Color(0xFFFFC107)
                             )
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("Publishing...", fontWeight = FontWeight.Medium)
+                            Text(
+                                text = uploadProgress.ifEmpty { "Publishing..." },
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }
@@ -547,6 +586,7 @@ private suspend fun publishPost(
     ownerId: String?,
     ownerType: String?,
     onPublishing: (Boolean) -> Unit,
+    onProgress: (String) -> Unit,
     onSuccess: () -> Unit,
     onError: (String) -> Unit
 ) {
@@ -558,24 +598,42 @@ private suspend fun publishPost(
     onPublishing(true)
 
     try {
-        // Upload Files
+        // Step 1: File Upload Preparation
         val multipartBodyParts = mediaUris.map { uri ->
             val file = getTempFileFromUri(context, uri)
             val requestFile = file.asRequestBody(context.contentResolver.getType(uri)?.toMediaTypeOrNull())
             MultipartBody.Part.createFormData("files", file.name, requestFile)
         }
 
-        val uploadResponse = RetrofitClient.postsApiService.uploadFiles(multipartBodyParts)
-        if (uploadResponse.urls.isEmpty()) { throw Exception("Upload returned no URLs.") }
+        // Step 3: Upload Files to Server (with food detection error handling)
+        onProgress("Validating food content...")
+        val uploadResponse = try {
+            RetrofitClient.postsApiService.uploadFiles(multipartBodyParts)
+        } catch (e: HttpException) {
+            // Handle food detection errors (400 Bad Request)
+            if (e.code() == 400) {
+                val errorBody = e.response()?.errorBody()?.string()
+                val errorMessage = parseFoodDetectionError(errorBody)
+                throw Exception(errorMessage)
+            }
+            throw Exception("Upload failed: ${e.message}")
+        } catch (e: IOException) {
+            throw Exception("Network error. Please check your connection.")
+        }
+        
+        if (uploadResponse.urls.isEmpty()) { 
+            throw Exception("Upload returned no URLs.") 
+        }
+        onProgress("Upload complete!")
 
-        // Determine Type
+        // Step 4: Determine Media Type
         val mediaType = when {
             mediaUris.any { context.contentResolver.getType(it)?.startsWith("video") == true } -> AppMediaType.REEL.value
             mediaUris.size > 1 -> AppMediaType.CAROUSEL.value
             else -> AppMediaType.IMAGE.value
         }
 
-        // Create Post
+        // Step 5: Create Post DTO
         val createPostDto = CreatePostDto(
             caption = caption,
             mediaUrls = uploadResponse.urls,
@@ -585,9 +643,10 @@ private suspend fun publishPost(
             preparationTime = preparationTime
         )
 
+        // Step 6: Create Post via API
         val createdPost = RetrofitClient.postsApiService.createPost(createPostDto = createPostDto)
 
-        // Wait for Reel thumbnail if needed
+        // Step 7: Handle Reel thumbnail if needed
         if (mediaType == AppMediaType.REEL.value && createdPost.thumbnailUrl == null) {
             kotlinx.coroutines.delay(2000)
             try {
@@ -595,15 +654,41 @@ private suspend fun publishPost(
             } catch (_: Exception) { }
         }
 
+        // Step 8: Success
         onSuccess()
     } catch (e: Exception) {
         onError(e.message ?: "Something went wrong.")
     } finally {
         onPublishing(false)
-        // Cleanup
+        onProgress("")
+        
+        // Cleanup temporary files
         mediaUris.forEach { 
              try { File(context.cacheDir, it.pathSegments.lastOrNull() ?: "temp").delete() } catch (_: Exception) {}
         }
+    }
+}
+
+/**
+ * Parses food detection error from backend response
+ */
+private fun parseFoodDetectionError(errorBody: String?): String {
+    if (errorBody == null) return "Upload failed. Please try again."
+    
+    return try {
+        val jsonObject = JSONObject(errorBody)
+        val message = jsonObject.optString("message", "")
+        
+        // Check if it's a food detection error
+        if (message.contains("does not appear to contain food", ignoreCase = true)) {
+            "❌ This image doesn't appear to contain food.\n\n" +
+            "Please upload images of food items only."
+        } else {
+            // Other validation errors
+            message
+        }
+    } catch (e: Exception) {
+        "Upload failed. Please try again."
     }
 }
 

@@ -521,3 +521,5 @@ User taps "Exciting Deals" → Navigates to Daily Deals Screen 🎉
 
 Perfect for discovering deals and engaging users!
 
+
+
