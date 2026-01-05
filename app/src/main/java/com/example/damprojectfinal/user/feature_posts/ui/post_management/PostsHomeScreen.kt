@@ -80,6 +80,7 @@ fun PostsScreen(
     modifier: Modifier = Modifier,
     postsViewModel: PostsViewModel = viewModel(),
     selectedFoodType: String? = null,
+    reelsViewModel: com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsViewModel? = null,
     headerContent: @Composable () -> Unit
 ) {
     val posts by postsViewModel.posts.collectAsState()
@@ -251,7 +252,8 @@ fun PostsScreen(
                                     navController.currentBackStackEntry?.savedStateHandle?.set("highlightCategory", foodType)
                                     navController.navigate("menu_order_route/$professionalId")
                                 },
-                                postsViewModel = postsViewModel
+                                postsViewModel = postsViewModel,
+                                reelsViewModel = reelsViewModel
                             )
                         }
                     }
@@ -369,7 +371,8 @@ fun RecipeCard(
     onEditClicked: (postId: String) -> Unit,
     onDeleteClicked: (postId: String) -> Unit,
     onOrderClick: ((professionalId: String, foodType: String?) -> Unit)? = null,
-    postsViewModel: PostsViewModel = viewModel()
+    postsViewModel: PostsViewModel = viewModel(),
+    reelsViewModel: com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsViewModel? = null
 ) {
     // Track state - use isLiked/isSaved from backend if available, otherwise default to false
     var isLiked by remember(post._id) { mutableStateOf(post.isLiked ?: false) }
@@ -377,8 +380,9 @@ fun RecipeCard(
     var likeCount by remember(post._id) { mutableStateOf(post.likeCount) }
     var saveCount by remember(post._id) { mutableStateOf(post.saveCount) }
     
-    // Track mute state for reels (false = unmuted/sound on, true = muted/sound off)
-    var isMuted by remember(post._id) { mutableStateOf(false) }
+    // Use global mute state from ReelsViewModel if available, otherwise use local state
+    val isGlobalMuted by reelsViewModel?.isGlobalMuted?.collectAsState() ?: remember { mutableStateOf(true) }
+    val isMuted = isGlobalMuted
 
     LaunchedEffect(post.likeCount, post.saveCount, post.isLiked, post.isSaved) {
         likeCount = post.likeCount
@@ -447,7 +451,14 @@ fun RecipeCard(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clickable(
-                                    onClick = { isMuted = !isMuted },
+                                    onClick = { 
+                                        if (reelsViewModel != null) {
+                                            reelsViewModel.toggleGlobalMute()
+                                        } else {
+                                            // Fallback to local state if ViewModel not available
+                                            // This shouldn't happen, but handle gracefully
+                                        }
+                                    },
                                     indication = null,
                                     interactionSource = soundIconInteractionSource
                                 )

@@ -42,6 +42,14 @@ class ReelsViewModel(
     private val _isPlaying = MutableStateFlow(true)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+    // Global mute state for all reels (false = unmuted/sound on, true = muted/sound off)
+    private val _isGlobalMuted = MutableStateFlow(true) // Start muted by default
+    val isGlobalMuted: StateFlow<Boolean> = _isGlobalMuted.asStateFlow()
+
+    fun toggleGlobalMute() {
+        _isGlobalMuted.value = !_isGlobalMuted.value
+    }
+
     init {
         fetchReels()
     }

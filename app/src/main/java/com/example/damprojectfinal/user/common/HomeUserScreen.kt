@@ -51,6 +51,7 @@ import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.api.ReclamationRetrofitClient
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsScreen
 import com.example.damprojectfinal.core.retro.RetrofitClient
+import com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsViewModel
 import android.util.Log
 import androidx.compose.animation.core.animateFloatAsState
 import com.example.damprojectfinal.user.common._component.UserMenuScreenContent
@@ -210,9 +211,11 @@ fun HomeScreen(
                 )
                 
                 // Restaurant Cards with Header Content (No nested scroll)
+                val reelsViewModel: ReelsViewModel = viewModel()
                 PostsScreen(
                     navController = navController,
                     selectedFoodType = selectedFoodType,
+                    reelsViewModel = reelsViewModel,
                     headerContent = {
                         Column {
                             Spacer(modifier = Modifier.height(16.dp))

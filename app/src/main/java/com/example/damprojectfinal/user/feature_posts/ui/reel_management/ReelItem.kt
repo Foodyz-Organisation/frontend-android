@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -81,14 +82,22 @@ fun ReelItem(
     // Track playback state for this specific reel
     var isPlaying by remember(reelPost._id) { mutableStateOf(true) }
     
+    // Get global mute state from ViewModel
+    val isGlobalMuted by reelsViewModel.isGlobalMuted.collectAsState()
+    
     val videoUrl = BaseUrlProvider.getFullImageUrl(reelPost.mediaUrls.firstOrNull()) ?: ""
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(videoUrl))
             prepare()
-            volume = 0f // Start muted, user can unmute later
+            volume = 0f // Start muted, will be controlled by global mute state
             repeatMode = ExoPlayer.REPEAT_MODE_ONE // Loop the video
         }
+    }
+    
+    // Update volume based on global mute state
+    LaunchedEffect(isGlobalMuted) {
+        exoPlayer.volume = if (isGlobalMuted) 0f else 1f
     }
 
     // Reset playing state when item becomes current
@@ -161,6 +170,39 @@ fun ReelItem(
                     tint = Color.White,
                     modifier = Modifier.size(24.dp)
                 )
+            }
+        }
+
+        // Sound Icon (aligned to top-end, padded below status bar)
+        Box(
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(end = 16.dp, top = 16.dp)
+                .align(Alignment.TopEnd)
+        ) {
+            val soundIconInteractionSource = remember { MutableInteractionSource() }
+            Surface(
+                shape = CircleShape,
+                color = Color.Black.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .size(40.dp)
+                    .clickable(
+                        onClick = { reelsViewModel.toggleGlobalMute() },
+                        indication = null,
+                        interactionSource = soundIconInteractionSource
+                    )
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Icon(
+                        imageVector = if (isGlobalMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                        contentDescription = if (isGlobalMuted) "Unmute" else "Mute",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
 
