@@ -379,7 +379,13 @@ fun CaptionAndPublishScreen(
                             onClick = {
                                 showSuccessDialog = false
                                 postsViewModel.fetchPosts()
-                                navController.popBackStack()
+                                // Navigate to home screen
+                                navController.navigate(com.example.damprojectfinal.UserRoutes.HOME_SCREEN) {
+                                    popUpTo(com.example.damprojectfinal.UserRoutes.HOME_SCREEN) {
+                                        inclusive = true
+                                    }
+                                    launchSingleTop = true
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFFFFC107),

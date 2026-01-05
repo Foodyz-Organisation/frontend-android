@@ -11,14 +11,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -27,6 +30,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -41,9 +46,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Videocam
@@ -93,7 +96,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-// Data class to represent a message
 data class Message(
     val id: Int,
     val text: String?,
@@ -125,7 +127,6 @@ fun ChatDetailScreen(
     val isSending by vm.isSendingMessage.collectAsState(initial = false)
     val isLoading by vm.isLoading.collectAsState(initial = false)
 
-    // WebRTC states
     val incomingCall by vm.incomingCall.collectAsState()
     val isInCall by vm.isInCall.collectAsState()
     val isVideoCall by vm.isVideoCall.collectAsState()
@@ -133,28 +134,16 @@ fun ChatDetailScreen(
     val isVideoMuted by vm.isVideoMuted.collectAsState()
     val isSpeakerOn by vm.isSpeakerOn.collectAsState()
     
-    // Remote video stream for updates
     val remoteVideoTrackStream by vm.remoteVideoTrackStream.collectAsState()
-
-    // Get profile picture URL - use state to update when peers are loaded
     var profilePictureUrl by remember { mutableStateOf<String?>(null) }
-    
-    // Observe peers state to update profile picture when enriched
     val peers by vm.peers.collectAsState()
-
-    // Track pending call type
-    var pendingCallType by remember { mutableStateOf<String?>(null) } // "voice" or "video"
-    
-    // Show permission rationale dialog
+    var pendingCallType by remember { mutableStateOf<String?>(null) }
     var showPermissionDialog by remember { mutableStateOf(false) }
     var permissionDialogMessage by remember { mutableStateOf("") }
 
-    // Track permission state
-    // Track permission state
     var hasAudioPermission by remember { mutableStateOf(false) }
     var hasCameraPermission by remember { mutableStateOf(false) }
 
-    // Check permissions on resume
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -177,8 +166,6 @@ fun ChatDetailScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-
-    // Permission launcher for calls
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -186,7 +173,6 @@ fun ChatDetailScreen(
         
         if (permissions.all { it.value }) {
             android.util.Log.d("ChatDetailScreen", "All permissions granted, pendingCallType=$pendingCallType")
-            // Permissions granted, start the pending call
             when (pendingCallType) {
                 "voice" -> {
                     if (conversationId != null) {
@@ -540,19 +526,40 @@ fun ChatDetailScreen(
             )
         },
         bottomBar = {
-            MessageInputBar(
-                text = currentMessage,
-                onTextChange = { currentMessage = it },
-                onSend = {
-                    if (currentMessage.isNotBlank()) {
-                        if (conversationId != null && accessToken != null) {
-                            vm.sendMessageHttp(accessToken!!, conversationId, currentMessage)
+            var showEmojiPicker by remember { mutableStateOf(false) }
+            
+            Column {
+                // Emoji Picker - positioned above the input bar
+                if (showEmojiPicker) {
+                    EmojiPicker(
+                        onEmojiSelected = { emoji ->
+                            currentMessage += emoji
+                            showEmojiPicker = false
                         }
-                        currentMessage = ""
+                    )
+                }
+                
+                MessageInputBar(
+                    text = currentMessage,
+                    onTextChange = { currentMessage = it },
+                    onSend = {
+                        if (currentMessage.isNotBlank()) {
+                            if (conversationId != null && accessToken != null) {
+                                vm.sendMessageHttp(accessToken!!, conversationId, currentMessage)
+                            }
+                            currentMessage = ""
+                            showEmojiPicker = false // Hide emoji picker after sending
+                        }
+                    },
+                    isSending = isSending,
+                    showEmojiPicker = showEmojiPicker,
+                    onEmojiPickerToggle = { showEmojiPicker = !showEmojiPicker },
+                    onEmojiSelected = { emoji ->
+                        currentMessage += emoji
+                        showEmojiPicker = false // Hide picker after selection
                     }
-                },
-                isSending = isSending
-            )
+                )
+            }
         }
     ) { padding ->
         val configuration = LocalConfiguration.current
@@ -940,6 +947,9 @@ fun MessageInputBar(
     onTextChange: (String) -> Unit,
     onSend: () -> Unit,
     isSending: Boolean,
+    showEmojiPicker: Boolean = false,
+    onEmojiPickerToggle: () -> Unit = {},
+    onEmojiSelected: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
@@ -1004,38 +1014,12 @@ fun MessageInputBar(
     ) {
         // Emoji button
         IconButton(
-            onClick = { /* TODO: Open emoji picker */ },
+            onClick = onEmojiPickerToggle,
             modifier = Modifier.size(iconButtonSize)
         ) {
             Text(
-                text = "😊",
+                text = if (showEmojiPicker) "⌨️" else "😊", // Show keyboard icon when picker is open
                 fontSize = if (isSmallScreen) 20.sp else if (isTablet) 28.sp else 24.sp
-            )
-        }
-
-        // Gallery button
-        IconButton(
-            onClick = { /* TODO: Open gallery */ },
-            modifier = Modifier.size(iconButtonSize)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Image,
-                contentDescription = "Gallery",
-                tint = Color(0xFF9CA3AF),
-                modifier = Modifier.size(iconSize)
-            )
-        }
-
-        // Attachment button
-        IconButton(
-            onClick = { /* TODO: Open attachments */ },
-            modifier = Modifier.size(iconButtonSize)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.AttachFile,
-                contentDescription = "Attach",
-                tint = Color(0xFF9CA3AF),
-                modifier = Modifier.size(iconSize)
             )
         }
 
@@ -1082,6 +1066,130 @@ fun MessageInputBar(
                 tint = if (text.isNotBlank()) Color(0xFFFFC107) else Color(0xFFD1D5DB),
                 modifier = Modifier.size(iconSize)
             )
+        }
+    }
+}
+
+// ------------------------------------------------------
+// 😊 Emoji Picker Component (Messenger-style)
+// ------------------------------------------------------
+@Composable
+fun EmojiPicker(
+    onEmojiSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val isSmallScreen = screenWidth < 360
+    val isTablet = screenWidth >= 600
+    
+    // Common emojis organized by category (similar to Messenger)
+    val emojis = listOf(
+        // Smileys & People
+        "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇",
+        "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚",
+        "😋", "😛", "😜", "😝", "😎", "🤩", "🥳", "😏", "😒", "😞",
+        "😔", "😟", "😕", "🙁", "😣", "😖", "😫", "😩", "🥺", "😢",
+        "😭", "😤", "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱",
+        "😨", "😰", "😥", "😓", "🤗", "🤔", "🤭", "🤫", "🤥", "😶",
+        "😐", "😑", "😬", "🙄", "😯", "😦", "😧", "😮", "😲", "🥱",
+        "😴", "🤤", "😪", "😵", "🤐", "🥴", "🤢", "🤮", "🤧", "😷",
+        "🤒", "🤕", "🤑", "🤠", "😈", "👿", "👹", "👺", "🤡", "💩",
+        "👻", "💀", "☠️", "👽", "👾", "🤖", "🎃", "😺", "😸", "😹",
+        "😻", "😼", "😽", "🙀", "😿", "😾",
+        
+        // Gestures & Body Parts
+        "👋", "🤚", "🖐", "✋", "🖖", "👌", "🤌", "🤏", "✌️", "🤞",
+        "🤟", "🤘", "🤙", "👈", "👉", "👆", "🖕", "👇", "☝️", "👍",
+        "👎", "✊", "👊", "🤛", "🤜", "👏", "🙌", "👐", "🤲", "🤝",
+        "🙏", "✍️", "💪", "🦾", "🦿", "🦵", "🦶", "👂", "🦻", "👃",
+        "🧠", "🫀", "🫁", "🦷", "🦴", "👀", "👁️", "👅", "👄",
+        
+        // Hearts & Emotions
+        "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔",
+        "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💟", "☮️",
+        "✝️", "☪️", "🕉️", "☸️", "✡️", "🔯", "🕎", "☯️", "☦️", "🛐",
+        "⛎", "♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐",
+        "♑", "♒", "♓", "🆔", "⚛️", "🉑", "☢️", "☣️",
+        
+        // Food & Drink
+        "🍏", "🍎", "🍐", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🍈",
+        "🍒", "🍑", "🥭", "🍍", "🥥", "🥝", "🍅", "🍆", "🥑", "🥦",
+        "🥬", "🥒", "🌶️", "🌽", "🥕", "🥔", "🍠", "🥐", "🥯", "🍞",
+        "🥖", "🥨", "🧀", "🥚", "🍳", "🥞", "🥓", "🥩", "🍗", "🍖",
+        "🦴", "🌭", "🍔", "🍟", "🍕", "🥪", "🥙", "🌮", "🌯", "🥗",
+        "🥘", "🥫", "🍝", "🍜", "🍲", "🍛", "🍣", "🍱", "🥟", "🍤",
+        "🍙", "🍚", "🍘", "🍥", "🥠", "🥮", "🍢", "🍡", "🍧", "🍨",
+        "🍦", "🥧", "🍰", "🎂", "🍮", "🍭", "🍬", "🍫", "🍿", "🍩",
+        "🍪", "🌰", "🥜", "🍯", "🥛", "🍼", "☕", "🍵", "🧃", "🥤",
+        "🍶", "🍺", "🍻", "🥂", "🍷", "🥃", "🍸", "🍹", "🧉", "🍾",
+        "🧊",
+        
+        // Activities & Sports
+        "⚽", "🏀", "🏈", "⚾", "🥎", "🎾", "🏐", "🏉", "🥏", "🎱",
+        "🏓", "🏸", "🥅", "🏒", "🏑", "🥍", "🏏", "🥊", "⛳", "🏹",
+        "🎣", "🥋", "🥌", "🎽", "🎿", "⛷️", "🏂", "🛷", "🎮",
+        "🕹️", "🎲", "♟️", "🎯", "🎳", "🎰", "🎴", "🃏", "🀄", "🎭",
+        "🎨", "🎬", "🎤", "🎧", "🎼", "🎹", "🥁", "🎷", "🎺", "🎸",
+        "🎻", "🎲", "🎯", "🎳", "🎮", "🎰"
+    )
+    
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(if (isSmallScreen) 200.dp else if (isTablet) 300.dp else 250.dp),
+        shape = RoundedCornerShape(0.dp), // No rounded corners at top since it's in bottomBar
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Emoji",
+                    fontSize = if (isSmallScreen) 16.sp else if (isTablet) 20.sp else 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1F2937)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Emoji Grid
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(8),
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                contentPadding = PaddingValues(4.dp)
+            ) {
+                items(emojis.size) { index ->
+                    Box(
+                        modifier = Modifier
+                            .aspectRatio(1f)
+                            .clickable { onEmojiSelected(emojis[index]) }
+                            .background(
+                                color = Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = emojis[index],
+                            fontSize = if (isSmallScreen) 20.sp else if (isTablet) 28.sp else 24.sp
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -1201,7 +1309,6 @@ fun IncomingSharedPostMessage(
                             .padding(if (isSmallScreen) 12.dp else if (isTablet) 18.dp else 16.dp),
                         verticalArrangement = Arrangement.spacedBy(if (isSmallScreen) 6.dp else 8.dp)
                     ) {
-                        // "Reel" or "Post" label
                         Surface(
                             color = Color.White.copy(alpha = 0.9f),
                             shape = RoundedCornerShape(6.dp)
@@ -1217,7 +1324,6 @@ fun IncomingSharedPostMessage(
                             )
                         }
                         
-                        // Caption
                         if (!postCaption.isNullOrBlank()) {
                             Text(
                                 text = postCaption.take(120),
@@ -1236,7 +1342,6 @@ fun IncomingSharedPostMessage(
                             )
                         }
                         
-                        // "Tap to view" hint
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)

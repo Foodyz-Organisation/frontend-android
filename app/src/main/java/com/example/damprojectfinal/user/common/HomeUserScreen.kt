@@ -565,8 +565,8 @@ fun DealsCarousel(
             val activeDeals = state.deals.filter { it.isActive }.reversed()
             
             if (activeDeals.isEmpty()) {
-                // Coming Soon Animation
-                ComingSoonCard()
+                // Coming Soon Animation - Clickable to navigate to deals screen
+                ComingSoonCard(onClick = onDealClick)
             } else {
                 // Show real deals from API
                 LazyRow(
@@ -583,14 +583,14 @@ fun DealsCarousel(
             }
         }
         is com.example.damprojectfinal.feature_deals.DealsUiState.Error -> {
-            // Error state - show coming soon
-            ComingSoonCard()
+            // Error state - show coming soon, clickable to navigate to deals screen
+            ComingSoonCard(onClick = onDealClick)
         }
     }
 }
 
 @Composable
-fun ComingSoonCard() {
+fun ComingSoonCard(onClick: () -> Unit = {}) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val scale by infiniteTransition.animateFloat(
         initialValue = 0.95f,
@@ -607,7 +607,8 @@ fun ComingSoonCard() {
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .height(160.dp)
-            .scale(scale),
+            .scale(scale)
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFF1F2937)

@@ -14,7 +14,9 @@ class ReelsPagerAdapter(
     private val context: Context, // Context might not be strictly needed if only creating ComposeView
     private val onReelClick: (String) -> Unit, // Callback when a reel is clicked
     // Updated adapter to handle comment clicks
-    private val onCommentClick: (String) -> Unit, 
+    private val onCommentClick: (String) -> Unit,
+    // Updated adapter to handle share clicks
+    private val onShareClick: (String) -> Unit, 
     private val navController: androidx.navigation.NavController,
     private val postsViewModel: com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel,
     private val reelsViewModel: ReelsViewModel
@@ -54,7 +56,7 @@ class ReelsPagerAdapter(
         // Pass whether this item is the currently focused item to the Composable
         val isCurrentItem = position == currentlyPlayingPosition
 
-        holder.bind(reelPost, isCurrentItem, onReelClick, onCommentClick, navController, postsViewModel, reelsViewModel)
+        holder.bind(reelPost, isCurrentItem, onReelClick, onCommentClick, onShareClick, navController, postsViewModel, reelsViewModel)
     }
 
     // ViewHolder that holds a ComposeView and binds the ReelItem composable
@@ -64,6 +66,7 @@ class ReelsPagerAdapter(
             isCurrentItem: Boolean,
             onReelClick: (String) -> Unit,
             onCommentClick: (String) -> Unit,
+            onShareClick: (String) -> Unit,
             navController: androidx.navigation.NavController,
             postsViewModel: com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel,
             reelsViewModel: ReelsViewModel
@@ -76,6 +79,7 @@ class ReelsPagerAdapter(
                         isCurrentItem = isCurrentItem,
                         onReelClick = onReelClick,
                         onCommentClick = onCommentClick,
+                        onShareClick = onShareClick,
                         navController = navController,
                         postsViewModel = postsViewModel,
                         reelsViewModel = reelsViewModel

@@ -223,3 +223,4 @@ Once backend is updated:
 - Once backend returns correct format, images will display automatically
 - No additional frontend changes needed after backend update
 
+

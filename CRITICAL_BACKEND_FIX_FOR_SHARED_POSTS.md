@@ -208,3 +208,4 @@ The Android frontend is **100% ready** and has beautiful Instagram-style cards w
 
 **Priority**: 🔴 CRITICAL - User cannot see shared posts without this fix
 
+

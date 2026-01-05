@@ -56,6 +56,7 @@ fun ReelItem(
     isCurrentItem: Boolean, // Indicates if this reel is currently in full view
     onReelClick: (String) -> Unit, // Callback for clicks on the reel (e.g., pause/play)
     onCommentClick: (String) -> Unit, // NEW: Callback for comment clicks
+    onShareClick: (String) -> Unit, // NEW: Callback for share clicks
     navController: NavController,
     postsViewModel: PostsViewModel,
     reelsViewModel: ReelsViewModel
@@ -303,7 +304,7 @@ fun ReelItem(
                 tint = Color.White,
                 modifier = Modifier
                     .size(36.dp)
-                    .clickable { /* Handle share click */ }
+                    .clickable { onShareClick(reelPost._id) }
             )
 
             // Save

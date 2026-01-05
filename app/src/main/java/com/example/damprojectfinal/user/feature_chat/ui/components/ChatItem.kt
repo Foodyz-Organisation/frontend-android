@@ -113,14 +113,12 @@ fun ChatItemNew(
                 }
             }
 
-            // ===== CHAT DETAILS (MIDDLE COLUMN) =====
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.Center
             ) {
-                // Chat name (bold)
                 Text(
                     text = chat.title,
                     fontSize = 16.sp,
@@ -132,7 +130,6 @@ fun ChatItemNew(
 
                 Spacer(modifier = Modifier.height(2.dp))
 
-                // Last message preview
                 Text(
                     text = chat.subtitle,
                     fontSize = 14.sp,
@@ -143,14 +140,12 @@ fun ChatItemNew(
                 )
             }
 
-            // ===== RIGHT COLUMN: TIMESTAMP & UNREAD BADGE =====
             Column(
                 modifier = Modifier
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.End
             ) {
-                // Timestamp (light gray)
                 Text(
                     text = chat.updatedTime,
                     fontSize = 12.sp,
@@ -179,7 +174,6 @@ fun ChatItemNew(
         }
     }
 
-    // Delete confirmation dialog with app design
     if (showDeleteDialog && onDelete != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },

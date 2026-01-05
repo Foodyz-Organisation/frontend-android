@@ -2,9 +2,12 @@ package com.example.damprojectfinal.user.feature_posts.ui.post_management
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -12,6 +15,8 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -51,6 +56,14 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import com.example.damprojectfinal.user.common._component.SharePostDialog
 import kotlinx.coroutines.launch
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.snapshotFlow
 
 // Helper to format large numbers (e.g., 52200 -> "52.2K")
 fun formatCount(count: Int): String {
@@ -85,6 +98,10 @@ fun PostsScreen(
 
     val swipeRefreshState = rememberSwipeRefreshState(isRefreshing = isLoading)
     val snackbarHostState = remember { SnackbarHostState() }
+    val listState = rememberLazyListState()
+    
+    // Track visible reel post IDs for auto-play
+    var visibleReelIds by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     // Note: Snackbar for preference messages removed - preferences are now learned automatically
 
@@ -96,6 +113,24 @@ fun PostsScreen(
         } else {
             // Fetch posts filtered by food type
             postsViewModel.fetchPostsByFoodType(selectedFoodType)
+        }
+    }
+    
+    // Track visible reel posts for auto-play
+    LaunchedEffect(listState, posts) {
+        snapshotFlow { 
+            val layoutInfo = listState.layoutInfo
+            val visibleItemIndices = layoutInfo.visibleItemsInfo.map { it.index }
+            // Account for header item at index 0, so posts start at index 1
+            visibleItemIndices.mapNotNull { itemIndex ->
+                val postIndex = itemIndex - 1 // Subtract 1 for header
+                if (postIndex >= 0 && postIndex < posts.size) {
+                    val post = posts[postIndex]
+                    if (post.mediaType == "reel") post._id else null
+                } else null
+            }.toSet()
+        }.collect { newVisibleReelIds ->
+            visibleReelIds = newVisibleReelIds
         }
     }
 
@@ -121,6 +156,7 @@ fun PostsScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                     contentPadding = PaddingValues(bottom = 16.dp)
@@ -169,8 +205,12 @@ fun PostsScreen(
                     } else {
                         // Actual posts items
                         items(posts) { post ->
+                            // Check if this reel is visible
+                            val isReelVisible = post.mediaType == "reel" && visibleReelIds.contains(post._id)
+                            
                             RecipeCard(
                                 post = post,
+                                isReelVisible = isReelVisible,
                                 onPostClick = { postId ->
                                     navController.navigate("${UserRoutes.POST_DETAILS_SCREEN}/$postId")
                                 },
@@ -244,23 +284,6 @@ fun PostsScreen(
                 }
             )
         }
-
-        // --- NEW: Share Dialog ---
-        if (showShareDialog && selectedPostIdForSharing != null) {
-            SharePostDialog(
-                postId = selectedPostIdForSharing!!,
-                onDismiss = {
-                    showShareDialog = false
-                    selectedPostIdForSharing = null
-                },
-                onShareSuccess = {
-                    // Optionally show a success message
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                        snackbarHostState.showSnackbar("Post shared successfully!")
-                    }
-                }
-            )
-        }
     }
 }
 
@@ -322,6 +345,7 @@ fun PersonalizedFeedBanner(
 @Composable
 fun RecipeCard(
     post: PostResponse,
+    isReelVisible: Boolean = false,
     onPostClick: (postId: String) -> Unit,
     onFavoriteClick: (postId: String) -> Unit,
     onCommentClick: (postId: String) -> Unit,
@@ -337,6 +361,9 @@ fun RecipeCard(
     var isSaved by remember(post._id) { mutableStateOf(post.saveCount > 0) }
     var likeCount by remember(post._id) { mutableStateOf(post.likeCount) }
     var saveCount by remember(post._id) { mutableStateOf(post.saveCount) }
+    
+    // Track mute state for reels (false = unmuted/sound on, true = muted/sound off)
+    var isMuted by remember(post._id) { mutableStateOf(false) }
 
     LaunchedEffect(post.likeCount, post.saveCount) {
         likeCount = post.likeCount
@@ -372,23 +399,70 @@ fun RecipeCard(
                     .fillMaxWidth()
                     .height(imageHeight)
             ) {
-                // Hero Image
-                val imageUrl = if (post.mediaType == "reel" && post.thumbnailUrl != null) {
-                    post.thumbnailUrl
+                // Media Display - Video for reels, Image for others
+                if (post.mediaType == "reel" && post.mediaUrls.firstOrNull() != null) {
+                    // Video Player for Reels
+                    val videoUrl = BaseUrlProvider.getFullImageUrl(post.mediaUrls.firstOrNull()) ?: ""
+                    
+                    // Main clickable area for post navigation
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { onPostClick(post._id) }
+                    ) {
+                        FeedVideoPlayerWithVisibility(
+                            videoUrl = videoUrl,
+                            isVisible = isReelVisible,
+                            isMuted = isMuted,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    
+                    // Sound Icon Overlay for Reels (Clickable - on top layer)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                    ) {
+                        val soundIconInteractionSource = remember { MutableInteractionSource() }
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.5f),
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clickable(
+                                    onClick = { isMuted = !isMuted },
+                                    indication = null,
+                                    interactionSource = soundIconInteractionSource
+                                )
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                Icon(
+                                    imageVector = if (isMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                                    contentDescription = if (isMuted) "Unmute" else "Mute",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
                 } else {
-                    post.mediaUrls.firstOrNull()
+                    // Static Image for non-reel posts
+                    val imageUrl = post.mediaUrls.firstOrNull()
+                    AsyncImage(
+                        model = BaseUrlProvider.getFullImageUrl(imageUrl),
+                        contentDescription = post.caption,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { onPostClick(post._id) },
+                        placeholder = rememberVectorPainter(Icons.Outlined.Image),
+                        error = rememberVectorPainter(Icons.Outlined.BrokenImage)
+                    )
                 }
-
-                AsyncImage(
-                    model = BaseUrlProvider.getFullImageUrl(imageUrl),
-                    contentDescription = post.caption,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable { onPostClick(post._id) },
-                    placeholder = rememberVectorPainter(Icons.Outlined.Image),
-                    error = rememberVectorPainter(Icons.Outlined.BrokenImage)
-                )
 
                 // Floating Top Controls
                 Row(
@@ -850,4 +924,69 @@ fun CommentItem(comment: CommentResponse) {
            )
        }
     }
+}
+
+// ------------------------------------------------------
+// 🎥 Feed Video Player with Visibility Detection
+// ------------------------------------------------------
+@OptIn(UnstableApi::class)
+@Composable
+fun FeedVideoPlayerWithVisibility(
+    videoUrl: String,
+    isVisible: Boolean,
+    isMuted: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    
+    // Initialize ExoPlayer
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(videoUrl))
+            prepare()
+            volume = 1f // Start with sound on (unmuted)
+            repeatMode = ExoPlayer.REPEAT_MODE_ONE // Loop
+            playWhenReady = false // Don't auto-play until visible
+        }
+    }
+    
+    // Control volume based on mute state
+    DisposableEffect(isMuted) {
+        exoPlayer.volume = if (isMuted) 0f else 1f
+        onDispose {
+            // Cleanup handled in the final DisposableEffect
+        }
+    }
+    
+    // Control playback based on visibility
+    DisposableEffect(isVisible) {
+        if (isVisible) {
+            exoPlayer.playWhenReady = true
+            exoPlayer.play()
+        } else {
+            exoPlayer.pause()
+            exoPlayer.playWhenReady = false
+        }
+        onDispose {
+            // Cleanup handled in the final DisposableEffect
+        }
+    }
+    
+    // Manage Lifecycle - release player when composable is disposed
+    DisposableEffect(Unit) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+    
+    // Render PlayerView
+    AndroidView(
+        factory = { ctx ->
+            PlayerView(ctx).apply {
+                player = exoPlayer
+                useController = false // Hide controls for feed auto-play
+            }
+        },
+        modifier = modifier
+    )
 }
