@@ -114,6 +114,7 @@ fun CaptionAndPublishScreen(
         mutableStateOf<CategoryMismatchData?>(null) 
     }
     var createdPostIdForUpdate by remember { mutableStateOf<String?>(null) }
+    var isUpdatingCategory by remember { mutableStateOf(false) }
 
     // --- Main Layout ---
     Scaffold(
@@ -597,18 +598,23 @@ fun CaptionAndPublishScreen(
                     confirmButton = {
                         Button(
                             onClick = {
+                                if (isUpdatingCategory) return@Button // Prevent multiple clicks
+                                
                                 // Update post with AI-suggested category
                                 coroutineScope.launch {
                                     if (createdPostIdForUpdate != null) {
+                                        isUpdatingCategory = true
                                         updatePostCategory(
                                             postId = createdPostIdForUpdate!!,
                                             newCategory = data.aiSuggested,
                                             onSuccess = {
+                                                isUpdatingCategory = false
                                                 showCategoryMismatchDialog = false
                                                 createdPostIdForUpdate = null
                                                 showSuccessDialog = true
                                             },
                                             onError = { error ->
+                                                isUpdatingCategory = false
                                                 errorMessage = error
                                                 showCategoryMismatchDialog = false
                                                 createdPostIdForUpdate = null
@@ -618,12 +624,29 @@ fun CaptionAndPublishScreen(
                                     }
                                 }
                             },
+                            enabled = !isUpdatingCategory,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFF9800)
+                                containerColor = Color(0xFFFF9800),
+                                disabledContainerColor = Color(0xFFFF9800).copy(alpha = 0.6f)
                             ),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Use AI Suggestion")
+                            if (isUpdatingCategory) {
+                                Row(
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Updating...")
+                                }
+                            } else {
+                                Text("Use AI Suggestion")
+                            }
                         }
                     },
                     dismissButton = {
@@ -996,15 +1019,59 @@ private suspend fun updatePostCategory(
     onError: (String) -> Unit
 ) {
     try {
+        // Ensure category is uppercase to match FoodType enum format
+        var categoryToUpdate = newCategory.uppercase().trim()
+        
+        // Try to find a matching FoodType enum value
+        // This handles cases where AI returns slightly different category names
+        val foodType = FoodType.fromValue(categoryToUpdate)
+        if (foodType != null) {
+            categoryToUpdate = foodType.value
+            Log.d("CategoryValidation", "Mapped category '$newCategory' to FoodType: $categoryToUpdate")
+        } else {
+            // If no match found, log a warning but still try to update
+            Log.w("CategoryValidation", "Category '$categoryToUpdate' not found in FoodType enum, but attempting update anyway")
+        }
+        
+        Log.d("CategoryValidation", "Updating post $postId with category: $categoryToUpdate")
+        
         val updateDto = PostsApiService.UpdatePostDto(
-            foodType = newCategory
+            foodType = categoryToUpdate
         )
-        RetrofitClient.postsApiService.updatePost(
+        
+        val response = RetrofitClient.postsApiService.updatePost(
             postId = postId,
             updatePostDto = updateDto
         )
+        
+        Log.d("CategoryValidation", "Post category updated successfully: ${response.foodType}")
         onSuccess()
+    } catch (e: HttpException) {
+        // Handle HTTP errors (400, 404, 500, etc.)
+        val errorBody = e.response()?.errorBody()?.string()
+        val errorMessage = try {
+            if (errorBody != null) {
+                val jsonObject = JSONObject(errorBody)
+                val message = jsonObject.optString("message", "")
+                if (message.isNotEmpty()) {
+                    message
+                } else {
+                    "Failed to update category (HTTP ${e.code()})"
+                }
+            } else {
+                "Failed to update category: ${e.message}"
+            }
+        } catch (ex: Exception) {
+            "Failed to update category: ${e.message}"
+        }
+        Log.e("CategoryValidation", "HTTP error updating category (${e.code()}): $errorMessage")
+        Log.e("CategoryValidation", "Error body: $errorBody")
+        onError(errorMessage)
+    } catch (e: IOException) {
+        Log.e("CategoryValidation", "Network error updating category: ${e.message}")
+        onError("Network error. Please check your connection.")
     } catch (e: Exception) {
+        Log.e("CategoryValidation", "Error updating category: ${e.message}")
         onError(e.message ?: "Failed to update category")
     }
 }
