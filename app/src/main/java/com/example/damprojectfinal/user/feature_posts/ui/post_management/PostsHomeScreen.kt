@@ -1043,7 +1043,7 @@ fun CommentItem(comment: CommentResponse) {
 // ------------------------------------------------------
 // 🎥 Feed Video Player with Visibility Detection
 // ------------------------------------------------------
-@OptIn(UnstableApi::class)
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun FeedVideoPlayerWithVisibility(
     videoUrl: String,
