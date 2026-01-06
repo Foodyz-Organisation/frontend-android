@@ -28,11 +28,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
+import org.maplibre.geojson.Point
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.sources.GeoJsonSource
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import org.maplibre.android.camera.CameraUpdateFactory
 import org.json.JSONArray
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -215,14 +223,9 @@ fun OSMLocationPicker(
     var isSearching by remember { mutableStateOf(false) }
     var showSearchResults by remember { mutableStateOf(false) }
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
+    var mapboxMap by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
 
-    DisposableEffect(Unit) {
-        Configuration.getInstance().load(
-            context,
-            context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE)
-        )
-        onDispose { }
-    }
+    remember { MapLibre.getInstance(context) }
 
     LaunchedEffect(searchQuery) {
         if (searchQuery.isBlank()) {
@@ -267,27 +270,48 @@ fun OSMLocationPicker(
             AndroidView(
                 factory = { ctx ->
                     MapView(ctx).apply {
-                        setTileSource(TileSourceFactory.MAPNIK)
-                        setMultiTouchControls(true)
-                        controller.setZoom(15.0)
-                        controller.setCenter(
-                            GeoPoint(currentLocation.latitude, currentLocation.longitude)
-                        )
+                        onCreate(null)
+                        getMapAsync { map ->
+                            map.setStyle("https://tiles.openfreemap.org/styles/liberty") { style ->
+                                // Setup marker icon
+                                val markerIcon = createPinMarkerIcon(ctx, android.graphics.Color.RED)
+                                style.addImage("marker-icon", markerIcon)
 
-                        val marker = Marker(this)
-                        marker.position = GeoPoint(currentLocation.latitude, currentLocation.longitude)
-                        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        overlays.add(marker)
+                                // Setup source
+                                style.addSource(GeoJsonSource("location-source", 
+                                    Point.fromLngLat(currentLocation.longitude, currentLocation.latitude)))
 
-                        addMapListener(object : org.osmdroid.events.MapListener {
-                            override fun onScroll(event: org.osmdroid.events.ScrollEvent?): Boolean {
-                                val center = mapCenter as GeoPoint
+                                // Setup layer
+                                style.addLayer(
+                                    SymbolLayer("location-layer", "location-source").withProperties(
+                                        PropertyFactory.iconImage("marker-icon"),
+                                        PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                                        PropertyFactory.iconAllowOverlap(true)
+                                    )
+                                )
+                            }
+                            map.uiSettings.isAttributionEnabled = false
+                            map.uiSettings.isLogoEnabled = false
+                            
+                            val cameraPosition = CameraPosition.Builder()
+                                .target(LatLng(currentLocation.latitude, currentLocation.longitude))
+                                .zoom(15.0)
+                                .build()
+                            map.cameraPosition = cameraPosition
+                            
+                            // Listener for camera movement
+                            map.addOnCameraIdleListener {
+                                val center = map.cameraPosition.target ?: return@addOnCameraIdleListener
                                 currentLocation = LocationData(
                                     latitude = center.latitude,
                                     longitude = center.longitude
                                 )
-
-                                marker.position = center
+                                
+                                // Update source
+                                map.getStyle { style ->
+                                    val source = style.getSourceAs<GeoJsonSource>("location-source")
+                                    source?.setGeoJson(Point.fromLngLat(center.longitude, center.latitude))
+                                }
 
                                 scope.launch {
                                     delay(500)
@@ -295,24 +319,24 @@ fun OSMLocationPicker(
                                     locationName = reverseGeocodeOSM(ctx, center.latitude, center.longitude)
                                     isLoadingAddress = false
                                 }
-                                return true
                             }
-
-                            override fun onZoom(event: org.osmdroid.events.ZoomEvent?): Boolean {
-                                return true
-                            }
-                        })
-                        
+                            
+                            mapboxMap = map
+                        }
                         mapViewRef = this
                     }
                 },
                 modifier = Modifier.fillMaxSize(),
                 update = { mapView ->
-                    if (mapView.overlays.isNotEmpty()) {
-                        val marker = mapView.overlays[0] as? Marker
-                        marker?.position = GeoPoint(currentLocation.latitude, currentLocation.longitude)
-                        mapView.invalidate()
-                    }
+                     // Handle updates if needed, primarily relying on map async callback
+                     mapView.onResume()
+                     
+                     mapboxMap?.let { map ->
+                         map.getStyle { style ->
+                             val source = style.getSourceAs<GeoJsonSource>("location-source")
+                             source?.setGeoJson(Point.fromLngLat(currentLocation.longitude, currentLocation.latitude))
+                         }
+                     }
                 }
             )
 
@@ -338,7 +362,11 @@ fun OSMLocationPicker(
                             containerColor = Color(0xFF3B82F6).copy(alpha = 0.1f)
                         ),
                         onClick = {
-                            mapViewRef?.controller?.zoomIn()
+                            val currentZoom = mapboxMap?.cameraPosition?.zoom ?: 15.0
+                             mapboxMap?.animateCamera(
+                                CameraUpdateFactory.zoomTo(currentZoom + 1),
+                                300
+                            )
                         }
                     ) {
                         Box(
@@ -376,7 +404,11 @@ fun OSMLocationPicker(
                             containerColor = Color(0xFF3B82F6).copy(alpha = 0.1f)
                         ),
                         onClick = {
-                            mapViewRef?.controller?.zoomOut()
+                             val currentZoom = mapboxMap?.cameraPosition?.zoom ?: 15.0
+                             mapboxMap?.animateCamera(
+                                CameraUpdateFactory.zoomTo(currentZoom - 1),
+                                300
+                            )
                         }
                     ) {
                         Box(
@@ -509,27 +541,22 @@ fun OSMLocationPicker(
                                             searchQuery = location.name
                                             showSearchResults = false
                                             
-                                            val targetPoint = GeoPoint(location.latitude, location.longitude)
-                                            val marker = mapViewRef?.overlays?.getOrNull(0) as? Marker
-                                            marker?.position = targetPoint
+                                            // Animate camera
+                                            mapboxMap?.animateCamera(
+                                                CameraUpdateFactory.newLatLngZoom(
+                                                    LatLng(location.latitude, location.longitude),
+                                                    17.0
+                                                ),
+                                                1500
+                                            )
+                                            
+                                            // Update source
+                                            mapboxMap?.getStyle { style ->
+                                                val source = style.getSourceAs<GeoJsonSource>("location-source")
+                                                source?.setGeoJson(Point.fromLngLat(location.longitude, location.latitude))
+                                            }
                                             
                                             scope.launch {
-                                                val currentZoom = mapViewRef?.zoomLevelDouble ?: 15.0
-                                                mapViewRef?.controller?.setZoom(currentZoom - 2.0)
-                                                
-                                                delay(100)
-                                                
-                                                mapViewRef?.controller?.animateTo(
-                                                    targetPoint,
-                                                    17.0,
-                                                    null,
-                                                    1500f
-                                                )
-                                                
-                                                delay(1600)
-                                                marker?.position = targetPoint
-                                                mapViewRef?.invalidate()
-                                                
                                                 isLoadingAddress = true
                                                 val fullAddress = reverseGeocodeOSM(context, location.latitude, location.longitude)
                                                 locationName = fullAddress
@@ -727,4 +754,52 @@ private fun SearchResultItem(
             }
         }
     }
+}
+
+/**
+ * Create a PIN/Teardrop marker icon (Safe drawing)
+ */
+private fun createPinMarkerIcon(context: Context, colorValue: Int): Bitmap {
+    val size = (48 * context.resources.displayMetrics.density).toInt()
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    
+    val paint = Paint().apply {
+        isAntiAlias = true
+        color = colorValue
+        style = Paint.Style.FILL
+    }
+    
+    // Draw Pin Shape (Teardrop)
+    val cx = size / 2f
+    val cy = size / 2.6f
+    val radius = size / 2.8f
+    
+    // 1. Draw Shadow
+    val shadowPaint = Paint().apply {
+        isAntiAlias = true
+        color = android.graphics.Color.BLACK
+        alpha = 50
+    }
+    canvas.drawCircle(cx, size - 4f, 6f, shadowPaint)
+    
+    // 2. Draw Triangle (Bottom)
+    val trianglePath = android.graphics.Path()
+    trianglePath.moveTo(cx - radius * 0.9f, cy + radius * 0.1f) // Overlap slightly
+    trianglePath.lineTo(cx + radius * 0.9f, cy + radius * 0.1f)
+    trianglePath.lineTo(cx, size.toFloat())
+    trianglePath.close()
+    canvas.drawPath(trianglePath, paint)
+    
+    // 3. Draw Circle (Top)
+    canvas.drawCircle(cx, cy, radius, paint)
+    
+    // 4. Draw White Hole
+    val holePaint = Paint().apply {
+        isAntiAlias = true
+        color = android.graphics.Color.WHITE
+    }
+    canvas.drawCircle(cx, cy, radius * 0.4f, holePaint)
+    
+    return bitmap
 }

@@ -54,6 +54,7 @@ import com.example.damprojectfinal.core.repository.OrderRepository
 import com.example.damprojectfinal.user.feautre_order.viewmodel.OrderViewModel
 import com.example.damprojectfinal.user.feautre_order.ui.OrderHistoryScreen
 import com.example.damprojectfinal.user.feautre_order.ui.OrderDetailsScreen
+import com.example.damprojectfinal.user.feautre_order.ui.OrderNavigationScreen
 import com.example.damprojectfinal.core.utils.LogoutViewModelFactory
 import com.example.damprojectfinal.feature_auth.viewmodels.LogoutViewModel
 import com.example.damprojectfinal.feature_auth.ui.LoginScreen
@@ -173,6 +174,7 @@ object UserRoutes {
     const val ORDERS_ROUTE = "orders_history_route"
     const val NOTIFICATIONS_SCREEN = "notifications_screen"
     const val EVENT_LIST_REMOTE = "event_list_remote"
+    const val ORDER_NAVIGATION = "order_navigation/{orderId}"
 }
 
 object ProRoutes {
@@ -2039,6 +2041,36 @@ fun AppNavigation(
             } else {
                 // Show loading indicator while userId is being fetched
                 Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+        }
+
+        // 🧭 NEW ROUTE: Full Screen Navigation
+        composable(
+            route = UserRoutes.ORDER_NAVIGATION,
+            arguments = listOf(navArgument("orderId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+            val context = LocalContext.current
+            val tokenManager = remember { TokenManager(context) }
+            var userId by remember { mutableStateOf<String?>(null) }
+            
+            LaunchedEffect(Unit) {
+               userId = tokenManager.getUserIdAsync()
+            }
+            
+            if (userId != null) {
+                OrderNavigationScreen(
+                    orderId = orderId,
+                    navController = navController,
+                    userId = userId!!
+                )
+            } else {
+                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {

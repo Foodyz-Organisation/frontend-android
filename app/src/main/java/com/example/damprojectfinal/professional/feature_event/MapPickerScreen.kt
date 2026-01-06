@@ -30,10 +30,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.maps.MapLibreMap
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -75,15 +77,9 @@ fun MapPickerScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
     var mapView by remember { mutableStateOf<MapView?>(null) }
+    var mapboxMap by remember { mutableStateOf<MapLibreMap?>(null) }
 
-    // Initialiser OSMDroid
-    DisposableEffect(Unit) {
-        Configuration.getInstance().load(
-            context,
-            context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE)
-        )
-        onDispose { }
-    }
+    remember { MapLibre.getInstance(context) }
 
     fun performSearch() {
         if (searchQuery.isBlank()) return
@@ -113,8 +109,9 @@ fun MapPickerScreen(
                         withContext(Dispatchers.Main) {
                             currentLocation = LocationData(lat, lon, displayName)
                             locationName = displayName
-                            mapView?.controller?.animateTo(GeoPoint(lat, lon))
-                            mapView?.controller?.setZoom(15.0)
+                             mapboxMap?.animateCamera(
+                                CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), 15.0)
+                            )
                         }
                     } else {
                         withContext(Dispatchers.Main) {
@@ -140,46 +137,52 @@ fun MapPickerScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // La carte OSM
+        // MapLibre Map
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    setTileSource(TileSourceFactory.MAPNIK)
-                    setMultiTouchControls(true)
-                    controller.setZoom(15.0)
-                    controller.setCenter(
-                        GeoPoint(currentLocation.latitude, currentLocation.longitude)
-                    )
-                    mapView = this // Capturer l'instance
+                    onCreate(null)
+                    getMapAsync { map ->
+                        map.setStyle("https://tiles.openfreemap.org/styles/liberty") { style ->
+                            // Setup source for location updates (if needed, but here we just center the map)
+                            // We don't necessarily need a marker if we have a fixed pin in the center of the UI
+                        }
+                         map.uiSettings.isAttributionEnabled = false
+                         map.uiSettings.isLogoEnabled = false
+                         
+                        val cameraPosition = CameraPosition.Builder()
+                            .target(LatLng(currentLocation.latitude, currentLocation.longitude))
+                            .zoom(15.0)
+                            .build()
+                        map.cameraPosition = cameraPosition
 
-                    // Écouter les changements de position
-                    addMapListener(object : org.osmdroid.events.MapListener {
-                        override fun onScroll(event: org.osmdroid.events.ScrollEvent?): Boolean {
-                            val center = mapCenter as GeoPoint
-                            currentLocation = LocationData(
+                        // Listener for camera updates
+                         map.addOnCameraIdleListener {
+                            val center = map.cameraPosition.target ?: return@addOnCameraIdleListener
+                             currentLocation = LocationData(
                                 latitude = center.latitude,
                                 longitude = center.longitude
                             )
 
-                            // Géocoder avec debounce (seulement si pas en train de chercher activement)
+                            // Geocode with debounce
                             if (!isSearching) {
                                 scope.launch {
-                                    kotlinx.coroutines.delay(800) // Augmenté un peu le délai
+                                    kotlinx.coroutines.delay(800)
                                     isLoadingAddress = true
                                     locationName = reverseGeocode(ctx, center.latitude, center.longitude)
                                     isLoadingAddress = false
                                 }
                             }
-                            return true
                         }
-
-                        override fun onZoom(event: org.osmdroid.events.ZoomEvent?): Boolean {
-                            return true
-                        }
-                    })
+                         mapboxMap = map
+                    }
+                    mapView = this
                 }
             },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+             update = { mapView ->
+                 mapView.onResume()
+             }
         )
 
         // Pin fixe au centre

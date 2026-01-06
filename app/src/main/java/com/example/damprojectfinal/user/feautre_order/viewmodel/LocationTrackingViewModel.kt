@@ -96,16 +96,35 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
                 socketManager?.setOnRestaurantLocation { restaurantLoc ->
                     Log.d(TAG, "🏪 Restaurant location received:")
                     Log.d(TAG, "  📍 Lat/Lng: ${restaurantLoc.lat}, ${restaurantLoc.lon}")
-                    Log.d(TAG, "  🏷️ Name: ${restaurantLoc.name}")
-                    Log.d(TAG, "  📬 Address: ${restaurantLoc.address}")
                     
-                    _state.value = _state.value.copy(
-                        restaurantLocation = RestaurantLocationData(
-                            lat = restaurantLoc.lat,
-                            lng = restaurantLoc.lon,
-                            name = restaurantLoc.name,
-                            address = restaurantLoc.address
+                    val newRestLoc = RestaurantLocationData(
+                        lat = restaurantLoc.lat,
+                        lng = restaurantLoc.lon,
+                        name = restaurantLoc.name,
+                        address = restaurantLoc.address
+                    )
+                    
+                    // Recalculate distance if we already have a current location
+                    var distanceKm: Double? = _state.value.distance
+                    var distanceStr: String? = _state.value.distanceFormatted
+                    val currentLoc = _state.value.currentLocation
+                    
+                    if (currentLoc != null) {
+                        distanceKm = calculateDistance(
+                            currentLoc.lat, currentLoc.lng,
+                            newRestLoc.lat, newRestLoc.lng
                         )
+                        distanceStr = if (distanceKm < 1.0) {
+                            "${(distanceKm * 1000).toInt()} m"
+                        } else {
+                            String.format("%.1f km", distanceKm)
+                        }
+                    }
+
+                    _state.value = _state.value.copy(
+                        restaurantLocation = newRestLoc,
+                        distance = distanceKm,
+                        distanceFormatted = distanceStr
                     )
                 }
 
@@ -157,6 +176,40 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
         }
     }
     
+
+    
+    /**
+     * Start local tracking (UI only, no socket sharing)
+     * Used for Navigation Mode to show user's position
+     */
+    fun startLocalTracking() {
+        viewModelScope.launch {
+             // If already sharing, we are already tracking, so do nothing OR ensure we update UI
+             if (_state.value.isSharing) return@launch
+             
+             if (!locationTracker.hasLocationPermission() || !locationTracker.isLocationEnabled()) {
+                 Log.e(TAG, "❌ Cannot start local tracking: Missing permissions or GPS disabled")
+                 return@launch
+             }
+
+             Log.d(TAG, "📍 Starting local GPS tracking (UI only)")
+             try {
+                locationTracker.startTracking(
+                    minTime = 2000, // Faster updates for navigation (2s)
+                    minDistance = 5f, // 5 meters
+                    onLocationUpdate = { locationData ->
+                        processLocationUpdate(locationData)
+                    },
+                    onError = { error ->
+                        Log.e(TAG, "❌ Local tracking error: $error")
+                    }
+                )
+             } catch (e: Exception) {
+                 Log.e(TAG, "❌ Exception starting local tracker: ${e.message}")
+             }
+        }
+    }
+
     /**
      * Start sharing location (request permission and start tracking)
      */
@@ -217,15 +270,8 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
                             accuracy = locationData.accuracy?.toDouble()
                         )
                         
-                        // Update local state
-                        Log.d(TAG, "📍 GPS Update: ${locationData.latitude}, ${locationData.longitude}")
-                        _state.value = _state.value.copy(
-                            currentLocation = LocationData(
-                                lat = locationData.latitude,
-                                lng = locationData.longitude,
-                                accuracy = locationData.accuracy
-                            )
-                        )
+                        // Update local state and distance
+                        processLocationUpdate(locationData)
                     },
                     onError = { error ->
                         _state.value = _state.value.copy(error = error)
@@ -263,6 +309,7 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
      */
     fun disconnect() {
         stopSharingLocation()
+        locationTracker.stopTracking() // Ensure local tracking also stops
         socketManager?.disconnect()
         socketManager = null
         currentOrderId = null
@@ -274,6 +321,67 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
     override fun onCleared() {
         super.onCleared()
         disconnect()
+    }
+
+    /**
+     * Calculate distance between two points using Haversine formula (in km)
+     */
+    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val earthRadius = 6371.0 // kilometers
+        
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        
+        return earthRadius * c
+    }
+
+    /**
+     * Process location update: calculate distance and update state
+     * Includes simple accuracy filter to stabilize position
+     */
+    private fun processLocationUpdate(locationData: com.example.damprojectfinal.core.location.LocationTracker.LocationData) {
+        // Filter out low accuracy updates, BUT always allow if we don't have a location yet
+        if (locationData.accuracy != null && locationData.accuracy > 200) {
+             if (_state.value.currentLocation != null) {
+                 Log.d(TAG, "⚠️ Ignoring low accuracy location: ${locationData.accuracy}m")
+                 return
+             }
+        }
+
+        // Calculate distance if restaurant location is available
+        val currentRestLoc = _state.value.restaurantLocation
+        var distanceKm: Double? = null
+        var distanceStr: String? = null
+        
+        if (currentRestLoc != null) {
+            distanceKm = calculateDistance(
+                locationData.latitude, locationData.longitude,
+                currentRestLoc.lat, currentRestLoc.lng
+            )
+            // Format distance
+            distanceStr = if (distanceKm < 1.0) {
+                "${(distanceKm * 1000).toInt()} m"
+            } else {
+                String.format("%.1f km", distanceKm)
+            }
+        }
+
+        // Update state
+        _state.value = _state.value.copy(
+            currentLocation = LocationData(
+                lat = locationData.latitude,
+                lng = locationData.longitude,
+                accuracy = locationData.accuracy
+            ),
+            distance = distanceKm,
+            distanceFormatted = distanceStr
+        )
     }
 }
 

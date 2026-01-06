@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
@@ -246,27 +247,53 @@ fun OrderDetailsScreen(
                                 
                                 // Map (Only visible when sharing)
                                 if (locationState.isSharing) {
-                                    OrderTrackingMap(
-                                        restaurantLocation = locationState.restaurantLocation?.let {
-                                            RestaurantLocation(
-                                                lat = it.lat,
-                                                lng = it.lng,
-                                                name = it.name ?: it.address,
-                                                address = it.address
+                                    Box {
+                                        OrderTrackingMap(
+                                            restaurantLocation = locationState.restaurantLocation?.let {
+                                                RestaurantLocation(
+                                                    lat = it.lat,
+                                                    lng = it.lng,
+                                                    name = it.name ?: it.address,
+                                                    address = it.address
+                                                )
+                                            },
+                                            userLocation = locationState.currentLocation?.let {
+                                                UserLocation(
+                                                    lat = it.lat,
+                                                    lng = it.lng,
+                                                    accuracy = it.accuracy
+                                                )
+                                            },
+                                            distanceFormatted = locationState.distanceFormatted,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(400.dp)
+                                        )
+
+                                        // Maximize / Navigation Button
+                                        IconButton(
+                                            onClick = { 
+                                                // Navigate to full screen 3D navigation
+                                                navController.navigate(
+                                                    com.example.damprojectfinal.UserRoutes.ORDER_NAVIGATION
+                                                        .replace("{orderId}", orderId)
+                                                )
+                                            },
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(16.dp)
+                                                .size(40.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.White)
+                                                .shadow(4.dp, CircleShape)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Navigation, // Using Navigation icon
+                                                contentDescription = "Full Screen Navigation",
+                                                tint = Color(0xFF3B82F6)
                                             )
-                                        },
-                                        userLocation = locationState.currentLocation?.let {
-                                            UserLocation(
-                                                lat = it.lat,
-                                                lng = it.lng,
-                                                accuracy = it.accuracy
-                                            )
-                                        },
-                                        distanceFormatted = locationState.distanceFormatted,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(400.dp)
-                                    )
+                                        }
+                                    }
                                 }
                                 
                                 // Tracking info with better UX

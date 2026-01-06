@@ -1,12 +1,14 @@
 package com.example.damprojectfinal.user.feautre_order.ui
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,22 +17,34 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.damprojectfinal.ui.theme.AppPrimaryRed
+import org.maplibre.geojson.Feature
+import org.maplibre.geojson.FeatureCollection
+import org.maplibre.geojson.LineString
+import org.maplibre.geojson.Point
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.Polyline
-import android.graphics.Paint
 import org.json.JSONObject
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.sources.GeoJsonSource
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -38,7 +52,7 @@ import java.net.URL
 
 /**
  * Live tracking map showing restaurant location and user's real-time location
- * Using OpenStreetMap (OSM) - FREE, No API Key Required
+ * Using MapLibre SDK for 3D views
  */
 @Composable
 fun OrderTrackingMap(
@@ -49,220 +63,194 @@ fun OrderTrackingMap(
     showDistance: Boolean = true
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    
+    // Initialize MapLibre
+    remember { MapLibre.getInstance(context) }
+
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
-    var routePoints by remember { mutableStateOf<List<GeoPoint>>(emptyList()) }
+    var mapboxMap by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
+    var routePoints by remember { mutableStateOf<List<Point>>(emptyList()) }
     var isCalculatingRoute by remember { mutableStateOf(false) }
 
-    // Initialize OSMDroid
-    DisposableEffect(Unit) {
-        Configuration.getInstance().load(
-            context,
-            context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE)
-        )
-        onDispose { }
+    // Lifecycle observer for MapView
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            val mapView = mapViewRef ?: return@LifecycleEventObserver
+            when (event) {
+                Lifecycle.Event.ON_START -> mapView.onStart()
+                Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            // Ensure onDestroy is called if not handled by lifecycle
+            mapViewRef?.onDestroy()
+        }
     }
 
-    // Calculate route when locations change (with debouncing for real-time updates)
+    // Calculate route logic
     LaunchedEffect(restaurantLocation, userLocation) {
-        // Debug logging
-        android.util.Log.d("OrderTrackingMap", "=== LOCATION STATE UPDATE ===")
-        android.util.Log.d("OrderTrackingMap", "Restaurant: ${restaurantLocation?.lat}, ${restaurantLocation?.lng}")
-        android.util.Log.d("OrderTrackingMap", "User: ${userLocation?.lat}, ${userLocation?.lng}")
-        android.util.Log.d("OrderTrackingMap", "Distance: $distanceFormatted")
-        
         if (restaurantLocation != null && userLocation != null) {
-            // Debounce route calculation to avoid too many API calls
-            delay(1000) // Wait 1 second after location change
-            
-            android.util.Log.d("OrderTrackingMap", "🔄 Calculating route...")
-            
-            // Check if locations are still valid (user might have moved)
-            if (restaurantLocation != null && userLocation != null) {
-                isCalculatingRoute = true
-                val route = calculateRoute(
-                    userLocation.lat, userLocation.lng,
-                    restaurantLocation.lat, restaurantLocation.lng
-                )
-                routePoints = route
-                isCalculatingRoute = false
-                android.util.Log.d("OrderTrackingMap", "✅ Route updated: ${route.size} points")
-            }
-        } else {
-            android.util.Log.w("OrderTrackingMap", "⚠️ Missing location data - cannot calculate route")
-            if (restaurantLocation == null) {
-                android.util.Log.w("OrderTrackingMap", "  - Restaurant location: NULL")
-            }
-            if (userLocation == null) {
-                android.util.Log.w("OrderTrackingMap", "  - User location: NULL")
-            }
-            routePoints = emptyList()
-        }
-    }
-
-    // Calculate center point
-    val centerPoint = remember(restaurantLocation, userLocation) {
-        when {
-            userLocation != null -> GeoPoint(userLocation.lat, userLocation.lng)
-            restaurantLocation != null -> GeoPoint(restaurantLocation.lat, restaurantLocation.lng)
-            else -> GeoPoint(36.8065, 10.1815) // Default: Tunis
-        }
-    }
-
-    // Calculate zoom level to show both markers
-    val zoomLevel = remember(restaurantLocation, userLocation) {
-        if (restaurantLocation != null && userLocation != null) {
-            // Calculate distance and adjust zoom
-            val distance = calculateDistance(
-                restaurantLocation.lat, restaurantLocation.lng,
-                userLocation.lat, userLocation.lng
+            delay(1000)
+            isCalculatingRoute = true
+            val route = calculateRoute(
+                userLocation.lat, userLocation.lng,
+                restaurantLocation.lat, restaurantLocation.lng
             )
-            when {
-                distance > 10000 -> 10.0 // Very far
-                distance > 5000 -> 11.0
-                distance > 2000 -> 12.0
-                distance > 1000 -> 13.0
-                distance > 500 -> 14.0
-                else -> 15.0 // Close
-            }
-        } else {
-            15.0
+            routePoints = route
+            isCalculatingRoute = false
         }
     }
 
-    // Markers - Create them once to avoid bitmap recreation on every update
-    // context is already defined at top of function
-    val restaurantMarkerIcon = remember { createPinMarkerIcon(context, Color(0xFFEF4444).toArgb()) }
-    val userMarkerIcon = remember { createPinMarkerIcon(context, Color(0xFF3B82F6).toArgb()) }
-    // Route color
-    val routeColor = remember { Color(0xFF3B82F6).toArgb() }
+    // Create marker bitmaps once
+    val restaurantMarkerIcon = remember { createPinMarkerIcon(context, android.graphics.Color.parseColor("#EF4444")) }
+    val userMarkerIcon = remember { createPinMarkerIcon(context, android.graphics.Color.parseColor("#3B82F6")) }
 
     Box(modifier = modifier) {
-
-                AndroidView(
-                    factory = { ctx ->
-                        MapView(ctx).apply {
-                            setTileSource(TileSourceFactory.MAPNIK)
-                            setMultiTouchControls(true)
-                            controller.setZoom(zoomLevel)
-                            controller.setCenter(centerPoint)
-                            
-                            // Removed clipToOutline = true as it can cause crashes on some devices/views
-                            
-                            // Fix: Allow map interaction inside LazyColumn
-                            setOnTouchListener { v, event ->
-                                when (event.action) {
-                                    android.view.MotionEvent.ACTION_DOWN,
-                                    android.view.MotionEvent.ACTION_MOVE -> {
-                                        v.parent.requestDisallowInterceptTouchEvent(true)
-                                        false
-                                    }
-                                    android.view.MotionEvent.ACTION_UP,
-                                    android.view.MotionEvent.ACTION_CANCEL -> {
-                                        v.parent.requestDisallowInterceptTouchEvent(false)
-                                        false
-                                    }
-                                    else -> false
-                                }
-                            }
-
-                            // Restaurant marker (Red)
-                            restaurantLocation?.let { location ->
-                                val restaurantMarker = Marker(this)
-                                restaurantMarker.position = GeoPoint(location.lat, location.lng)
-                                restaurantMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                restaurantMarker.title = location.name ?: "Restaurant"
-                                restaurantMarker.icon = android.graphics.drawable.BitmapDrawable(ctx.resources, restaurantMarkerIcon)
-                                overlays.add(restaurantMarker)
-                            }
-
-                            // User marker (Blue)
-                            userLocation?.let { location ->
-                                val userMarker = Marker(this)
-                                userMarker.position = GeoPoint(location.lat, location.lng)
-                                userMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                userMarker.title = "Your Location"
-                                userMarker.icon = android.graphics.drawable.BitmapDrawable(ctx.resources, userMarkerIcon)
-                                overlays.add(userMarker)
-                            }
-
-                            mapViewRef = this
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
-                    update = { mapView ->
-                        // Update markers
-                        mapView.overlays.clear()
+        AndroidView(
+            factory = { ctx ->
+                MapView(ctx).apply {
+                    onCreate(null) // Important for MapView initialization
+                    getMapAsync { map ->
+                        mapboxMap = map
                         
-                        restaurantLocation?.let { location ->
-                            val restaurantMarker = Marker(mapView)
-                            restaurantMarker.position = GeoPoint(location.lat, location.lng)
-                            restaurantMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            restaurantMarker.title = location.name ?: "Restaurant"
-                            restaurantMarker.icon = android.graphics.drawable.BitmapDrawable(context.resources, restaurantMarkerIcon)
-                            mapView.overlays.add(restaurantMarker)
-                        }
+                        // Set style (using OpenFreeMap for better reliability)
+                        map.setStyle("https://tiles.openfreemap.org/styles/liberty") { style ->
+                            // 1. Add Images for markers
+                            style.addImage("restaurant-icon", restaurantMarkerIcon)
+                            style.addImage("user-icon", userMarkerIcon)
 
-                        userLocation?.let { location ->
-                            val userMarker = Marker(mapView)
-                            userMarker.position = GeoPoint(location.lat, location.lng)
-                            userMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            userMarker.title = "Your Location"
-                            userMarker.icon = android.graphics.drawable.BitmapDrawable(context.resources, userMarkerIcon)
-                            mapView.overlays.add(userMarker)
-                        }
+                            // 2. Setup Sources
+                            // Restaurant source
+                            style.addSource(GeoJsonSource("restaurant-source"))
+                            // User source
+                            style.addSource(GeoJsonSource("user-source"))
+                            // Route source
+                            style.addSource(GeoJsonSource("route-source"))
 
-                        // Update route polyline
-                        if (routePoints.isNotEmpty()) {
-                            mapView.overlays.removeAll { it is Polyline }
-                            
-                            val routePolyline = Polyline()
-                            routePolyline.setPoints(routePoints)
-                            routePolyline.setColor(routeColor)
-                            routePolyline.setWidth(10f)
-                            mapView.overlays.add(routePolyline)
-                        } else if (restaurantLocation != null && userLocation != null) {
-                            mapView.overlays.removeAll { it is Polyline }
-                            val polyline = Polyline()
-                            polyline.setPoints(
-                                listOf(
-                                    GeoPoint(userLocation.lat, userLocation.lng),
-                                    GeoPoint(restaurantLocation.lat, restaurantLocation.lng)
+                            // 3. Setup Layers
+                            // Route Line
+                            style.addLayer(
+                                LineLayer("route-layer", "route-source").withProperties(
+                                    PropertyFactory.lineColor(android.graphics.Color.parseColor("#3B82F6")),
+                                    PropertyFactory.lineWidth(5f),
+                                    PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                                    PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                                 )
                             )
-                            polyline.setColor(routeColor)
-                            polyline.setWidth(8f)
-                            mapView.overlays.add(polyline)
-                        }
 
-                        // Update camera
-                        if (restaurantLocation != null && userLocation != null) {
-                            val allPoints = mutableListOf<GeoPoint>()
-                            allPoints.add(GeoPoint(restaurantLocation.lat, restaurantLocation.lng))
-                            allPoints.add(GeoPoint(userLocation.lat, userLocation.lng))
-                            if (routePoints.isNotEmpty()) {
-                                allPoints.addAll(routePoints)
-                            }
-                            
-                            val bounds = org.osmdroid.util.BoundingBox.fromGeoPoints(allPoints)
-                            mapView.zoomToBoundingBox(bounds, true, 50)
-                        } else {
-                            val point = when {
-                                userLocation != null -> GeoPoint(userLocation.lat, userLocation.lng)
-                                restaurantLocation != null -> GeoPoint(restaurantLocation.lat, restaurantLocation.lng)
-                                else -> centerPoint
-                            }
-                            mapView.controller.setCenter(point)
-                            mapView.controller.setZoom(zoomLevel)
-                        }
+                            // Restaurant Marker
+                            style.addLayer(
+                                SymbolLayer("restaurant-layer", "restaurant-source").withProperties(
+                                    PropertyFactory.iconImage("restaurant-icon"),
+                                    PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                                    PropertyFactory.iconAllowOverlap(true),
+                                    PropertyFactory.iconIgnorePlacement(true)
+                                )
+                            )
 
-                        mapView.invalidate()
+                            // User Marker
+                            style.addLayer(
+                                SymbolLayer("user-layer", "user-source").withProperties(
+                                    PropertyFactory.iconImage("user-icon"),
+                                    PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                                    PropertyFactory.iconAllowOverlap(true),
+                                    PropertyFactory.iconIgnorePlacement(true)
+                                )
+                            )
+                        }
+                        
+                        // UI Settings
+                        map.uiSettings.isCompassEnabled = true
+                        map.uiSettings.isLogoEnabled = false
+                        map.uiSettings.isAttributionEnabled = false
+                        map.uiSettings.isRotateGesturesEnabled = true
+                        map.uiSettings.isTiltGesturesEnabled = true
+                        map.uiSettings.isZoomGesturesEnabled = true
+                        map.uiSettings.isScrollGesturesEnabled = true
                     }
-                )
+                    mapViewRef = this
+                }
+            },
+            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
+            update = { mapView ->
+                // Lifecycle methods are now handled by DisposableEffect
+                
+                mapboxMap?.let { map ->
+                    map.getStyle { style ->
+                        // Update Restaurant Source
+                        val restaurantSource = style.getSourceAs<GeoJsonSource>("restaurant-source")
+                        if (restaurantLocation != null) {
+                            restaurantSource?.setGeoJson(
+                                Point.fromLngLat(restaurantLocation.lng, restaurantLocation.lat)
+                            )
+                        }
 
-                // Restaurant Address Card (Top Left)
+                        // Update User Source
+                        val userSource = style.getSourceAs<GeoJsonSource>("user-source")
+                        if (userLocation != null) {
+                            userSource?.setGeoJson(
+                                Point.fromLngLat(userLocation.lng, userLocation.lat)
+                            )
+                        }
+
+                        // Update Route Source
+                        val routeSource = style.getSourceAs<GeoJsonSource>("route-source")
+                        if (routePoints.isNotEmpty()) {
+                            val lineString = LineString.fromLngLats(routePoints)
+                            routeSource?.setGeoJson(FeatureCollection.fromFeatures(arrayOf(Feature.fromGeometry(lineString))))
+                        } else {
+                             routeSource?.setGeoJson(FeatureCollection.fromFeatures(arrayOf()))
+                        }
+                    }
+
+                    // Update Camera (3D View)
+                    if (restaurantLocation != null && userLocation != null) {
+                        val bounds = LatLngBounds.Builder()
+                            .include(LatLng(restaurantLocation.lat, restaurantLocation.lng))
+                            .include(LatLng(userLocation.lat, userLocation.lng))
+                            .apply {
+                                routePoints.forEach { p -> include(LatLng(p.latitude(), p.longitude())) }
+                            }
+                            .build()
+
+                        // Animate camera to bounds with tilt
+                        map.easeCamera(
+                            CameraUpdateFactory.newLatLngBounds(bounds, 150),
+                            1000
+                        )
+                        
+                        // Apply Tilt (Pitch) separately or after bounds to ensure 3D effect
+                         // But newLatLngBounds might reset tilt. 
+                         // Better approach: Get target position and manually set camera with tilt
+                         // For simplicity, we just set a fixed tilt on every update for now or rely on user interaction
+                         // Let's force a tilt after the bounds update if possible, 
+                         // or construct a CameraPosition that includes the target center but with tilt.
+                         
+                         // Note: newLatLngBounds sets tilt to 0. 
+                         // We can look at the center of the bounds and set camera there with tilt + zoom
+                         /*
+                         val center = bounds.center
+                         val zoom = map.cameraPosition.zoom // might be inaccurate if bounds calc happens async
+                         // So we stick to bounds for coverage, and user can tilt, OR we try to enforce it.
+                         // Let's just create a CameraPosition for a "Follow" mode if user is moving.
+                         */
+                    }
+                }
+            }
+        )
+        
+        // --- Overlay Cards (Same as before) ---
+        
+        // Restaurant Address Card
         if (restaurantLocation != null && restaurantLocation.name != null) {
-            Card(
+             Card(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(16.dp),
@@ -303,8 +291,8 @@ fun OrderTrackingMap(
             }
         }
 
-        // Distance indicator (Top Right)
-        if (showDistance && distanceFormatted != null) {
+        // Distance indicator
+         if (showDistance && distanceFormatted != null) {
             Card(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -340,7 +328,7 @@ fun OrderTrackingMap(
         if (userLocation == null || isCalculatingRoute) {
             Card(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
+                    .align(Alignment.BottomCenter) // Moved to bottom for better view
                     .padding(16.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
@@ -370,16 +358,26 @@ fun OrderTrackingMap(
                 }
             }
         }
+        
+        // 3D Toggle / Re-center Button could be added here
+        
+        // Add a "3D Mode" simple effect: automatically tilt when map loads? 
+        // We can do this in the `update` block cautiously.
+        LaunchedEffect(mapboxMap) {
+            mapboxMap?.cameraPosition = CameraPosition.Builder()
+                .tilt(60.0) // Set 60 degree tilt
+                .build()
+        }
     }
 }
 
 /**
  * Create a PIN/Teardrop marker icon (Safe drawing)
  */
-private fun createPinMarkerIcon(context: Context, colorValue: Int): android.graphics.Bitmap {
+private fun createPinMarkerIcon(context: Context, colorValue: Int): Bitmap {
     val size = (48 * context.resources.displayMetrics.density).toInt()
-    val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
-    val canvas = android.graphics.Canvas(bitmap)
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
     
     val paint = Paint().apply {
         isAntiAlias = true
@@ -423,14 +421,14 @@ private fun createPinMarkerIcon(context: Context, colorValue: Int): android.grap
 
 /**
  * Calculate route using OSRM (Open Source Routing Machine) - FREE
- * Returns list of GeoPoints representing the route
+ * Returns list of Points (Mapbox/MapLibre format)
  */
 suspend fun calculateRoute(
     startLat: Double,
     startLon: Double,
     endLat: Double,
     endLon: Double
-): List<GeoPoint> = withContext(Dispatchers.IO) {
+): List<Point> = withContext(Dispatchers.IO) {
     try {
         val urlString = "https://router.project-osrm.org/route/v1/driving/" +
                 "$startLon,$startLat;$endLon,$endLat" +
@@ -463,12 +461,12 @@ suspend fun calculateRoute(
                     val geometry = route.getJSONObject("geometry")
                     val coordinates = geometry.getJSONArray("coordinates")
                     
-                    val points = mutableListOf<GeoPoint>()
+                    val points = mutableListOf<Point>()
                     for (i in 0 until coordinates.length()) {
                         val coord = coordinates.getJSONArray(i)
                         val lon = coord.getDouble(0)
                         val lat = coord.getDouble(1)
-                        points.add(GeoPoint(lat, lon))
+                        points.add(Point.fromLngLat(lon, lat))
                     }
                     
                     android.util.Log.d("OrderTrackingMap", "✅ Route calculated: ${points.size} points")
