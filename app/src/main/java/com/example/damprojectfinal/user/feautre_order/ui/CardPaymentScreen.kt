@@ -40,7 +40,7 @@ data class TestCard(
     val description: String,
     val cardNumber: String,
     val month: String = "12",
-    val year: String = "2025",
+    val year: String = "2028",
     val cvv: String = "123"
 )
 
@@ -133,7 +133,10 @@ fun CardPaymentScreen(
                     // Extract card details for backend to create PaymentMethod
                     val cleanCardNumber = cardNumber.replace(" ", "")
                     val expMonthInt = selectedMonth.toIntOrNull() ?: 0
-                    val expYearInt = selectedYear.toIntOrNull() ?: 0
+                    // Convert 4-digit year to 2-digit year for Stripe SDK (2025 -> 25)
+                    val expYearInt = selectedYear.toIntOrNull()?.let { 
+                        if (it >= 2000) it - 2000 else it 
+                    } ?: 0
                     
                     if (cleanCardNumber.length < 13 || cleanCardNumber.length > 19) {
                         errorMessage = "Invalid card number length"
@@ -335,7 +338,7 @@ fun CardPaymentScreen(
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Month and Year Row
+                    // Expiry Date Row (Month and Year)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -361,22 +364,24 @@ fun CardPaymentScreen(
                                 selectedYear = year
                             }
                         )
-
-                        // CVV
-                        OutlinedTextField(
-                            value = cvv,
-                            onValueChange = { newValue ->
-                                if (newValue.length <= 4 && newValue.all { it.isDigit() }) {
-                                    cvv = newValue
-                                }
-                            },
-                            label = { Text("CVV") },
-                            placeholder = { Text("123") },
-                            modifier = Modifier.weight(1f),
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true
-                        )
                     }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // CVV Field
+                    OutlinedTextField(
+                        value = cvv,
+                        onValueChange = { newValue ->
+                            if (newValue.length <= 4 && newValue.all { it.isDigit() }) {
+                                cvv = newValue
+                            }
+                        },
+                        label = { Text("CVV") },
+                        placeholder = { Text("123") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
 
                     // Error Message
                     if (errorMessage != null) {

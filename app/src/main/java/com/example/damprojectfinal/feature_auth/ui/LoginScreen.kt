@@ -121,7 +121,7 @@ fun LoginScreen(
                 return@LaunchedEffect
             }
 
-            val destinationRoute: String? = when (role) {
+            val destinationRoute: String? = when (role?.uppercase()) {
                 "PROFESSIONAL" -> "${UserRoutes.HOME_SCREEN_PRO}/${uiState.userId}"
                 "USER" -> UserRoutes.HOME_SCREEN
                 else -> {

@@ -12,7 +12,6 @@ import com.example.damprojectfinal.core.utils.NotificationManager
 import com.example.damprojectfinal.core.dto.auth.LoginRequest
 import kotlinx.coroutines.launch
 import io.ktor.client.plugins.ClientRequestException
-import java.io.IOException
 
 private const val TAG = "LoginViewModel"
 
