@@ -103,18 +103,9 @@ fun SignupScreen(
                 popUpTo("signup_route") { inclusive = true }
              }
              viewModel.resetState()
-        } else if (uiState.signupSuccess && successProgress == 1f) {
-            // Manual Signup Success -> Navigate to Login
-            snackbarHostState.showSnackbar(
-                message = "Registration Successful! Welcome to Foodyz.",
-                duration = SnackbarDuration.Short
-            )
-            navController.navigate("login_route") {
-                popUpTo("signup_route") { inclusive = true }
-            }
-            viewModel.resetState()
-        } else if (uiState.error != null) {
+        } else if (uiState.error != null && !uiState.error!!.contains("✅ Registration successful", ignoreCase = true)) {
             // If email already exists, take user back to Personal Data step (Step 0)
+            // Only handle errors, not success messages (success navigation handled by dialog)
             if (uiState.error!!.contains("email", true) || uiState.error!!.contains("mail", true)) {
                 currentStep = 0
             }
@@ -123,10 +114,20 @@ fun SignupScreen(
 
     // --- Validation & Backend Error Dialog ---
     val displayError = uiState.validationError ?: uiState.error
+    val isSuccessMessage = displayError != null && displayError.contains("✅ Registration successful", ignoreCase = true)
+    
     if (displayError != null) {
         com.example.damprojectfinal.core.ui.ValidationErrorDialog(
             errorMessage = displayError,
-            onDismiss = { viewModel.resetState() }
+            onDismiss = { 
+                viewModel.resetState()
+                // If it's a success message and signup was successful, navigate to home after dialog dismiss
+                if (isSuccessMessage && uiState.signupSuccess) {
+                    navController.navigate(com.example.damprojectfinal.UserRoutes.HOME_SCREEN) {
+                        popUpTo("signup_route") { inclusive = true }
+                    }
+                }
+            }
         )
     }
 

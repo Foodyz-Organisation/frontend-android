@@ -103,9 +103,11 @@ fun SharePostDialog(
                         peer.email.contains(searchQuery, ignoreCase = true)
                     }
                     .map { peer ->
+                        // Clean name to remove email addresses in parentheses (e.g., "ikbel (ikbel@gmail.com)" -> "ikbel")
+                        val cleanName = peer.name.split(" (").first().trim()
                         SearchableUser(
                             id = peer.id,
-                            name = peer.name,
+                            name = cleanName,
                             profilePictureUrl = peer.avatarUrl,
                             email = peer.email,
                             kind = peer.kind ?: "user"
@@ -472,16 +474,6 @@ fun UserResultItem(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    user.email?.let { email ->
-                        Text(
-                            text = email,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color(0xFF6B7280)
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
                     // Badge for user type
                     Surface(
                         color = if (user.kind == "professional") Color(0xFFFFC107).copy(alpha = 0.2f) else Color(0xFF3B82F6).copy(alpha = 0.2f),

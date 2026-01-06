@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.damprojectfinal.core.api.AuthApiService
 import com.example.damprojectfinal.core.dto.auth.UserSignupRequest
+import com.example.damprojectfinal.core.dto.auth.LoginRequest
 
 import io.ktor.client.plugins.*
 import io.ktor.client.statement.request
@@ -136,11 +137,48 @@ class SignupViewModel(application: android.app.Application) : androidx.lifecycle
                 // 🔥 Try the API call
                 val response = authApiService.userSignup(request)
 
-                uiState = uiState.copy(
-                    isLoading = false,
-                    signupSuccess = true,
-                    error = "✅ Registration successful: ${response.message}"
-                )
+                // Auto-login after successful signup
+                try {
+                    val loginRequest = com.example.damprojectfinal.core.dto.auth.LoginRequest(
+                        email = uiState.email,
+                        password = uiState.password
+                    )
+                    val loginResponse = authApiService.login(loginRequest)
+                    
+                    // Save tokens
+                    tokenManager.saveTokens(
+                        accessToken = loginResponse.access_token,
+                        refreshToken = loginResponse.refresh_token,
+                        userId = loginResponse.id,
+                        role = loginResponse.role
+                    )
+
+                    // Sync FCM Token
+                    try {
+                        com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                            if (task.isSuccessful) {
+                                val fcmToken = task.result
+                                notificationManager.syncTokenWithBackend(fcmToken)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("SignupViewModel", "FCM Sync failed", e)
+                    }
+
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        signupSuccess = true,
+                        error = "✅ Registration successful: ${response.message}"
+                    )
+                } catch (loginError: Exception) {
+                    // If auto-login fails, still show success but navigate to login screen
+                    Log.e("SignupViewModel", "Auto-login failed after signup", loginError)
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        signupSuccess = true,
+                        error = "✅ Registration successful: ${response.message}. Please log in."
+                    )
+                }
 
             } catch (e: Exception) {
                 // 🔍 Log full error details in Logcat

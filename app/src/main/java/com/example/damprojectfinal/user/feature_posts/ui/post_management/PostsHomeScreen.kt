@@ -44,16 +44,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
 import com.example.damprojectfinal.UserRoutes // <--- Ensure this import is correct
 import com.example.damprojectfinal.core.dto.posts.PostResponse
+import com.example.damprojectfinal.core.api.TokenManager
+import com.example.damprojectfinal.core.dto.posts.CommentResponse
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import android.content.res.Configuration
 //
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.filled.Send
-import com.example.damprojectfinal.core.dto.posts.CommentResponse
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material.icons.filled.Close
 import java.net.URLEncoder
@@ -288,7 +290,9 @@ fun PostsScreen(
                     showCommentsSheet = false
                     selectedPostIdForComments = null
                     postsViewModel.clearActiveComments()
-                }
+                },
+                postsViewModel = postsViewModel,
+                postId = selectedPostIdForComments ?: ""
             )
         }
         
@@ -582,7 +586,9 @@ fun RecipeCard(
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = post.ownerId?.username ?: "Chef",
+                                        text = post.ownerId?.fullName?.takeIf { it.isNotBlank() } 
+                                            ?: post.ownerId?.username?.takeIf { it.isNotBlank() } 
+                                            ?: "Chef",
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFF1F2937)
@@ -869,10 +875,21 @@ fun CommentsSheet(
     comments: List<CommentResponse>,
     isLoading: Boolean,
     onAddComment: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    postsViewModel: PostsViewModel,
+    postId: String
 ) {
     var newCommentText by remember { mutableStateOf("") }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+    var currentUserId by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    // Get current user ID
+    LaunchedEffect(Unit) {
+        currentUserId = tokenManager.getUserIdAsync()
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -958,7 +975,21 @@ fun CommentsSheet(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(comments) { comment ->
-                        CommentItem(comment)
+                        CommentItem(
+                            comment = comment,
+                            postId = postId,
+                            currentUserId = currentUserId,
+                            onDeleteClick = { commentId ->
+                                scope.launch {
+                                    try {
+                                        postsViewModel.deleteComment(commentId, postId)
+                                    } catch (e: Exception) {
+                                        // Error handling can be added here if needed
+                                        android.util.Log.e("CommentsSheet", "Failed to delete comment", e)
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -1006,7 +1037,51 @@ fun CommentsSheet(
 }
 
 @Composable
-fun CommentItem(comment: CommentResponse) {
+fun CommentItem(
+    comment: CommentResponse,
+    postId: String,
+    currentUserId: String?,
+    onDeleteClick: (String) -> Unit
+) {
+    val isOwnComment = comment.authorId != null && currentUserId != null && comment.authorId == currentUserId
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+
+    // Confirmation Dialog
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = {
+                Text(
+                    text = "Delete Comment",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text("Are you sure you want to delete this comment? This action cannot be undone.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDeleteClick(comment.id)
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = Color(0xFFEF4444)
+                    )
+                ) {
+                    Text("Delete", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirmation = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    
     Row(modifier = Modifier.fillMaxWidth()) {
        // Avatar
        val authorAvatar = comment.authorAvatar
@@ -1017,24 +1092,41 @@ fun CommentItem(comment: CommentResponse) {
             contentScale = ContentScale.Crop
        )
        Spacer(modifier = Modifier.width(12.dp))
-       Column {
-           Row(verticalAlignment = Alignment.CenterVertically) {
+       Column(modifier = Modifier.weight(1f)) {
+           Row(
+               verticalAlignment = Alignment.CenterVertically,
+               modifier = Modifier.fillMaxWidth()
+           ) {
                Text(
-                   text = comment.authorUsername ?: "User",
+                   text = comment.authorName?.takeIf { it.isNotBlank() } 
+                       ?: comment.authorUsername?.takeIf { it.isNotBlank() } 
+                       ?: "User",
                    fontWeight = FontWeight.Bold,
-                   style = MaterialTheme.typography.bodyMedium
+                   style = MaterialTheme.typography.bodyMedium,
+                   modifier = Modifier.weight(1f)
                )
                Spacer(modifier = Modifier.width(8.dp))
-               Text(
-                   text = "Just now", 
-                   style = MaterialTheme.typography.bodySmall,
-                   color = Color.Gray
-               )
+               // Show delete icon only for own comments
+               if (isOwnComment) {
+                   Spacer(modifier = Modifier.width(8.dp))
+                   IconButton(
+                       onClick = { showDeleteConfirmation = true },
+                       modifier = Modifier.size(32.dp)
+                   ) {
+                       Icon(
+                           imageVector = Icons.Default.Close,
+                           contentDescription = "Delete comment",
+                           tint = Color(0xFFEF4444),
+                           modifier = Modifier.size(18.dp)
+                       )
+                   }
+               }
            }
            Text(
                text = comment.text,
                style = MaterialTheme.typography.bodyMedium,
-               color = Color(0xFF1F2937)
+               color = Color(0xFF1F2937),
+               modifier = Modifier.padding(top = 4.dp)
            )
        }
     }

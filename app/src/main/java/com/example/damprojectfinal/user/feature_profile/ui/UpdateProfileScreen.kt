@@ -71,10 +71,11 @@ fun UpdateProfileScreen(
         onResult = { uri: Uri? ->
             uri?.let {
                 selectedImageUri = it
-                // Convert Uri to File and upload
+                // Convert Uri to File and upload using the new dedicated endpoint
                 val fileWithMime = FileUtil.getFileWithMime(context, it)
                 fileWithMime?.let { (file, _) ->
-                    viewModel.uploadProfileImage(file)
+                    // Use the new uploadProfilePicture function that bypasses AI validation
+                    viewModel.uploadProfilePicture(file)
                 }
             }
         }

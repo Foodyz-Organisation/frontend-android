@@ -149,7 +149,9 @@ fun ReelsScreen(
                     showCommentsSheet = false
                     selectedPostIdForComments = null
                     postsViewModel.clearActiveComments()
-                }
+                },
+                postsViewModel = postsViewModel,
+                postId = selectedPostIdForComments ?: ""
             )
         }
         

@@ -224,6 +224,26 @@ open class PostsViewModel : ViewModel() {
         return if (commentText.isBlank()) "Comment cannot be empty." else null
     }
 
+    // Function to delete a comment
+    open fun deleteComment(commentId: String, postId: String) {
+        viewModelScope.launch {
+            try {
+                postsApiService.deleteComment(commentId)
+                // Remove from active comments list
+                _activeComments.update { it.filter { comment -> comment.id != commentId } }
+                // Refresh the post to update comment count
+                val updatedPost = postsApiService.getPostById(postId)
+                _posts.update { currentPosts ->
+                    currentPosts.map { post ->
+                        if (post._id == postId) updatedPost else post
+                    }
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to delete comment: ${e.localizedMessage ?: e.message}"
+            }
+        }
+    }
+
     // Function to increment save count
     open fun incrementSaveCount(postId: String) {
         viewModelScope.launch {

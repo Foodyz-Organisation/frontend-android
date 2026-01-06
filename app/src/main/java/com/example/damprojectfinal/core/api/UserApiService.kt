@@ -2,6 +2,7 @@ package com.example.damprojectfinal.core.api
 
 import com.example.damprojectfinal.core.dto.user.UpdateUserRequest
 import com.example.damprojectfinal.core.dto.user.UserResponse
+import com.example.damprojectfinal.core.dto.user.ProfilePictureUploadResponse
 import com.example.damprojectfinal.core.dto.auth.UserInfoResponse
 import com.example.damprojectfinal.core.dto.auth.OrderResponse
 import com.example.damprojectfinal.core.dto.posts.UploadResponse
@@ -15,6 +16,7 @@ import io.ktor.client.request.forms.submitFormWithBinaryData // Import for file 
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
 import io.ktor.client.request.patch
+import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
@@ -159,5 +161,88 @@ class UserApiService(private val tokenManager: TokenManager) {
         return client.get("$BASE_URL/users/$userId/orders") {
             addAuthHeader(this)
         }.body()
+    }
+
+    /**
+     * ⭐ NEW FUNCTION: Upload Profile Picture via dedicated endpoint ⭐
+     * 
+     * This endpoint bypasses all AI validation and is specifically designed for profile pictures.
+     * Endpoint: POST /users/:id/profile-picture
+     * Form Data Key: profilePicture (⚠️ Important: use this exact key name)
+     * 
+     * @param id User ID
+     * @param file Image file to upload (max 5MB, image types only)
+     * @param token Authentication token
+     * @return ProfilePictureUploadResponse containing the uploaded profile picture URL and updated user data
+     * @throws Exception if file validation fails or upload fails
+     */
+    suspend fun uploadProfilePicture(id: String, file: File, token: String): ProfilePictureUploadResponse {
+        // Validate file type
+        val fileExtension = file.extension.lowercase()
+        val validImageExtensions = listOf("jpg", "jpeg", "png", "gif", "webp")
+        if (!validImageExtensions.contains(fileExtension)) {
+            throw Exception("Only image files are allowed (jpg, jpeg, png, gif, webp)")
+        }
+
+        // Validate file size (5MB max)
+        val maxSizeBytes = 5 * 1024 * 1024 // 5MB
+        if (file.length() > maxSizeBytes) {
+            throw Exception("File size must be less than 5MB")
+        }
+
+        // Determine MIME type
+        val mimeType = when (fileExtension) {
+            "jpg", "jpeg" -> "image/jpeg"
+            "png" -> "image/png"
+            "gif" -> "image/gif"
+            "webp" -> "image/webp"
+            else -> "image/jpeg" // Default fallback
+        }
+
+        android.util.Log.d("UserApiService", "Uploading profile picture: ${file.name}, size: ${file.length()} bytes, MIME: $mimeType")
+
+        // Upload to the new dedicated endpoint
+        val uploadUrl = "$BASE_URL/users/$id/profile-picture"
+        
+        val uploadResponse = client.submitFormWithBinaryData(
+            url = uploadUrl,
+            formData = formData {
+                // ⚠️ Important: Use 'profilePicture' as the key (not 'files' or 'image')
+                append(
+                    key = "profilePicture",
+                    value = file.readBytes(),
+                    headers = Headers.build {
+                        append(HttpHeaders.ContentType, mimeType)
+                        append(HttpHeaders.ContentDisposition, "filename=\"${file.name}\"")
+                    }
+                )
+            }
+        ) {
+            headers {
+                append("Authorization", "Bearer $token")
+            }
+        }
+        
+        // Check if upload was successful
+        if (uploadResponse.status != HttpStatusCode.OK && uploadResponse.status != HttpStatusCode.Created) {
+            val errorBody = try {
+                uploadResponse.body<String>()
+            } catch (e: Exception) {
+                "Unknown error: ${uploadResponse.status}"
+            }
+            android.util.Log.e("UserApiService", "Profile picture upload failed: HTTP ${uploadResponse.status} - $errorBody")
+            throw Exception("Failed to upload profile picture: HTTP ${uploadResponse.status} - $errorBody")
+        }
+        
+        // Parse the response
+        val uploadResult = try {
+            uploadResponse.body<ProfilePictureUploadResponse>()
+        } catch (e: Exception) {
+            android.util.Log.e("UserApiService", "Failed to parse profile picture upload response: ${e.message}", e)
+            throw Exception("Failed to parse upload response: ${e.message}")
+        }
+        
+        android.util.Log.d("UserApiService", "Profile picture uploaded successfully: ${uploadResult.profilePictureUrl}")
+        return uploadResult
     }
 }

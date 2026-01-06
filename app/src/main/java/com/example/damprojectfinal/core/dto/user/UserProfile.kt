@@ -30,3 +30,14 @@ data class UserResponse(
     val isActive: Boolean,
     val profilePictureUrl: String?
 )
+
+/**
+ * Response DTO for the new profile picture upload endpoint
+ * POST /users/:id/profile-picture
+ */
+@Serializable
+data class ProfilePictureUploadResponse(
+    val message: String,
+    val profilePictureUrl: String,
+    val user: UserResponse
+)

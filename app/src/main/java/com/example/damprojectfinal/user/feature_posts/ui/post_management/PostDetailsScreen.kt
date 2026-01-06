@@ -53,6 +53,7 @@ import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.core.dto.posts.CommentResponse
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.ui.theme.DamProjectFinalTheme
+import com.example.damprojectfinal.core.api.TokenManager
 import kotlinx.coroutines.launch // For rememberCoroutineScope
 import androidx.compose.foundation.Canvas // For the Canvas composable
 import androidx.compose.ui.draw.alpha
@@ -80,10 +81,18 @@ fun PostDetailsScreen(
     var isSubmittingComment by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+    var currentUserId by remember { mutableStateOf<String?>(null) }
 
     // State for fullscreen image viewer
     var showFullscreenImage by remember { mutableStateOf(false) }
     var initialImageIndex by remember { mutableStateOf(0) }
+
+    // Get current user ID
+    LaunchedEffect(Unit) {
+        currentUserId = tokenManager.getUserIdAsync()
+    }
 
 
     // --- Fetch Post Details ---
@@ -672,7 +681,24 @@ fun PostDetailsScreen(
                             } else {
                                 comments.forEach { comment ->
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    EnhancedCommentItem(comment = comment)
+                                    EnhancedCommentItem(
+                                        comment = comment,
+                                        postId = postId,
+                                        currentUserId = currentUserId,
+                                        onDeleteClick = { commentId ->
+                                            scope.launch {
+                                                try {
+                                                    postsViewModel.deleteComment(commentId, postId)
+                                                    comments = comments.filter { it.id != commentId }
+                                                    fetchComments() // Refresh comments
+                                                } catch (e: Exception) {
+                                                    snackbarHostState.showSnackbar(
+                                                        "Failed to delete comment: ${e.localizedMessage ?: e.message}"
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    )
                                 }
                             }
 
@@ -1018,9 +1044,52 @@ fun formatTimeAgo(createdAt: String): String {
 
 // Enhanced Comment Item
 @Composable
-fun EnhancedCommentItem(comment: CommentResponse) {
+fun EnhancedCommentItem(
+    comment: CommentResponse,
+    postId: String,
+    currentUserId: String?,
+    onDeleteClick: (String) -> Unit
+) {
     val DarkText = Color(0xFF1F2937)
     val MediumGray = Color(0xFF6B7280)
+    val isOwnComment = comment.authorId != null && currentUserId != null && comment.authorId == currentUserId
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+
+    // Confirmation Dialog
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = {
+                Text(
+                    text = "Delete Comment",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text("Are you sure you want to delete this comment? This action cannot be undone.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDeleteClick(comment.id)
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = Color(0xFFEF4444)
+                    )
+                ) {
+                    Text("Delete", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirmation = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1047,14 +1116,32 @@ fun EnhancedCommentItem(comment: CommentResponse) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = comment.authorName ?: comment.authorUsername ?: "Anonymous",
+                        text = comment.authorName?.takeIf { it.isNotBlank() } 
+                            ?: comment.authorUsername?.takeIf { it.isNotBlank() } 
+                            ?: "Anonymous",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
-                        color = DarkText
+                        color = DarkText,
+                        modifier = Modifier.weight(1f)
                     )
+                    // Show delete icon only for own comments
+                    if (isOwnComment) {
+                        IconButton(
+                            onClick = { showDeleteConfirmation = true },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Delete comment",
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
