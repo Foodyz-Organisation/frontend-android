@@ -222,33 +222,13 @@ fun ProSignupScreen(
                 }
             }
 
-            // Error Message
-            viewModel.errorMessage.value?.let { error ->
-                Spacer(modifier = Modifier.height(16.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFFFEBEE)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = Color(0xFFD32F2F)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = error,
-                            color = Color(0xFFD32F2F),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
+            // --- Error Dialog ---
+            val error = viewModel.errorMessage.value
+            if (error != null) {
+                com.example.damprojectfinal.core.ui.ValidationErrorDialog(
+                    errorMessage = error,
+                    onDismiss = { viewModel.errorMessage.value = null }
+                )
             }
         }
     }
@@ -453,6 +433,16 @@ fun Step1ProfessionalDetails(
                 )
             }
         )
+
+        // Password Strength Indicator
+        if (viewModel.password.value.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            val passwordStrength = com.example.damprojectfinal.core.utils.ValidationUtils.validatePasswordStrength(viewModel.password.value)
+            com.example.damprojectfinal.core.ui.PasswordStrengthIndicator(
+                strength = passwordStrength,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
         Spacer(modifier = Modifier.height(14.dp))
 

@@ -22,21 +22,98 @@ data class SignupUiState(
     val address: String = "",
     val isLoading: Boolean = false,
     val signupSuccess: Boolean = false,
+    val googleLoginSuccess: Boolean = false,
+    val validationError: String? = null,
     val error: String? = null
 )
 
-class SignupViewModel : ViewModel() {
+class SignupViewModel(application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
 
     private val authApiService = AuthApiService()
+    private val tokenManager = com.example.damprojectfinal.core.api.TokenManager(application)
+    private val notificationManager = com.example.damprojectfinal.core.utils.NotificationManager(application, tokenManager)
 
     var uiState by mutableStateOf(SignupUiState())
         private set
 
-    fun updateUsername(input: String) { uiState = uiState.copy(username = input, error = null) }
-    fun updateEmail(input: String) { uiState = uiState.copy(email = input, error = null) }
-    fun updatePassword(input: String) { uiState = uiState.copy(password = input, error = null) }
-    fun updatePhone(input: String) { uiState = uiState.copy(phone = input, error = null) }
-    fun updateAddress(input: String) { uiState = uiState.copy(address = input, error = null) }
+    fun updateUsername(input: String) { uiState = uiState.copy(username = input, validationError = null, error = null) }
+    fun updateEmail(input: String) { uiState = uiState.copy(email = input, validationError = null, error = null) }
+    fun updatePassword(input: String) { uiState = uiState.copy(password = input, validationError = null, error = null) }
+    fun updatePhone(input: String) { uiState = uiState.copy(phone = input, validationError = null, error = null) }
+    fun updateAddress(input: String) { uiState = uiState.copy(address = input, validationError = null, error = null) }
+
+    /**
+     * Validate current step before allowing progression
+     * @param step 0 = Personal Data, 1 = Phone, 2 = Address
+     * @return true if validation passes
+     */
+    fun validateStep(step: Int): Boolean {
+        return when (step) {
+            0 -> validatePersonalDataStep()
+            1 -> validatePhoneStep()
+            2 -> validateAddressStep()
+            else -> false
+        }
+    }
+
+    private fun validatePersonalDataStep(): Boolean {
+        // Validate username
+        val usernameValidation = com.example.damprojectfinal.core.utils.ValidationUtils.validateUsername(uiState.username)
+        if (!usernameValidation.isValid) {
+            uiState = uiState.copy(validationError = usernameValidation.errorMessage)
+            return false
+        }
+
+        // Validate email
+        val emailValidation = com.example.damprojectfinal.core.utils.ValidationUtils.validateEmail(uiState.email)
+        if (!emailValidation.isValid) {
+            uiState = uiState.copy(validationError = emailValidation.errorMessage)
+            return false
+        }
+
+        // Validate password
+        val passwordValidation = com.example.damprojectfinal.core.utils.ValidationUtils.validatePassword(uiState.password)
+        if (!passwordValidation.isValid) {
+            uiState = uiState.copy(validationError = passwordValidation.errorMessage)
+            return false
+        }
+
+        // Check password strength - require STRONG (aligned with backend)
+        val passwordStrength = com.example.damprojectfinal.core.utils.ValidationUtils.validatePasswordStrength(uiState.password)
+        if (passwordStrength != com.example.damprojectfinal.core.utils.PasswordStrength.STRONG) {
+            uiState = uiState.copy(
+                validationError = "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character"
+            )
+            return false
+        }
+
+        return true
+    }
+
+    private fun validatePhoneStep(): Boolean {
+        // Phone is optional, but if provided, must be valid
+        if (uiState.phone.isNotBlank()) {
+            // Phone should already have +216 prefix from UI formatting
+            val phoneValidation = com.example.damprojectfinal.core.utils.ValidationUtils.validatePhone(uiState.phone)
+            if (!phoneValidation.isValid) {
+                uiState = uiState.copy(validationError = phoneValidation.errorMessage)
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun validateAddressStep(): Boolean {
+        // Address is optional in backend, but if provided, must be valid
+        if (uiState.address.isNotBlank()) {
+            val addressValidation = com.example.damprojectfinal.core.utils.ValidationUtils.validateAddress(uiState.address)
+            if (!addressValidation.isValid) {
+                uiState = uiState.copy(validationError = addressValidation.errorMessage)
+                return false
+            }
+        }
+        return true
+    }
 
     fun signupUser() {
         if (uiState.username.isBlank() || uiState.email.isBlank() || uiState.password.isBlank()) {
@@ -44,7 +121,7 @@ class SignupViewModel : ViewModel() {
             return
         }
 
-        uiState = uiState.copy(isLoading = true, error = null, signupSuccess = false)
+        uiState = uiState.copy(isLoading = true, error = null, signupSuccess = false, googleLoginSuccess = false)
 
         viewModelScope.launch {
             try {
@@ -69,51 +146,69 @@ class SignupViewModel : ViewModel() {
                 // 🔍 Log full error details in Logcat
                 Log.e("SignupViewModel", "Signup error", e)
 
-                val errorMessage = when (e) {
-                    is IOException -> """
-                        🌐 Network error.
-                        Cause: ${e.cause}
-                        Message: ${e.message}
-                        Check: Internet connection or BASE_URL.
-                    """.trimIndent()
-
-                    is ClientRequestException -> """
-                        🚫 Client request failed.
-                        Status: ${e.response.status}
-                        URL: ${e.response.request.url}
-                        Message: ${e.message}
-                    """.trimIndent()
-
-                    is ServerResponseException -> """
-                        💥 Server error (5xx).
-                        Status: ${e.response.status}
-                        URL: ${e.response.request.url}
-                        Message: ${e.message}
-                    """.trimIndent()
-
-                    is RedirectResponseException -> """
-                        🔁 Redirect issue.
-                        Status: ${e.response.status}
-                        URL: ${e.response.request.url}
-                    """.trimIndent()
-
-                    else -> """
-                        ❓ Unknown error of type: ${e::class.simpleName}
-                        Message: ${e.message}
-                        Cause: ${e.cause}
-                    """.trimIndent()
+                val errorMsg = when (e) {
+                    is io.ktor.client.plugins.ClientRequestException -> e.message ?: "Email already exists or invalid request."
+                    is java.io.IOException -> "Network error. Please check your internet connection."
+                    else -> e.message ?: "An unexpected error occurred."
                 }
 
+                // If email already exists, take user back to Step 0 (handled in UI via LaunchedEffect)
                 uiState = uiState.copy(
                     isLoading = false,
                     signupSuccess = false,
-                    error = errorMessage
+                    error = errorMsg
+                )
+            }
+        }
+    }
+
+    fun loginWithGoogle(
+        idToken: String,
+        email: String? = null,
+        displayName: String? = null
+    ) {
+        Log.d("SignupViewModel", "========== loginWithGoogle() called ==========")
+        
+        uiState = uiState.copy(
+            isLoading = true,
+            error = null,
+            signupSuccess = false,
+            googleLoginSuccess = false
+        )
+
+        viewModelScope.launch {
+            try {
+                // Create request with only idToken
+                val request = com.example.damprojectfinal.core.dto.auth.GoogleLoginRequest(
+                    idToken = idToken
+                )
+                
+                Log.d("SignupViewModel", "Sending Google login request to backend...")
+                // Reuse the same loginWithGoogle from authApiService
+                val response = authApiService.loginWithGoogle(request)
+                Log.d("SignupViewModel", "Google login/signup successful - UserId: ${response.id}")
+                
+                // We do NOT save tokens here, as the user wants to be redirected to Login to sign in explicitly.
+                // Just marking success is enough to trigger navigation.
+
+                // Update UI state - using googleLoginSuccess to trigger navigation to Login
+                uiState = uiState.copy(
+                    isLoading = false,
+                    googleLoginSuccess = true,
+                    error = null
+                )
+                
+            } catch (e: Exception) {
+                Log.e("SignupViewModel", "Google login failed", e)
+                uiState = uiState.copy(
+                    isLoading = false,
+                    error = "Google Sign-In failed: ${e.message}"
                 )
             }
         }
     }
 
     fun resetState() {
-        uiState = uiState.copy(signupSuccess = false, error = null)
+        uiState = uiState.copy(signupSuccess = false, googleLoginSuccess = false, validationError = null, error = null)
     }
 }

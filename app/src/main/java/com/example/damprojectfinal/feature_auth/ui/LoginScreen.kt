@@ -172,6 +172,51 @@ fun LoginScreen(
         }
     }
 
+    // --- User Not Found Popup ---
+    if (uiState.userNotFound) {
+        AlertDialog(
+            onDismissRequest = { viewModel.resetState() },
+            title = {
+                Text(text = "Account doesn't exist", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("This Google account is not registered. Would you like to create an account?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.resetState()
+                        onNavigateToSignup()
+                    }
+                ) {
+                    Text("Create Account", color = Color(0xFFF59E0B), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.resetState() }) {
+                    Text("Cancel", color = Color(0xFF6B7280))
+                }
+            },
+            containerColor = Color.White,
+             icon = {
+                 Icon(
+                     painter = painterResource(id = R.drawable.google), // Using app logo or warning icon
+                     contentDescription = null,
+                     modifier = Modifier.size(48.dp),
+                     tint = Color.Unspecified
+                 )
+             }
+        )
+    }
+
+    // --- Validation Error Dialog ---
+    if (uiState.validationError != null) {
+        com.example.damprojectfinal.core.ui.ValidationErrorDialog(
+            errorMessage = uiState.validationError!!,
+            onDismiss = { viewModel.resetState() }
+        )
+    }
+
     // UI Configuration
     val textFieldColors = TextFieldDefaults.colors(
         focusedContainerColor = Color(0xFFFAFAFA),
@@ -378,8 +423,11 @@ fun LoginScreen(
                     // Social Login Section
                     LoginSocialFooter(
                         onGoogleClick = {
-                            val signInIntent = legacyGoogleAuthHelper.getSignInIntent()
-                            googleSignInLauncher.launch(signInIntent)
+                            // Sign out first to force account picker to show
+                            legacyGoogleAuthHelper.signOut {
+                                val signInIntent = legacyGoogleAuthHelper.getSignInIntent()
+                                googleSignInLauncher.launch(signInIntent)
+                            }
                         },
                         onFacebookClick = onFacebookSignIn,
                         onNavigateToSignup = onNavigateToSignup

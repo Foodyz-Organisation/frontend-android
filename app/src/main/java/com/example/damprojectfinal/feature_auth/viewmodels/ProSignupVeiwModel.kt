@@ -56,9 +56,10 @@ class ProSignupViewModel(
     
     // Step validation
     fun canProceedFromStep1(): Boolean {
+        val passwordStrength = com.example.damprojectfinal.core.utils.ValidationUtils.validatePasswordStrength(password.value)
         return fullName.value.isNotBlank() && 
                email.value.isNotBlank() && 
-               password.value.length >= 6 &&
+               passwordStrength == com.example.damprojectfinal.core.utils.PasswordStrength.STRONG &&
                confirmPassword.value == password.value
     }
     
@@ -152,14 +153,20 @@ class ProSignupViewModel(
     fun nextStep() {
         when (currentStep.value) {
             1 -> {
+                val emailValidation = com.example.damprojectfinal.core.utils.ValidationUtils.validateEmail(email.value)
+                val passwordValidation = com.example.damprojectfinal.core.utils.ValidationUtils.validatePassword(password.value)
+                val passwordStrength = com.example.damprojectfinal.core.utils.ValidationUtils.validatePasswordStrength(password.value)
+
                 if (canProceedFromStep1()) {
                     errorMessage.value = null
                     currentStep.value = 2
                 } else {
                     errorMessage.value = when {
                         fullName.value.isBlank() -> "Please enter your full name"
-                        email.value.isBlank() -> "Please enter your email address"
-                        password.value.length < 6 -> "Password must be at least 6 characters"
+                        !emailValidation.isValid -> emailValidation.errorMessage
+                        !passwordValidation.isValid -> passwordValidation.errorMessage
+                        passwordStrength != com.example.damprojectfinal.core.utils.PasswordStrength.STRONG -> 
+                            "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character"
                         confirmPassword.value != password.value -> "Passwords do not match"
                         else -> "Please fill in all required fields"
                     }
@@ -262,21 +269,15 @@ class ProSignupViewModel(
                         // Go back to step 2 (document upload step) so user can upload new document
                         currentStep.value = 2
                     }
-                    errorMsg.contains("already registered", ignoreCase = true) -> {
-                        errorMessage.value = "This permit is already registered in our system. Each permit can only be used once."
-                        Log.w(TAG, "⚠️ Permit already registered")
-                    }
-                    errorMsg.contains("timeout", ignoreCase = true) -> {
-                        errorMessage.value = "Request timed out. Please check your internet connection and try again."
-                        Log.w(TAG, "⚠️ Request timeout")
-                    }
-                    errorMsg.contains("network", ignoreCase = true) || errorMsg.contains("connection", ignoreCase = true) -> {
-                        errorMessage.value = "Network error. Please check your internet connection."
-                        Log.w(TAG, "⚠️ Network error")
+                    errorMsg.contains("email", ignoreCase = true) || errorMsg.contains("mail", ignoreCase = true) -> {
+                        errorMessage.value = "This mail already exist"
+                        Log.w(TAG, "⚠️ Email already exists")
+                        // Go back to step 1 (Personal Details)
+                        currentStep.value = 1
                     }
                     else -> {
-                        errorMessage.value = errorMsg
-                        Log.e(TAG, "⚠️ Unknown error: $errorMsg")
+                        errorMessage.value = errorMsg.replace("Technical Details: ", "")
+                        Log.e(TAG, "⚠️ Error: $errorMsg")
                     }
                 }
             } finally {

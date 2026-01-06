@@ -66,14 +66,12 @@ fun SignupScreen(
         legacyGoogleAuthHelper.handleSignInResult(
             data = result.data,
             onSuccess = { accountInfo ->
-                accountInfo.email?.let { viewModel.updateEmail(it) }
-                accountInfo.displayName?.let { viewModel.updateUsername(it) }
-                scope.launch {
-                    snackbarHostState.showSnackbar(
-                        message = "Google account connected! Please complete registration.",
-                        duration = SnackbarDuration.Short
-                    )
-                }
+                // Call ViewModel to login with Google directly
+                viewModel.loginWithGoogle(
+                    idToken = accountInfo.idToken,
+                    email = accountInfo.email,
+                    displayName = accountInfo.displayName
+                )
             },
             onError = { errorMessage ->
                 scope.launch {
@@ -94,8 +92,19 @@ fun SignupScreen(
     )
 
     // Navigation Effect - Wait for Animation
-    LaunchedEffect(uiState.signupSuccess, successProgress, uiState.error) {
-        if (uiState.signupSuccess && successProgress == 1f) {
+    LaunchedEffect(uiState.signupSuccess, uiState.googleLoginSuccess, successProgress, uiState.error) {
+        if (uiState.googleLoginSuccess) {
+            // Google Login/Signup Success -> Navigate to Login to sign in manually
+             snackbarHostState.showSnackbar(
+                 message = "Account created! Please log in.",
+                 duration = SnackbarDuration.Short
+             )
+             navController.navigate("login_route") {
+                popUpTo("signup_route") { inclusive = true }
+             }
+             viewModel.resetState()
+        } else if (uiState.signupSuccess && successProgress == 1f) {
+            // Manual Signup Success -> Navigate to Login
             snackbarHostState.showSnackbar(
                 message = "Registration Successful! Welcome to Foodyz.",
                 duration = SnackbarDuration.Short
@@ -105,13 +114,20 @@ fun SignupScreen(
             }
             viewModel.resetState()
         } else if (uiState.error != null) {
-            snackbarHostState.showSnackbar(
-                message = uiState.error!!,
-                actionLabel = "Dismiss",
-                duration = SnackbarDuration.Long
-            )
-            viewModel.resetState()
+            // If email already exists, take user back to Personal Data step (Step 0)
+            if (uiState.error!!.contains("email", true) || uiState.error!!.contains("mail", true)) {
+                currentStep = 0
+            }
         }
+    }
+
+    // --- Validation & Backend Error Dialog ---
+    val displayError = uiState.validationError ?: uiState.error
+    if (displayError != null) {
+        com.example.damprojectfinal.core.ui.ValidationErrorDialog(
+            errorMessage = displayError,
+            onDismiss = { viewModel.resetState() }
+        )
     }
 
     Scaffold(
@@ -261,14 +277,15 @@ fun SignupScreen(
                                     onTogglePassword = { showPassword = !showPassword },
                                     onToggleConfirmPassword = { showConfirmPassword = !showConfirmPassword },
                                     onNext = {
-                                        if (uiState.username.isNotBlank() && uiState.email.isNotBlank() && uiState.password.isNotBlank() && confirmPasswordError == null) {
-                                            if (uiState.password == confirmPassword) {
-                                                currentStep = 1
-                                            } else {
-                                                confirmPasswordError = "Passwords do not match"
-                                            }
-                                        } else {
-                                             scope.launch { snackbarHostState.showSnackbar("Please fill all required fields correctly.") }
+                                        // Validate passwords match
+                                        if (uiState.password != confirmPassword) {
+                                            confirmPasswordError = "Passwords do not match"
+                                            return@PersonalDataStep
+                                        }
+                                        
+                                        // Validate step 0 (Personal Data)
+                                        if (viewModel.validateStep(0)) {
+                                            currentStep = 1
                                         }
                                     }
                                 )
@@ -276,7 +293,12 @@ fun SignupScreen(
                                     phone = uiState.phone,
                                     onPhoneChange = viewModel::updatePhone,
                                     onBack = { currentStep = 0 },
-                                    onNext = { currentStep = 2 }
+                                    onNext = {
+                                        // Validate step 1 (Phone)
+                                        if (viewModel.validateStep(1)) {
+                                            currentStep = 2
+                                        }
+                                    }
                                 )
                                 2 -> AddressStep(
                                     address = uiState.address,
@@ -295,8 +317,11 @@ fun SignupScreen(
                     if (currentStep == 0) {
                         SocialFooter(
                             onGoogleClick = {
-                                val signInIntent = legacyGoogleAuthHelper.getSignInIntent()
-                                googleSignInLauncher.launch(signInIntent)
+                                // Sign out first to force account picker to show
+                                legacyGoogleAuthHelper.signOut {
+                                    val signInIntent = legacyGoogleAuthHelper.getSignInIntent()
+                                    googleSignInLauncher.launch(signInIntent)
+                                }
                             },
                             onNavigateToLogin = onNavigateToLogin
                         )
@@ -405,6 +430,16 @@ fun PersonalDataStep(
         visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation()
     )
 
+    // Password Strength Indicator
+    if (uiState.password.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        val passwordStrength = com.example.damprojectfinal.core.utils.ValidationUtils.validatePasswordStrength(uiState.password)
+        com.example.damprojectfinal.core.ui.PasswordStrengthIndicator(
+            strength = passwordStrength,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
     Spacer(Modifier.height(16.dp))
 
     // Confirm Password
@@ -461,17 +496,54 @@ fun PhoneStep(
         focusedLabelColor = Color(0xFFFFCC00),
         unfocusedLabelColor = Color(0xFF9CA3AF)
     )
-
-    OutlinedTextField(
-        value = phone,
-        onValueChange = onPhoneChange,
-        label = { Text("Phone Number") },
-        leadingIcon = { Icon(Icons.Default.Phone, null, tint = Color(0xFFFFCC00)) },
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = textFieldColors,
-        singleLine = true
-    )
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Fixed +216 prefix
+        OutlinedTextField(
+            value = "+216",
+            onValueChange = {},
+            enabled = false,
+            modifier = Modifier.width(80.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = textFieldColors.copy(
+                disabledContainerColor = Color(0xFFFAFAFA),
+                disabledTextColor = Color.Black
+            ),
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+        )
+
+        Spacer(Modifier.width(8.dp))
+
+        // Phone number input (8 digits only)
+        OutlinedTextField(
+            value = phone.removePrefix("+216"),
+            onValueChange = { input ->
+                // Only allow digits, max 8
+                val digitsOnly = input.filter { it.isDigit() }.take(8)
+                onPhoneChange("+216$digitsOnly")
+            },
+            label = { Text("Phone Number") },
+            leadingIcon = { Icon(Icons.Default.Phone, null, tint = Color(0xFFFFCC00)) },
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(16.dp),
+            colors = textFieldColors,
+            singleLine = true,
+            placeholder = { Text("12345678", color = Color(0xFF9CA3AF)) },
+            supportingText = {
+                Text(
+                    "8 digits after +216",
+                    fontSize = 12.sp,
+                    color = Color(0xFF6B7280)
+                )
+            }
+        )
+    }
 
     Spacer(Modifier.height(32.dp))
 

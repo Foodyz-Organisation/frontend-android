@@ -29,6 +29,10 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import io.ktor.client.plugins.HttpResponseValidator
 import kotlinx.serialization.Serializable
 
@@ -70,10 +74,44 @@ class AuthApiService {
     // ========== Existing endpoints ==========
     suspend fun userSignup(request: UserSignupRequest): SimpleMessageResponse {
         val url = "$BASE_URL/auth/signup/user"
-        val response = client.post(url) {
+        val response: HttpResponse = client.post(url) {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
+        
+        if (!response.status.isSuccess()) {
+            val errorBody = response.bodyAsText()
+            Log.e(TAG, "❌ User signup failed with status ${response.status.value}")
+            Log.e(TAG, "❌ Error body: $errorBody")
+            
+            try {
+                val json = Json { ignoreUnknownKeys = true; isLenient = true }
+                val jsonObj = json.parseToJsonElement(errorBody).jsonObject
+                
+                val messageElement = jsonObj["message"]
+                val errorMsg = when {
+                    messageElement is JsonArray -> {
+                        messageElement[0].jsonPrimitive.content
+                    }
+                    messageElement is kotlinx.serialization.json.JsonPrimitive -> {
+                        messageElement.content
+                    }
+                    else -> jsonObj["reason"]?.jsonPrimitive?.content 
+                        ?: jsonObj["error"]?.jsonPrimitive?.content 
+                        ?: "Signup failed"
+                }
+                
+                Log.e(TAG, "📝 Parsed error message: $errorMsg")
+                throw Exception(errorMsg)
+            } catch (e: Exception) {
+                if (e is Exception && e.message?.contains("Parsed error message") == false) {
+                    throw e
+                }
+                Log.e(TAG, "⚠️ Failed to parse error JSON or extract message: ${e.message}")
+                throw Exception("Registration failed: ${response.status.description}")
+            }
+        }
+        
         return response.body()
     }
 
@@ -101,15 +139,28 @@ class AuthApiService {
             
             // Try to parse error response
             try {
-                val json = Json { ignoreUnknownKeys = true }
-                val errorResponse = json.decodeFromString<ErrorResponse>(errorBody)
-                val errorMsg = errorResponse.reason ?: errorResponse.message ?: errorResponse.error ?: "Signup failed"
+                val json = Json { ignoreUnknownKeys = true; isLenient = true }
+                val jsonObj = json.parseToJsonElement(errorBody).jsonObject
+                
+                // Get message which could be a String or Array
+                val messageElement = jsonObj["message"]
+                val errorMsg = when {
+                    messageElement is kotlinx.serialization.json.JsonArray -> {
+                        messageElement[0].jsonPrimitive.content
+                    }
+                    messageElement is kotlinx.serialization.json.JsonPrimitive -> {
+                        messageElement.content
+                    }
+                    else -> jsonObj["reason"]?.jsonPrimitive?.content 
+                        ?: jsonObj["error"]?.jsonPrimitive?.content 
+                        ?: "Signup failed"
+                }
+                
                 Log.e(TAG, "📝 Parsed error message: $errorMsg")
                 throw Exception(errorMsg)
-            } catch (e: kotlinx.serialization.SerializationException) {
-                // JSON parsing failed, throw generic error
-                Log.e(TAG, "⚠️ Failed to parse error JSON, using generic message")
-                throw Exception("Professional signup failed: ${response.status.description}")
+            } catch (e: Exception) {
+                Log.e(TAG, "⚠️ Failed to parse error JSON or extract message: ${e.message}")
+                throw Exception("Signup failed: ${response.status.description}")
             }
         }
         
