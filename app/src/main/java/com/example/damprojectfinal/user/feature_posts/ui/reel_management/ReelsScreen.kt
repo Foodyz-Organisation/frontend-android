@@ -87,6 +87,13 @@ fun ReelsScreen(
                             selectedPostIdForSharing = postId
                             showShareDialog = true
                         },
+                        // --- NEW: Handle Order Click ---
+                        onOrderClick = { professionalId, foodType ->
+                            // Navigate to menu with optional highlightCategory
+                            // Set highlightCategory in savedStateHandle before navigation
+                            navController.currentBackStackEntry?.savedStateHandle?.set("highlightCategory", foodType)
+                            navController.navigate("menu_order_route/$professionalId")
+                        },
                         navController = navController,
                         postsViewModel = postsViewModel,
                         reelsViewModel = reelsViewModel

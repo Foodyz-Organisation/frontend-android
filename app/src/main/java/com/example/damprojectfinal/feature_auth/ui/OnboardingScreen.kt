@@ -49,25 +49,32 @@ fun OnboardingScreen(
     onNavigateToSignup: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    val pagerState = rememberPagerState(pageCount = { 4 })
 
     val pages = listOf(
         OnboardingPage(
-            title = "Discover Restaurants",
-            description = "Find the best restaurants near you and explore a wide variety of cuisines.",
+            title = "Discover Food Socially",
+            description = "Explore events, best deals, trending dishes, reels, and posts shared by food lovers and restaurants around you.",
             lottieRes = R.raw.onboardingfood
         ),
         OnboardingPage(
-            title = "Order Your Favorites",
-            description = "Add your favorite meals to the cart and customize them to your liking.",
+            title = "Order From Posts",
+            description = "See something you love? Order instantly from photos, videos, or menus with one tap.",
             lottieRes = R.raw.takeway
         ),
         OnboardingPage(
-            title = "Fast Delivery",
-            description = "Get your food delivered fresh and fast to your doorstep.",
+            title = "Track It Live",
+            description = "Follow your order in real time with live location tracking from kitchen to doorstep.",
             lottieRes = R.raw.onboardingdelivery
+        ),
+        OnboardingPage(
+            title = "Become a Professional",
+            description = "Create a restaurant profile, showcase your dishes, and reach new customers — 100% free.",
+            lottieRes = R.raw.onboardingrestaurant
         )
     )
+
+
 
     Column(
         modifier = Modifier
@@ -138,7 +145,7 @@ fun OnboardingScreen(
 
             // Navigation Buttons (Only unique on last page or consistent logic)
             AnimatedVisibility(
-                visible = pagerState.currentPage == 2,
+                visible = pagerState.currentPage == 3,
                 enter = fadeIn(animationSpec = tween(300)),
                 exit = fadeOut(animationSpec = tween(300))
             ) {
@@ -197,8 +204,8 @@ fun OnboardingScreen(
                 }
             }
 
-            // Next Button (for first two pages)
-            if (pagerState.currentPage < 2) {
+            // Next Button (for first three pages)
+            if (pagerState.currentPage < 3) {
                 Button(
                     onClick = {
                         scope.launch {

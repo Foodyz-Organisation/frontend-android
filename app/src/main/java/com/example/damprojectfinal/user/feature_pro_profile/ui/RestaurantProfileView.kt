@@ -41,6 +41,7 @@ import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import com.example.damprojectfinal.core.retro.RetrofitClient
 import com.example.damprojectfinal.professional.feature_profile.viewmodel.ProfessionalProfileViewModel
+import com.example.damprojectfinal.user.feature_follow.viewmodel.FollowViewModel
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 
 // --- Design Colors (Matching Professional Profile) ---
@@ -65,17 +66,38 @@ fun RestaurantProfileView(
     )
 ) {
     val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+    val followViewModel = remember { FollowViewModel(RetrofitClient.followApiService, tokenManager) }
+    val currentUserId = remember { tokenManager.getUserId() }
 
     // Load profile on first launch
     LaunchedEffect(professionalId) {
         Log.d("UserViewProfile", "Loading professional profile: $professionalId")
         viewModel.loadProfessionalProfile(professionalId)
         viewModel.fetchProfessionalPosts(professionalId)
+        // Check following status only if not viewing own profile
+        if (currentUserId != professionalId) {
+            followViewModel.checkFollowingStatus(professionalId, "ProfessionalAccount")
+        }
     }
 
     val profile by viewModel.profile.collectAsState()
     val photoPosts by viewModel.photoPosts.collectAsState()
     val reelPosts by viewModel.reelPosts.collectAsState()
+    
+    // Follow functionality - only show if not viewing own profile
+    val isViewingOwnProfile = currentUserId == professionalId
+    val followingStatus by followViewModel.followingStatus.collectAsState()
+    val isLoadingFollow by followViewModel.loadingStates.collectAsState()
+    val isFollowing = followingStatus[professionalId] ?: false
+    val isFollowLoading = isLoadingFollow[professionalId] ?: false
+    
+    // Refresh profile when follow status changes to update follower count
+    LaunchedEffect(isFollowing) {
+        if (!isViewingOwnProfile) {
+            viewModel.loadProfessionalProfile(professionalId)
+        }
+    }
 
     var selectedTab by remember { mutableStateOf(UserViewProfileTab.REELS) }
 
@@ -260,6 +282,39 @@ fun RestaurantProfileView(
                     }
 
                     Divider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+
+                    // Follow Button (only show if not viewing own profile)
+                    if (!isViewingOwnProfile) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Button(
+                                onClick = {
+                                    followViewModel.toggleFollow(professionalId, "ProfessionalAccount")
+                                },
+                                enabled = !isFollowLoading,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isFollowing) Color.Gray else ProfessionalYellow,
+                                    contentColor = Color.White
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = if (isFollowing) "Following" else "Follow",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Divider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                    }
 
                     // Description Section
                     Column(

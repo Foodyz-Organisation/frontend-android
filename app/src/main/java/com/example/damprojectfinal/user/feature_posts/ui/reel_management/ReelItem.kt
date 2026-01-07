@@ -18,6 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -41,8 +43,12 @@ import androidx.navigation.NavController
 import com.example.damprojectfinal.core.dto.posts.PostResponse
 import coil.compose.AsyncImage // <-- Ensure this import is present
 import com.example.damprojectfinal.core.api.BaseUrlProvider
+import com.example.damprojectfinal.core.api.TokenManager
 import com.example.damprojectfinal.user.feature_posts.ui.post_management.PostsViewModel
 import com.example.damprojectfinal.user.feature_posts.ui.reel_management.ReelsViewModel
+import com.example.damprojectfinal.user.feature_follow.viewmodel.FollowViewModel
+import com.example.damprojectfinal.core.retro.RetrofitClient
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -58,6 +64,7 @@ fun ReelItem(
     onReelClick: (String) -> Unit, // Callback for clicks on the reel (e.g., pause/play)
     onCommentClick: (String) -> Unit, // NEW: Callback for comment clicks
     onShareClick: (String) -> Unit, // NEW: Callback for share clicks
+    onOrderClick: ((professionalId: String, foodType: String?) -> Unit)? = null, // NEW: Callback for order clicks
     navController: NavController,
     postsViewModel: PostsViewModel,
     reelsViewModel: ReelsViewModel
@@ -79,6 +86,24 @@ fun ReelItem(
         reelPost.isSaved?.let { isSaved = it }
     }
     val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+    val followViewModel = remember { FollowViewModel(RetrofitClient.followApiService, tokenManager) }
+    
+    // Follow functionality
+    val ownerId = reelPost.ownerId?._id
+    val ownerModel = reelPost.ownerModel ?: "UserAccount"
+    val followingStatus by followViewModel.followingStatus.collectAsState()
+    val isLoadingFollow by followViewModel.loadingStates.collectAsState()
+    val isFollowing = ownerId?.let { followingStatus[it] } ?: false
+    val isFollowLoading = ownerId?.let { isLoadingFollow[it] } ?: false
+    
+    // Check following status when reel becomes current item
+    LaunchedEffect(isCurrentItem, ownerId) {
+        if (isCurrentItem && ownerId != null) {
+            followViewModel.checkFollowingStatus(ownerId, ownerModel)
+        }
+    }
+    
     // Track playback state for this specific reel
     var isPlaying by remember(reelPost._id) { mutableStateOf(true) }
     
@@ -248,15 +273,25 @@ fun ReelItem(
                     modifier = Modifier.clickable { /* Handle username click */ }
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Follow",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    modifier = Modifier
-                        .background(Color.Gray.copy(alpha = 0.5f), shape = MaterialTheme.shapes.small)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                        .clickable { /* Handle follow click */ }
-                )
+                // Follow Button (only show if not viewing own profile)
+                val currentUserId = tokenManager.getUserId()
+                val isViewingOwnProfile = ownerId != null && currentUserId == ownerId
+                if (ownerId != null && !isViewingOwnProfile) {
+                    Text(
+                        text = if (isFollowing) "Following" else "Follow",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .background(
+                                if (isFollowing) Color.Gray.copy(alpha = 0.7f) else Color.Gray.copy(alpha = 0.5f),
+                                shape = MaterialTheme.shapes.small
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .clickable(enabled = !isFollowLoading) {
+                                followViewModel.toggleFollow(ownerId, ownerModel)
+                            }
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
             Text(
@@ -265,6 +300,30 @@ fun ReelItem(
                 fontSize = 14.sp,
                 modifier = Modifier.fillMaxWidth()
             )
+            
+            // Order Button (only for ProfessionalAccount posts)
+            if (reelPost.ownerModel == "ProfessionalAccount" && reelPost.ownerId?._id != null && onOrderClick != null) {
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        onOrderClick(reelPost.ownerId!!._id, reelPost.foodType)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFC107),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "Order",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
         // Interaction Buttons (Right-Side)

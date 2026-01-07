@@ -93,7 +93,9 @@ fun CreateContentScreen(navController: NavHostController) {
                 icon = Icons.Filled.EmojiEvents, // Icon for event
                 title = "Add Event",
                 description = "Create a special event",
-                onClick = { /* TODO: Navigate to Add Event Screen */ }
+                onClick = {
+                    navController.navigate("event_list_remote")
+                }
             )
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -102,7 +104,9 @@ fun CreateContentScreen(navController: NavHostController) {
                 icon = Icons.Filled.Redeem, // Icon for deal
                 title = "Add Box-Deal",
                 description = "Offer a special deal",
-                onClick = { /* TODO: Navigate to Add Box-Deal Screen */ }
+                onClick = {
+                    navController.navigate("pro_deals")
+                }
             )
         }
     }

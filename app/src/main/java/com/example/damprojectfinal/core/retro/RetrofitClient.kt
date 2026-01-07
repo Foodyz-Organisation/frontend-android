@@ -5,6 +5,7 @@ import com.example.damprojectfinal.core.api.AuthInterceptor
 import com.example.damprojectfinal.core.api.BaseUrlProvider
 import com.example.damprojectfinal.core.api.CartApiService
 import com.example.damprojectfinal.core.api.ChatApiService
+import com.example.damprojectfinal.core.api.FollowApiService
 import com.example.damprojectfinal.core.api.MenuItemApi
 import com.example.damprojectfinal.core.api.OrderApiService
 import com.example.damprojectfinal.core.api.TokenManager
@@ -79,6 +80,10 @@ object RetrofitClient {
 
     val chatApiService: ChatApiService by lazy {
         retrofit.create(ChatApiService::class.java)
+    }
+
+    val followApiService: FollowApiService by lazy {
+        retrofit.create(FollowApiService::class.java)
     }
 
 }
