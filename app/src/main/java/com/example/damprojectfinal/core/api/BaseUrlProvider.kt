@@ -1,10 +1,18 @@
 package com.example.damprojectfinal.core.api
 
 import android.os.Build
+import com.example.damprojectfinal.BuildConfig
+
 object BaseUrlProvider {
 
-    private const val USE_AUTO_DETECTION = true
-    private const val MANUAL_BASE_URL = "http://10.0.2.2:3000"
+    // ⚙️ CONFIGURATION FLAG: Set to true to use Render URL even in debug mode
+    // Set to false to use localhost URLs in development
+    private const val FORCE_PRODUCTION_URL_IN_DEBUG = true
+    
+    // Production URL (Render)
+    private const val PRODUCTION_BASE_URL = "https://foodyz-backend.onrender.com"
+    
+    // Development URLs
     private const val EMULATOR_BASE_URL = "http://10.0.2.2:3000"
     private const val REAL_DEVICE_BASE_URL = "http://192.168.1.147:3000"
 
@@ -19,26 +27,34 @@ object BaseUrlProvider {
 
     /**
      * Main BASE_URL - use this everywhere in your app
-     * Automatically switches between emulator and real device
+     * Automatically switches between production (Render) and development (localhost)
+     * - Production: Uses Render URL (https://foodyz-backend.onrender.com)
+     * - Development: Uses localhost URL based on device type (emulator vs real device)
+     * 
+     * Note: If FORCE_PRODUCTION_URL_IN_DEBUG is true, Render URL will be used even in debug mode
      */
     val BASE_URL: String by lazy {
-        val url = when {
-            USE_AUTO_DETECTION -> {
-                val isEmu = isEmulator()
-                android.util.Log.d("BaseUrlProvider", "🔍 Auto-detection: isEmulator = $isEmu")
-                if (isEmu) {
-                    android.util.Log.i("BaseUrlProvider", "📱 Using EMULATOR URL: $EMULATOR_BASE_URL")
-                    EMULATOR_BASE_URL
-                } else {
-                    android.util.Log.i("BaseUrlProvider", "📲 Using REAL DEVICE URL: $REAL_DEVICE_BASE_URL")
-                    android.util.Log.w("BaseUrlProvider", "⚠️ Make sure your computer IP is correct: $REAL_DEVICE_BASE_URL")
-                    REAL_DEVICE_BASE_URL
-                }
+        val url = if (BuildConfig.DEBUG && !FORCE_PRODUCTION_URL_IN_DEBUG) {
+            // Development mode: use localhost URLs (only if not forcing production)
+            val isEmu = isEmulator()
+            android.util.Log.d("BaseUrlProvider", "🔍 Development mode detected")
+            android.util.Log.d("BaseUrlProvider", "🔍 Auto-detection: isEmulator = $isEmu")
+            if (isEmu) {
+                android.util.Log.i("BaseUrlProvider", "📱 Using EMULATOR URL: $EMULATOR_BASE_URL")
+                EMULATOR_BASE_URL
+            } else {
+                android.util.Log.i("BaseUrlProvider", "📲 Using REAL DEVICE URL: $REAL_DEVICE_BASE_URL")
+                android.util.Log.w("BaseUrlProvider", "⚠️ Make sure your computer IP is correct: $REAL_DEVICE_BASE_URL")
+                REAL_DEVICE_BASE_URL
             }
-            else -> {
-                android.util.Log.i("BaseUrlProvider", "🔧 Using MANUAL URL: $MANUAL_BASE_URL")
-                MANUAL_BASE_URL
+        } else {
+            // Production mode OR forced production in debug: use Render URL
+            if (BuildConfig.DEBUG && FORCE_PRODUCTION_URL_IN_DEBUG) {
+                android.util.Log.i("BaseUrlProvider", "🚀 Debug mode with FORCE_PRODUCTION: Using RENDER URL: $PRODUCTION_BASE_URL")
+            } else {
+                android.util.Log.i("BaseUrlProvider", "🚀 Production mode: Using RENDER URL: $PRODUCTION_BASE_URL")
             }
+            PRODUCTION_BASE_URL
         }
         android.util.Log.i("BaseUrlProvider", "✅ Final BASE_URL selected: $url")
         url
@@ -80,8 +96,8 @@ object BaseUrlProvider {
     fun getConfigInfo(): String {
         return buildString {
             append("BaseUrlProvider Configuration:\n")
-            append("  Auto-detection: $USE_AUTO_DETECTION\n")
-            if (USE_AUTO_DETECTION) {
+            append("  Environment: ${if (BuildConfig.DEBUG) "Development" else "Production"}\n")
+            if (BuildConfig.DEBUG) {
                 append("  Detected device: ${if (isEmulator()) "Emulator" else "Real Device"}\n")
             }
             append("  Current BASE_URL: $BASE_URL\n")
