@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
+import retrofit2.HttpException
 import java.io.File
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -152,9 +153,15 @@ class ProfessionalProfileViewModel(
                 Log.e("ProfileVM", "Upload response has no URLs")
                 null
             }
+        } catch (e: HttpException) {
+            // Pass through backend message (e.g. AI food validation) so UI can show it
+            val errorBody = e.response()?.errorBody()?.string()
+            val finalMsg = errorBody ?: "Failed to upload image (HTTP ${e.code()})"
+            Log.e("ProfileVM", "Image upload HTTP ${e.code()} error body: $finalMsg")
+            throw Exception(finalMsg)
         } catch (e: Exception) {
             Log.e("ProfileVM", "Error uploading image: ${e.message}", e)
-            null
+            throw e
         }
     }
 
@@ -184,14 +191,12 @@ class ProfessionalProfileViewModel(
                     Log.d("ProfileVM", "Uploading profile picture... File: ${file.name}, MIME: $profilePictureMimeType")
                     try {
                         profilePictureUrl = uploadImage(file, profilePictureMimeType)
-                        if (profilePictureUrl == null) {
-                            Log.e("ProfileVM", "Profile picture upload returned null URL")
-                            throw Exception("Failed to upload profile picture: No URL returned")
-                        }
                         Log.d("ProfileVM", "Profile picture uploaded successfully: $profilePictureUrl")
                     } catch (e: Exception) {
+                        // Do NOT abort entire profile update if picture fails; just report error and keep existing image
                         Log.e("ProfileVM", "Error uploading profile picture: ${e.message}", e)
-                        throw Exception("Failed to upload profile picture: ${e.message}")
+                        _updateError.value = e.message ?: "Failed to upload profile picture"
+                        profilePictureUrl = _profile.value?.profilePictureUrl
                     }
                 } ?: run {
                     Log.d("ProfileVM", "No profile picture file provided, keeping existing: ${_profile.value?.profilePictureUrl}")
@@ -202,14 +207,12 @@ class ProfessionalProfileViewModel(
                     Log.d("ProfileVM", "Uploading background image... File: ${file.name}, MIME: $backgroundImageMimeType")
                     try {
                         imageUrl = uploadImage(file, backgroundImageMimeType)
-                        if (imageUrl == null) {
-                            Log.e("ProfileVM", "Background image upload returned null URL")
-                            throw Exception("Failed to upload background image: No URL returned")
-                        }
                         Log.d("ProfileVM", "Background image uploaded successfully: $imageUrl")
                     } catch (e: Exception) {
+                        // Do NOT abort entire profile update if background fails; just report error and keep existing image
                         Log.e("ProfileVM", "Error uploading background image: ${e.message}", e)
-                        throw Exception("Failed to upload background image: ${e.message}")
+                        _updateError.value = e.message ?: "Failed to upload background image"
+                        imageUrl = _profile.value?.imageUrl
                     }
                 } ?: run {
                     Log.d("ProfileVM", "No background image file provided, keeping existing: ${_profile.value?.imageUrl}")

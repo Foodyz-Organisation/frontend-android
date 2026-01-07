@@ -102,6 +102,7 @@ fun LiveOrderTrackingScreen(
             LiveTrackingBottomBar(
                 isSharing = trackingState.isSharing,
                 isConnected = trackingState.isConnected,
+                isJoined = trackingState.isJoined,
                 onStartSharing = {
                     locationViewModel.startSharingLocation()
                 },
@@ -141,13 +142,14 @@ fun LiveOrderTrackingScreen(
             
             // Status Card (Top, below TopAppBar)
             AnimatedVisibility(
-                visible = !trackingState.isSharing || !trackingState.isConnected,
+                visible = !trackingState.isSharing || !trackingState.isConnected || !trackingState.isJoined,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(16.dp)
             ) {
                 StatusCard(
                     isConnected = trackingState.isConnected,
+                    isJoined = trackingState.isJoined,
                     isSharing = trackingState.isSharing,
                     error = trackingState.error
                 )
@@ -194,6 +196,7 @@ fun LiveOrderTrackingScreen(
 @Composable
 fun StatusCard(
     isConnected: Boolean,
+    isJoined: Boolean,
     isSharing: Boolean,
     error: String?
 ) {
@@ -243,6 +246,26 @@ fun StatusCard(
                         fontSize = 14.sp
                     )
                 }
+                !isJoined -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = Color(0xFF3B82F6)
+                    )
+                    Column {
+                        Text(
+                            "Joining order room...",
+                            fontWeight = FontWeight.Bold,
+                            color = AppDarkText,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            "Please wait",
+                            color = Color.Gray,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
                 !isSharing -> {
                     Icon(
                         Icons.Default.Info,
@@ -252,7 +275,7 @@ fun StatusCard(
                     )
                     Column {
                         Text(
-                            "Not Sharing",
+                            "Ready to Share",
                             fontWeight = FontWeight.Bold,
                             color = AppDarkText,
                             fontSize = 14.sp
@@ -273,6 +296,7 @@ fun StatusCard(
 fun LiveTrackingBottomBar(
     isSharing: Boolean,
     isConnected: Boolean,
+    isJoined: Boolean,
     onStartSharing: () -> Unit,
     onStopSharing: () -> Unit
 ) {
@@ -330,7 +354,7 @@ fun LiveTrackingBottomBar(
                         .fillMaxWidth()
                         .height(56.dp),
                     shape = RoundedCornerShape(12.dp),
-                    enabled = isConnected,
+                    enabled = isConnected && isJoined,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF10B981),
                         disabledContainerColor = Color.LightGray
@@ -343,7 +367,11 @@ fun LiveTrackingBottomBar(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        if (isConnected) "Start Sharing Location" else "Connecting...",
+                        when {
+                            !isConnected -> "Connecting..."
+                            !isJoined -> "Joining room..."
+                            else -> "Start Sharing Location"
+                        },
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )

@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,6 +26,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import coil.compose.AsyncImage
 import com.example.damprojectfinal.core.api.BaseUrlProvider
+import com.example.damprojectfinal.ProRoutes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,7 +52,13 @@ fun CustomProTopBarWithIcons(
                     .clip(CircleShape)
                     .background(Color(0xFFF0F0F0))
                     .clickable {
-                        navController.navigate("pro_profile_edit/$professionalId")
+                        // Navigate directly to the professional profile *settings* screen
+                        navController.navigate(
+                            ProRoutes.PROFESSIONAL_PROFILE_SETTINGS.replace(
+                                "{professionalId}",
+                                professionalId
+                            )
+                        )
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -81,6 +89,19 @@ fun CustomProTopBarWithIcons(
                 fontSize = 20.sp,
                 modifier = Modifier.weight(1f).padding(start = 8.dp)
             )
+
+            // Map/Location Tracking Button
+            IconButton(
+                onClick = {
+                    navController.navigate("all_users_tracking/$professionalId")
+                }
+            ) {
+                Icon(
+                    Icons.Filled.LocationOn,
+                    contentDescription = "View All Users Tracking",
+                    tint = Color(0xFFFFC107)
+                )
+            }
 
             // Menu Icon (trigger drawer)
             IconButton(

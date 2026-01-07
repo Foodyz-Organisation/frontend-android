@@ -22,7 +22,7 @@ class OrderTrackingSocketManager(
     private var onRestaurantLocation: ((RestaurantLocation) -> Unit)? = null
     private var onSharingStarted: ((String) -> Unit)? = null
     private var onSharingStopped: ((String) -> Unit)? = null
-    private var onUserJoined: ((String, String) -> Unit)? = null // userType, clientId
+    private var onUserJoined: ((String, String, String?, String?) -> Unit)? = null // userType, clientId, userId?, orderId?
     private var onConnectionChange: ((Boolean) -> Unit)? = null
     private var onError: ((String) -> Unit)? = null
 
@@ -46,25 +46,45 @@ class OrderTrackingSocketManager(
 
     fun connect() {
         try {
+            // Disconnect existing connection if any
+            if (socket != null && socket?.connected() == true) {
+                Log.d(TAG, "⚠️ Disconnecting existing socket before reconnecting")
+                socket?.disconnect()
+                socket = null
+            }
+            
+            val fullUrl = "$baseUrl/order-tracking"
+            Log.d(TAG, "🔌 Connecting to order tracking socket...")
+            Log.d(TAG, "  Base URL: $baseUrl")
+            Log.d(TAG, "  Full URL: $fullUrl")
+            Log.d(TAG, "  Socket Path: $socketPath")
+            Log.d(TAG, "  Has Auth Token: ${authToken.isNotEmpty()}")
+            
             val options = IO.Options.builder()
                 .setAuth(mapOf("token" to authToken))
                 .setPath(socketPath)
                 .setReconnection(true)
                 .setReconnectionDelay(1000)
-                .setReconnectionDelayMax(5000)
+                .setReconnectionDelayMax(10000) // Increased max delay
                 .setReconnectionAttempts(Integer.MAX_VALUE)
+                .setTimeout(20000) // 20 second timeout
+                .setTransports(arrayOf("websocket", "polling")) // Prefer websocket, fallback to polling
                 .build()
 
             // Connect to the 'order-tracking' namespace
-            socket = IO.socket("$baseUrl/order-tracking", options)
+            socket = IO.socket(fullUrl, options)
+            Log.d(TAG, "📡 Socket instance created, calling connect()...")
 
             socket?.on(Socket.EVENT_CONNECT) {
-                Log.d(TAG, "✅ Connected to order tracking server")
+                Log.d(TAG, "✅ ✅ ✅ CONNECTED to order tracking server")
+                Log.d(TAG, "  Socket ID: ${socket?.id()}")
                 onConnectionChange?.invoke(true)
             }
 
-            socket?.on(Socket.EVENT_DISCONNECT) {
-                Log.d(TAG, "❌ Disconnected from order tracking server")
+            socket?.on(Socket.EVENT_DISCONNECT) { args ->
+                val reason = args.getOrNull(0)?.toString() ?: "unknown"
+                Log.d(TAG, "❌ ❌ ❌ DISCONNECTED from order tracking server")
+                Log.d(TAG, "  Reason: $reason")
                 onConnectionChange?.invoke(false)
             }
 
@@ -96,7 +116,7 @@ class OrderTrackingSocketManager(
             socket?.on("location-update") { args ->
                 try {
                     val rawData = args[0]?.toString() ?: "null"
-                    Log.d(TAG, "📥 RECEIVED RAW UPDATE: $rawData")
+                    Log.d(TAG, "📥 RECEIVED location-update event: $rawData")
                     
                     val jsonObj = args[0] as? JSONObject
                     if (jsonObj != null) {
@@ -167,7 +187,11 @@ class OrderTrackingSocketManager(
                     val jsonObj = args[0] as? JSONObject
                     val userType = jsonObj?.getString("userType") ?: ""
                     val clientId = jsonObj?.getString("clientId") ?: ""
-                    onUserJoined?.invoke(userType, clientId)
+                    // Also try to extract userId and orderId if present
+                    val userId = if (jsonObj?.has("userId") == true) jsonObj.getString("userId") else null
+                    val orderId = if (jsonObj?.has("orderId") == true) jsonObj.getString("orderId") else null
+                    onUserJoined?.invoke(userType, clientId, userId, orderId)
+                    Log.d(TAG, "User joined: userType=$userType, clientId=$clientId, userId=$userId, orderId=$orderId")
                 } catch (e: Exception) {
                     Log.e(TAG, "Error parsing user-joined", e)
                 }
@@ -176,7 +200,16 @@ class OrderTrackingSocketManager(
             socket?.on(Socket.EVENT_CONNECT_ERROR) { args ->
                 val error = args[0]?.toString() ?: "Unknown error"
                 Log.e(TAG, "Connection error: $error")
-                onError?.invoke("Connection error: $error")
+                // Don't treat reconnection attempts as errors - they're handled automatically
+                // The socket will automatically reconnect based on the options we set
+                if (!error.contains("xhr poll error") && !error.contains("websocket error")) {
+                    // Only show non-transport errors as fatal
+                    if (socket?.connected() == false) {
+                        onError?.invoke("Connection error: $error")
+                    }
+                } else {
+                    Log.d(TAG, "🔄 Transport error (reconnection will be automatic): $error")
+                }
             }
 
             socket?.connect()
@@ -201,14 +234,19 @@ class OrderTrackingSocketManager(
      */
     fun joinOrder(orderId: String, userType: String) {
         try {
+            if (socket == null || socket?.connected() != true) {
+                Log.w(TAG, "⚠️ Cannot join order room: Socket not connected")
+                return
+            }
+            
             val payload = JSONObject().apply {
                 put("orderId", orderId)
                 put("userType", userType) // "user" or "pro"
             }
             socket?.emit("join-order", payload)
-            Log.d(TAG, "Joined order room: $orderId as $userType")
+            Log.d(TAG, "📤 Emitted join-order: orderId=$orderId, userType=$userType")
         } catch (e: Exception) {
-            Log.e(TAG, "Error joining order", e)
+            Log.e(TAG, "❌ Error joining order", e)
             onError?.invoke("Failed to join order: ${e.message}")
         }
     }
@@ -292,7 +330,7 @@ class OrderTrackingSocketManager(
         onSharingStopped = listener
     }
 
-    fun setOnUserJoined(listener: (String, String) -> Unit) {
+    fun setOnUserJoined(listener: (String, String, String?, String?) -> Unit) {
         onUserJoined = listener
     }
 

@@ -2100,6 +2100,19 @@ fun AppNavigation(
             )
         }
 
+        // All Users Tracking Route (Multi-Order Tracking)
+        composable(
+            route = "all_users_tracking/{professionalId}",
+            arguments = listOf(navArgument("professionalId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val professionalId = backStackEntry.arguments?.getString("professionalId") ?: ""
+
+            com.example.damprojectfinal.professional.feature_order.ui.AllUsersTrackingScreen(
+                navController = navController,
+                professionalId = professionalId
+            )
+        }
+
 
 
         composable(

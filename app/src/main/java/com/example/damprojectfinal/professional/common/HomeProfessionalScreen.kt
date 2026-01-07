@@ -380,20 +380,8 @@ fun HomeScreenPro(
                                         }
                                     },
                                     onOrderClick = {
-                                        // For TAKEAWAY/EAT_IN orders, show live tracking
-                                        // For DELIVERY, show regular order details
-                                        val originalOrder = ordersFromBackend?.find { it._id == order.id }
-                                        if (originalOrder != null && 
-                                            (originalOrder.orderType == BackendOrderType.TAKEAWAY || 
-                                             originalOrder.orderType == BackendOrderType.EAT_IN) &&
-                                            (originalOrder.status == OrderStatus.PENDING || 
-                                             originalOrder.status == OrderStatus.CONFIRMED)) {
-                                            // Navigate to live tracking screen
-                                            navController.navigate("pro_order_tracking/${order.id}/$professionalId")
-                                        } else {
-                                            // Navigate to regular order details
-                                            navController.navigate("pro_order_details/${order.id}")
-                                        }
+                                        // Always navigate to order details screen
+                                        navController.navigate("pro_order_details/${order.id}")
                                     }
                                 )
                             }
@@ -586,60 +574,65 @@ fun OrderCardWithStatusDropdown(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onOrderClick), // Make card clickable
+            .clip(RoundedCornerShape(12.dp)),
         elevation = CardDefaults.cardElevation(1.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-
-            // Row 1: Customer Name and Order Total
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "Customer",
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFF0F0F0)),
-                    tint = Color(0xFF6B7280)
-                )
-
-                Spacer(Modifier.width(8.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(order.customerName, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                    Text(order.summary, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    Text(order.timeReceived, style = MaterialTheme.typography.bodySmall, color = Color(0xFFD6A42E))
-                }
-
-                Text(order.total, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF218041))
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Row 2: Address
-            Row(
+            // Clickable area for order details (everything except dropdown)
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFF5F3FF))
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .clickable(onClick = onOrderClick) // Make main content clickable
             ) {
-                Icon(
-                    imageVector = Icons.Default.LocationOn,
-                    contentDescription = "Location",
-                    tint = Color(0xFF6D28D9),
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(order.address, style = MaterialTheme.typography.bodySmall, color = Color(0xFF6D28D9))
+                // Row 1: Customer Name and Order Total
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Customer",
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF0F0F0)),
+                        tint = Color(0xFF6B7280)
+                    )
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(order.customerName, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                        Text(order.summary, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text(order.timeReceived, style = MaterialTheme.typography.bodySmall, color = Color(0xFFD6A42E))
+                    }
+
+                    Text(order.total, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF218041))
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Row 2: Address
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFF5F3FF))
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = "Location",
+                        tint = Color(0xFF6D28D9),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(order.address, style = MaterialTheme.typography.bodySmall, color = Color(0xFF6D28D9))
+                }
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // Row 3: Status Dropdown
+            // Row 3: Status Dropdown (separate clickable area, doesn't trigger order click)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

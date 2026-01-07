@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 
 data class LocationTrackingState(
     val isConnected: Boolean = false,
+    val isJoined: Boolean = false, // Whether user has joined the order room
     val isSharing: Boolean = false,
     val currentLocation: LocationData? = null,
     val restaurantLocation: RestaurantLocationData? = null,
@@ -150,8 +151,16 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
                     Log.d(TAG, "📍 Location update received: ${update.lat}, ${update.lng}, distance: ${update.distanceFormatted}")
                 }
                 
+                socketManager?.setOnUserJoined { userType, clientId, userId, orderId ->
+                    Log.d(TAG, "✅ User joined order room: userType=$userType, clientId=$clientId, userId=$userId, orderId=$orderId")
+                    _state.value = _state.value.copy(isJoined = true, error = null)
+                }
+                
                 socketManager?.setOnSharingStarted { userId ->
                     Log.d(TAG, "✅ Sharing started for user: $userId")
+                    if (userId == currentUserId) {
+                        _state.value = _state.value.copy(isSharing = true)
+                    }
                 }
                 
                 socketManager?.setOnSharingStopped { userId ->
@@ -316,6 +325,16 @@ class LocationTrackingViewModel(application: Application) : AndroidViewModel(app
         currentUserId = null
         _state.value = LocationTrackingState()
         Log.d(TAG, "🔌 Disconnected from order tracking")
+    }
+    
+    /**
+     * Check if ready to start sharing (connected, joined, and has permissions)
+     */
+    fun isReadyToShare(): Boolean {
+        return _state.value.isConnected && 
+               _state.value.isJoined &&
+               locationTracker.hasLocationPermission() &&
+               locationTracker.isLocationEnabled()
     }
     
     override fun onCleared() {
